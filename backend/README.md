@@ -74,3 +74,14 @@ dotnet tool run dotnet-ef migrations script --idempotent --project src/MulkYonet
 ```
 
 28 Ekim 2026 yerel SQL Server doğrulamasında `InitialBaseline` iki kez çalıştırıldı. İlkinde uygulandı, ikincisinde yeni migration bulunmadı; `__EFMigrationsHistory` satır sayısı 1 oldu. İdempotent scriptin history kontrolü ve migration kaydı içerdiği doğrulandı. Bu başlangıç migration'ı ürün tablosu oluşturmaz; Identity ve tenant şeması FND-03 kapsamındadır.
+
+## Identity şeması integration testi
+
+`IdentityAccountSchema` migration'ı `AspNetUsers`, `Accounts` ve bileşik anahtarlı `AccountMembers` tablolarını açar. Test ayrı bir geçici SQL Server veritabanı oluşturur, migration'ları uygular, geçerli üyeliği kaydeder ve olmayan hesabın FK ile reddedildiğini doğrular; test sonunda yalnız oluşturduğu veritabanını siler. Yerel çalıştırmada `MULK_SQL_TEST_ADMIN_CONNECTION` değişkenine test SQL Server `master` bağlantısını yalnız process environment üzerinden verin:
+
+```powershell
+dotnet restore tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.csproj --locked-mode
+dotnet test tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.csproj --no-restore --configuration Release
+```
+
+CI, ayrı `integration` işinde SQL Server konteyneri ve GitHub Actions `MULK_SQL_TEST_PASSWORD` secret'ı kullanır. Fork pull request'lerinde repo secret'ı verilmediğinden bu iş çalışmaz. Bu şema henüz kayıt/giriş endpoint'i, aktif hesap seçimi veya tenant-scoped ürün sorgusu sağlamaz; bunlar FND-03 devamıdır.

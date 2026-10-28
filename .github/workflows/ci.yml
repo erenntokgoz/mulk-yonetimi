@@ -46,3 +46,29 @@ jobs:
       - run: dotnet build MulkYonetimi.slnx --no-restore --configuration Release
       - run: dotnet test MulkYonetimi.slnx --no-build --configuration Release
       - run: dotnet format MulkYonetimi.slnx --verify-no-changes --no-restore
+
+  integration:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU22-GDR1-ubuntu-22.04@sha256:bf438d7104f861f5e1e1ba14b063d60a5bd883964b3c9b3b3c0064536177baa5
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: ${{ secrets.MULK_SQL_TEST_PASSWORD }}
+        ports:
+          - 14333:1433
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.csproj --locked-mode
+      - run: dotnet test tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.csproj --no-restore --configuration Release
+        env:
+          MULK_SQL_TEST_ADMIN_CONNECTION: Server=127.0.0.1,14333;Database=master;User Id=sa;Password=${{ secrets.MULK_SQL_TEST_PASSWORD }};Encrypt=True;TrustServerCertificate=True;Connect Timeout=10
+      - run: dotnet format tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.csproj --verify-no-changes --no-restore
