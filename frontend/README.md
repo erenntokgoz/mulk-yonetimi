@@ -20,6 +20,7 @@ Tarayıcı: http://localhost:3000. Backend bağımsız başlatılır ve varsayı
 
 `/giris` sayfası e-posta ve parolayı BFF üzerinden backend Identity giriş ucuna gönderir. Backend deployment'ında `Auth__FrontendOrigin`, frontend `FRONTEND_ORIGIN` ile aynı origin olmalıdır.
 `/kayit` ve `/dogrula` sayfaları kayıt ve e-posta doğrulamayı aynı BFF sınırından yürütür. Backend SMTP ayarı kayıt için zorunludur; doğrulama bağlantısı frontend origin'ine gider.
+`/parolami-unuttum`, `/parola-sifirla` ve `/dogrulama-yeniden-gonder` aynı BFF sınırından parola kurtarma ve doğrulama bağlantısı yenileme akışını yürütür.
 
 FND-03 oturum denemesi gerçek Next production sunucusu ile ayrı HTTP fixture üzerinde doğrulanır: HttpOnly cookie login yanıtından tarayıcıya geçer, `/me` isteğinde backend'e iletilir, logout cookie'yi kaldırır ve farklı/eksik Origin mutation'ları 403 alır. Backend fixture Identity yerine geçmez. CI bu tarayıcı testlerini Chromium ile çalıştırır.
 

@@ -62,7 +62,7 @@ public sealed class AccountMembershipResolverTests
             await db.SaveChangesAsync();
 
             var resolver = new AccountMembershipResolver(db);
-            var principalA = Principal(userA.Id, accountB.Id);
+            var principalA = Principal(userA.Id, accountB.Id, userA.SecurityStamp);
             Assert.Equal(accountA.Id, await resolver.ResolveAsync(principalA));
             Assert.Equal(accountB.Id, await resolver.ResolveAsync(Principal(userB.Id)));
             Assert.Null(await resolver.ResolveAsync(new ClaimsPrincipal()));
@@ -98,9 +98,27 @@ public sealed class AccountMembershipResolverTests
                 Assert.Equal(HttpStatusCode.NoContent, confirmation.StatusCode);
                 using var afterConfirmation = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = newUser.Email, password = "Valid-Password-123!" });
                 Assert.Equal(HttpStatusCode.NoContent, afterConfirmation.StatusCode);
+                using var resend = await loginClient.PostAsJsonAsync("/api/v1/auth/resend-confirmation", new { email = "unknown@example.test" });
+                Assert.Equal(HttpStatusCode.Accepted, resend.StatusCode);
+                using var priorLogin = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "Valid-Password-123!" });
+                var priorCookie = priorLogin.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
+                using var resetRequest = await loginClient.PostAsJsonAsync("/api/v1/auth/forgot-password", new { email = userA.Email });
+                Assert.Equal(HttpStatusCode.Accepted, resetRequest.StatusCode);
+                Assert.NotNull(mailer.Url);
+                var resetToken = Uri.UnescapeDataString(mailer.Url!.Split("token=")[1]);
+                using var reset = await loginClient.PostAsJsonAsync("/api/v1/auth/reset-password", new { userId = userA.Id, token = resetToken, password = "New-Password-123!" });
+                Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+                using var staleClient = factory.CreateClient();
+                staleClient.DefaultRequestHeaders.Add("Cookie", priorCookie);
+                using var staleMe = await staleClient.GetAsync("/api/v1/me");
+                Assert.Equal(HttpStatusCode.Unauthorized, staleMe.StatusCode);
+                using var newPassword = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "New-Password-123!" });
+                Assert.Equal(HttpStatusCode.NoContent, newPassword.StatusCode);
+                using var oldPassword = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "Valid-Password-123!" });
+                Assert.Equal(HttpStatusCode.Unauthorized, oldPassword.StatusCode);
                 using var wrongPassword = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "wrong" });
                 Assert.Equal(HttpStatusCode.Unauthorized, wrongPassword.StatusCode);
-                using var login = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "Valid-Password-123!" });
+                using var login = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "New-Password-123!" });
                 Assert.Equal(HttpStatusCode.NoContent, login.StatusCode);
                 var loginCookie = login.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
                 loginClient.DefaultRequestHeaders.Add("Cookie", loginCookie);
@@ -110,6 +128,8 @@ public sealed class AccountMembershipResolverTests
                 Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
                 Assert.Contains("mulk.session=", logout.Headers.GetValues("Set-Cookie").Single());
             }
+            await db.Entry(userA).ReloadAsync();
+            principalA = Principal(userA.Id, accountB.Id, userA.SecurityStamp);
             using var scope = factory.Services.CreateScope();
             var signInContext = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
             signInContext.Request.Scheme = "https";
@@ -126,6 +146,7 @@ public sealed class AccountMembershipResolverTests
             }
 
             await db.Entry(userA).ReloadAsync();
+            principalA = Principal(userA.Id, accountB.Id, userA.SecurityStamp);
             userA.EmailConfirmed = false;
             await db.SaveChangesAsync();
             Assert.Null(await resolver.ResolveAsync(principalA));
@@ -149,11 +170,13 @@ public sealed class AccountMembershipResolverTests
         }
     }
 
-    private static ClaimsPrincipal Principal(Guid userId, Guid? misleadingAccountId = null)
+    private static ClaimsPrincipal Principal(Guid userId, Guid? misleadingAccountId = null, string? securityStamp = null)
     {
         var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId.ToString()) };
         if (misleadingAccountId is { } accountId)
             claims.Add(new Claim("AccountId", accountId.ToString()));
+        if (securityStamp is not null)
+            claims.Add(new Claim("AspNet.Identity.SecurityStamp", securityStamp));
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
     }
 
@@ -165,6 +188,11 @@ public sealed class AccountMembershipResolverTests
         public Task SendAsync(string address, string confirmationUrl, CancellationToken cancellationToken)
         {
             Url = confirmationUrl;
+            return Task.CompletedTask;
+        }
+        public Task SendPasswordResetAsync(string address, string resetUrl, CancellationToken cancellationToken)
+        {
+            Url = resetUrl;
             return Task.CompletedTask;
         }
     }
