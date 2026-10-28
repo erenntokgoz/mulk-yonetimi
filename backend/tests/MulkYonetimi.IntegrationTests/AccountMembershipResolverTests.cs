@@ -1,6 +1,14 @@
 using System.Security.Claims;
+using System.Net;
+using System.Net.Http.Json;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using MulkYonetimi.Infrastructure;
 
 namespace MulkYonetimi.IntegrationTests;
@@ -55,6 +63,23 @@ public sealed class AccountMembershipResolverTests
             Assert.Equal(accountB.Id, await resolver.ResolveAsync(Principal(userB.Id)));
             Assert.Null(await resolver.ResolveAsync(new ClaimsPrincipal()));
 
+            using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(host =>
+                host.UseSetting("ConnectionStrings:DefaultConnection", builder.ConnectionString));
+            using var scope = factory.Services.CreateScope();
+            var signInContext = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+            signInContext.Request.Scheme = "https";
+            signInContext.Request.Host = new HostString("localhost");
+            await signInContext.SignInAsync(IdentityConstants.ApplicationScheme, principalA);
+            var cookie = signInContext.Response.Headers.SetCookie.ToString().Split(';')[0];
+            using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+            client.DefaultRequestHeaders.Add("Cookie", cookie);
+            using (var response = await client.GetAsync("/api/v1/me"))
+            {
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                var me = await response.Content.ReadFromJsonAsync<MeDto>();
+                Assert.Equal(accountA.Id, me?.AccountId);
+            }
+
             userA.EmailConfirmed = false;
             await db.SaveChangesAsync();
             Assert.Null(await resolver.ResolveAsync(principalA));
@@ -63,6 +88,8 @@ public sealed class AccountMembershipResolverTests
             memberA.Status = "SUSPENDED";
             await db.SaveChangesAsync();
             Assert.Null(await resolver.ResolveAsync(principalA));
+            using (var response = await client.GetAsync("/api/v1/me"))
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
 
             memberA.Status = "ACTIVE";
             db.AccountMembers.Add(new AccountMember { AccountId = accountB.Id, UserId = userA.Id, Role = "OWNER", Status = "ACTIVE" });
@@ -83,4 +110,6 @@ public sealed class AccountMembershipResolverTests
             claims.Add(new Claim("AccountId", accountId.ToString()));
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
     }
+
+    private sealed record MeDto(Guid AccountId);
 }

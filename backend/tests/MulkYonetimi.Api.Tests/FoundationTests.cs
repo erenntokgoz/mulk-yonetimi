@@ -66,6 +66,18 @@ public sealed class FoundationTests
     }
 
     [Fact]
+    public async Task Me_requires_an_authenticated_session_without_redirecting()
+    {
+        using var factory = CreateFactory(HealthStatus.Healthy);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        using var response = await client.GetAsync("/api/v1/me");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+    }
+
+    [Fact]
     public async Task Development_openapi_describes_health_contract()
     {
         using var factory = CreateFactory(HealthStatus.Healthy);
