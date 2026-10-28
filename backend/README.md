@@ -52,3 +52,25 @@ API testleri gerçek HTTP uygulamasını in-process başlatır. SQL başarı/ba�
 Derleyici/analyzer uyarıları proje kodunda hatadır. Generated kod analyzer kapsamından hariç işaretlidir. NuGet audit, transitif bağımlılıklar dahil düşük ve üzeri tüm önem seviyelerini denetler; NU1901–NU1904 için hata istisnası yoktur. Bu nedenle güvenlik bulgusu restore kapısını başarısız kılar; `dotnet list ... --vulnerable` komutu ayrıntılı rapor içindir. SQL Client'ın transitif `System.Security.Cryptography.Pkcs` sürümü [GHSA-846f-f764-76mx](https://github.com/advisories/GHSA-846f-f764-76mx) ve [GHSA-2fmv-rv2c-59x7](https://github.com/advisories/GHSA-2fmv-rv2c-59x7) nedeniyle yamalı `10.0.14` sürümüne sabitlenmiştir.
 
 NuGet paketleri her proje için `packages.lock.json` ile kilitlidir. Bağımlılık değiştirildiğinde `dotnet restore MulkYonetimi.slnx --use-lock-file` çalıştırıp ilgili lockfile'ı aynı değişiklikte güncelleyin; normal doğrulamada `--locked-mode` kullanın.
+
+## EF Core migration ve ortamlar
+
+`dotnet tool restore` ile proje içinde sabitlenmiş `dotnet-ef` 10.0.14 sürümünü kurun. Migration kaynağı `src/MulkYonetimi.Infrastructure/Migrations` dizinidir. API başlarken migration çalıştırmaz.
+
+`Development`, `Staging` ve `Production` için `ASPNETCORE_ENVIRONMENT` ve `ConnectionStrings__DefaultConnection` değişkenlerini deployment ortamında ayrı tanımlayın. Her ortam ayrı SQL Server veritabanı ve ayrı en az yetkili kullanıcı kullanır; staging/production secret'ları repo, `appsettings*.json` veya frontend değişkenlerinde tutulmaz. Yerel development SQL Server için kök README'deki bağlantıyı kullanın. `TrustServerCertificate=True` yalnız yerel development içindir.
+
+Migration oluşturma ve yerel development veritabanına açıkça uygulama:
+
+```powershell
+dotnet tool restore
+dotnet tool run dotnet-ef migrations add <Name> --project src/MulkYonetimi.Infrastructure --startup-project src/MulkYonetimi.Api --context ApplicationDbContext --output-dir Migrations
+dotnet tool run dotnet-ef database update --project src/MulkYonetimi.Infrastructure --startup-project src/MulkYonetimi.Api --context ApplicationDbContext
+```
+
+Production dağıtımında önce yedek ve restore testi tamamlanır. Sonra sürümdeki migration'lardan idempotent SQL script üretilir ve DBA/deployment onayıyla hedef staging veritabanında uygulanıp smoke test yapılır. Aynı sürüm production'a kontrollü adım olarak uygulanır; uygulama açılışı migration yetkisi taşımaz:
+
+```powershell
+dotnet tool run dotnet-ef migrations script --idempotent --project src/MulkYonetimi.Infrastructure --startup-project src/MulkYonetimi.Api --context ApplicationDbContext --output migration.sql
+```
+
+28 Ekim 2026 yerel SQL Server doğrulamasında `InitialBaseline` iki kez çalıştırıldı. İlkinde uygulandı, ikincisinde yeni migration bulunmadı; `__EFMigrationsHistory` satır sayısı 1 oldu. İdempotent scriptin history kontrolü ve migration kaydı içerdiği doğrulandı. Bu başlangıç migration'ı ürün tablosu oluşturmaz; Identity ve tenant şeması FND-03 kapsamındadır.
