@@ -3,6 +3,20 @@ import { createServer } from "node:http";
 // Test-only boundary fixture. The production Next.js page and health client stay real.
 let state = "Healthy";
 createServer(async (request, response) => {
+  if (request.method === "POST" && request.url === "/api/v1/auth/login") {
+    response.writeHead(204, { "Set-Cookie": "mulk.session=fixture; HttpOnly; SameSite=Lax; Path=/" }).end();
+    return;
+  }
+  if (request.method === "POST" && request.url === "/api/v1/auth/logout") {
+    response.writeHead(204, { "Set-Cookie": "mulk.session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0" }).end();
+    return;
+  }
+  if (request.method === "GET" && request.url === "/api/v1/me") {
+    const authenticated = request.headers.cookie?.includes("mulk.session=fixture");
+    response.writeHead(authenticated ? 200 : 401, { "Content-Type": "application/json" });
+    response.end(JSON.stringify(authenticated ? { id: "fixture-user" } : { error: "unauthorized" }));
+    return;
+  }
   if (request.method === "POST" && request.url === "/state") {
     let body = "";
     for await (const chunk of request) body += chunk;

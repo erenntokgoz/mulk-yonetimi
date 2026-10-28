@@ -16,7 +16,7 @@ export default defineConfig({
     {
       command: "pnpm start -p 3109",
       port: 3109,
-      env: { BACKEND_BASE_URL: "http://127.0.0.1:5089" },
+      env: { BACKEND_BASE_URL: "http://127.0.0.1:5089", FRONTEND_ORIGIN: "http://127.0.0.1:3109" },
     },
     {
       command: "pnpm start -p 3110",
