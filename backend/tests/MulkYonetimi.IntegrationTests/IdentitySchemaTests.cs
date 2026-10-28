@@ -45,6 +45,18 @@ public sealed class IdentitySchemaTests
             db.AccountMembers.Add(new AccountMember { AccountId = account.Id, UserId = user.Id, Role = "OWNER", Status = "ACTIVE" });
             await db.SaveChangesAsync();
 
+            db.OutboxMessages.Add(new OutboxMessage
+            {
+                Id = Guid.NewGuid(),
+                AccountId = Guid.NewGuid(),
+                Kind = "CONFIRM_EMAIL",
+                RecipientEmail = user.Email!,
+                ProtectedUrl = "encrypted-payload",
+                NextAttemptAtUtc = DateTime.UtcNow
+            });
+            await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+            db.ChangeTracker.Clear();
+
             db.AccountMembers.Add(new AccountMember { AccountId = Guid.NewGuid(), UserId = user.Id, Role = "OWNER", Status = "ACTIVE" });
             await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
         }

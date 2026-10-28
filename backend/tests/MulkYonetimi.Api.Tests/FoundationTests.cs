@@ -4,11 +4,30 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Options;
 
 namespace MulkYonetimi.Api.Tests;
 
 public sealed class FoundationTests
 {
+    [Fact]
+    public void Forwarded_headers_trust_only_explicit_proxy_addresses()
+    {
+        using var directFactory = new WebApplicationFactory<Program>();
+        var directOptions = directFactory.Services.GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
+        Assert.Equal(ForwardedHeaders.None, directOptions.ForwardedHeaders);
+
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.UseSetting("Network:KnownProxies:0", "10.20.30.40"));
+        var options = factory.Services.GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
+        Assert.Single(options.KnownProxies);
+        Assert.Contains(IPAddress.Parse("10.20.30.40"), options.KnownProxies);
+        Assert.Empty(options.KnownIPNetworks);
+        Assert.Equal(1, options.ForwardLimit);
+    }
+
     [Theory]
     [InlineData(HealthStatus.Healthy, HttpStatusCode.OK, "Healthy")]
     [InlineData(HealthStatus.Degraded, HttpStatusCode.OK, "Degraded")]
@@ -46,7 +65,8 @@ public sealed class FoundationTests
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var check = Assert.Single(json.RootElement.GetProperty("checks").EnumerateArray());
+        var check = json.RootElement.GetProperty("checks").EnumerateArray()
+            .Single(item => item.GetProperty("name").GetString() == "sqlserver");
         Assert.Equal("sqlserver", check.GetProperty("name").GetString());
         Assert.Equal("Unhealthy", check.GetProperty("status").GetString());
     }

@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using System.Security.Claims;
-using System.Net.Mail;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
@@ -9,6 +8,8 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
+using System.Net;
 using MulkYonetimi.Api;
 using MulkYonetimi.Infrastructure;
 
@@ -65,6 +66,24 @@ builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<AccountMembershipResolver>();
 builder.Services.AddScoped<IConfirmationMailer, SmtpConfirmationMailer>();
+builder.Services.AddScoped<EmailOutboxQueue>();
+builder.Services.AddScoped<EmailOutboxDispatcher>();
+builder.Services.AddHostedService<EmailOutboxWorker>();
+var trustedProxies = builder.Configuration.GetSection("Network:KnownProxies").Get<string[]>() ?? [];
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    if (trustedProxies.Length == 0) return;
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    options.KnownProxies.Clear();
+    options.KnownIPNetworks.Clear();
+    foreach (var proxy in trustedProxies)
+    {
+        if (!IPAddress.TryParse(proxy, out var address))
+            throw new InvalidOperationException("Network:KnownProxies contains an invalid IP address.");
+        options.KnownProxies.Add(address);
+    }
+});
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -82,9 +101,11 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0
         }));
 });
-builder.Services.AddHealthChecks().AddDbContextCheck<ApplicationDbContext>("sqlserver");
+builder.Services.AddHealthChecks().AddDbContextCheck<ApplicationDbContext>("sqlserver")
+    .AddCheck<EmailOutboxHealthCheck>("outbox");
 
 var app = builder.Build();
+app.UseForwardedHeaders();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseRouting();
@@ -164,7 +185,7 @@ app.MapPost("/api/v1/auth/logout", async (HttpContext context,
     .Produces(StatusCodes.Status403Forbidden);
 
 app.MapPost("/api/v1/auth/register", async (RegisterRequest input, HttpContext context,
-    UserManager<ApplicationUser> users, ApplicationDbContext db, IConfirmationMailer mailer,
+    UserManager<ApplicationUser> users, ApplicationDbContext db, EmailOutboxQueue outbox,
     IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     context.Response.Headers.CacheControl = "no-store";
@@ -190,8 +211,8 @@ app.MapPost("/api/v1/auth/register", async (RegisterRequest input, HttpContext c
 
     var token = await users.GenerateEmailConfirmationTokenAsync(user);
     var url = $"{configuration["Auth:FrontendOrigin"]}/dogrula?userId={user.Id}&token={Uri.EscapeDataString(token)}";
-    try { await mailer.SendAsync(email, url, cancellationToken); }
-    catch (SmtpException) { return Results.StatusCode(503); }
+    outbox.Add(account.Id, "CONFIRM_EMAIL", email, url);
+    await db.SaveChangesAsync(cancellationToken);
     await transaction.CommitAsync(cancellationToken);
     return Results.Accepted();
 })
@@ -219,7 +240,7 @@ app.MapPost("/api/v1/auth/confirm-email", async (ConfirmEmailRequest input, Http
     .Produces(StatusCodes.Status403Forbidden);
 
 app.MapPost("/api/v1/auth/resend-confirmation", async (EmailRequest input, HttpContext context,
-    UserManager<ApplicationUser> users, IConfirmationMailer mailer, IConfiguration configuration,
+    UserManager<ApplicationUser> users, ApplicationDbContext db, EmailOutboxQueue outbox, IConfiguration configuration,
     CancellationToken cancellationToken) =>
 {
     context.Response.Headers.CacheControl = "no-store";
@@ -230,10 +251,15 @@ app.MapPost("/api/v1/auth/resend-confirmation", async (EmailRequest input, HttpC
     var user = await users.FindByEmailAsync(input.Email.Trim());
     if (user is { EmailConfirmed: false })
     {
+        var accountIds = await (from member in db.AccountMembers
+                                join account in db.Accounts on member.AccountId equals account.Id
+                                where member.UserId == user.Id && member.Status == "ACTIVE" && account.Status == "ACTIVE"
+                                select member.AccountId).Take(2).ToListAsync(cancellationToken);
+        if (accountIds.Count != 1) return Results.Accepted();
         var token = await users.GenerateEmailConfirmationTokenAsync(user);
         var url = $"{configuration["Auth:FrontendOrigin"]}/dogrula?userId={user.Id}&token={Uri.EscapeDataString(token)}";
-        try { await mailer.SendAsync(user.Email!, url, cancellationToken); }
-        catch (SmtpException) { return Results.StatusCode(503); }
+        outbox.Add(accountIds[0], "CONFIRM_EMAIL", user.Email!, url);
+        await db.SaveChangesAsync(cancellationToken);
     }
     return Results.Accepted();
 })
@@ -245,7 +271,7 @@ app.MapPost("/api/v1/auth/resend-confirmation", async (EmailRequest input, HttpC
     .Produces(StatusCodes.Status503ServiceUnavailable);
 
 app.MapPost("/api/v1/auth/forgot-password", async (EmailRequest input, HttpContext context,
-    UserManager<ApplicationUser> users, IConfirmationMailer mailer, IConfiguration configuration,
+    UserManager<ApplicationUser> users, ApplicationDbContext db, EmailOutboxQueue outbox, IConfiguration configuration,
     CancellationToken cancellationToken) =>
 {
     context.Response.Headers.CacheControl = "no-store";
@@ -256,10 +282,15 @@ app.MapPost("/api/v1/auth/forgot-password", async (EmailRequest input, HttpConte
     var user = await users.FindByEmailAsync(input.Email.Trim());
     if (user is { EmailConfirmed: true })
     {
+        var accountIds = await (from member in db.AccountMembers
+                                join account in db.Accounts on member.AccountId equals account.Id
+                                where member.UserId == user.Id && member.Status == "ACTIVE" && account.Status == "ACTIVE"
+                                select member.AccountId).Take(2).ToListAsync(cancellationToken);
+        if (accountIds.Count != 1) return Results.Accepted();
         var token = await users.GeneratePasswordResetTokenAsync(user);
         var url = $"{configuration["Auth:FrontendOrigin"]}/parola-sifirla?userId={user.Id}&token={Uri.EscapeDataString(token)}";
-        try { await mailer.SendPasswordResetAsync(user.Email!, url, cancellationToken); }
-        catch (SmtpException) { return Results.StatusCode(503); }
+        outbox.Add(accountIds[0], "RESET_PASSWORD", user.Email!, url);
+        await db.SaveChangesAsync(cancellationToken);
     }
     return Results.Accepted();
 })
