@@ -52,6 +52,10 @@ Testler Node.js test runner ve gerçek yerel HTTP sunucuları kullanır. `react-
 
 Auth, tenant işlemleri ve ürün CRUD akışları bu foundation kapsamının dışındadır. Backend + gerçek SQL Server ile uçtan uca smoke kontrolü kök entegrasyon adımında yürütülür.
 
+## Ürün sayfaları
+
+Genel bakış, Portföy, Kiracılar, Sözleşmeler, Kira ve tahsilatlar, Depozitolar, Giderler, Belgeler, Raporlar, Bildirimler ve Ayarlar için masaüstü/mobil gezinme vardır. Ürün API'leri henüz bulunmadığından bu sayfalar kayıt yokmuş gibi davranmaz; bölümün kullanıma açık olmadığını gösterir. CRUD, detay ekranları ve gerçek boş/veri/hata durumları ilgili backend endpoint'leriyle birlikte eklenecektir. Genel bakış şu anda yalnız sistem durumunu gösterir.
+
 ## Foundation doğrulama kaydı
 
 28 Ekim 2026: `pnpm install --frozen-lockfile`, lint, typecheck, 10 health istemci testi ve production build başarılı. Chromium üzerinde 7 Playwright testi geçti: Healthy, Degraded, Unhealthy, bağlantı hatası, yapılandırma hatası, klavye/yenileme ve mobil yerleşim. `pnpm start -p 3100` ile production HTTP smoke: HTTP 200, Türkçe belge, içeriğe geç bağlantısı, eksik yapılandırma mesajı ve yenile kontrolü doğrulandı.

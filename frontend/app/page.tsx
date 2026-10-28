@@ -24,16 +24,16 @@ export default async function Home() {
     ? "Hizmet bağlantısı yapılandırılmamış. Sistem yöneticisiyle iletişime geçin."
     : result.kind === "unavailable"
       ? "Hizmet durumu alınamadı. Bir süre sonra sayfayı yenileyerek tekrar deneyin."
-      : "Uygulama hizmetlerinin anlık durumu aşağıda gösterilir.";
+      : null;
 
   return (
     <DashboardShell>
-      <div className="space-y-1"><h1 className="text-2xl font-semibold tracking-tight">Genel bakış</h1><p className="text-sm text-muted-foreground">Mülklerinizi yöneteceğiniz çalışma alanına hoş geldiniz.</p></div>
+      <h1 className="text-2xl font-semibold tracking-tight">Genel bakış</h1>
       <Card className="w-full max-w-3xl">
         <CardHeader><CardTitle>Sistem durumu</CardTitle><CardDescription>Uygulama hizmeti ve veritabanı bağlantısı</CardDescription></CardHeader>
         <CardContent className="space-y-4">
           <div role="status" className="flex items-center gap-2 text-lg font-medium"><span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${report?.status === "Healthy" ? "bg-green-700" : "bg-amber-700"}`} />{status}</div>
-          <p className="text-sm text-muted-foreground">{detail}</p>
+          {detail && <p className="text-sm text-muted-foreground">{detail}</p>}
           {report && <dl className="border-t text-sm">{report.checks.map((check, index) => <div key={`${check.name}-${index}`} className="flex justify-between gap-4 border-b py-3"><dt>{check.name === "sqlserver" ? "SQL Server" : "Bağlı hizmet"}</dt><dd className="font-medium">{statusLabels[check.status]}</dd></div>)}</dl>}
         </CardContent>
         <CardFooter className="border-t pt-5"><form action="/" method="get"><Button type="submit" variant="outline">Durumu yenile</Button></form></CardFooter>
