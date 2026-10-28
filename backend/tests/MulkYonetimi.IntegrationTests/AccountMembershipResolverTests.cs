@@ -162,6 +162,17 @@ public sealed class AccountMembershipResolverTests
             db.AccountMembers.Add(new AccountMember { AccountId = accountB.Id, UserId = userA.Id, Role = "OWNER", Status = "ACTIVE" });
             await db.SaveChangesAsync();
             Assert.Null(await resolver.ResolveAsync(principalA));
+            using var rateClient = factory.CreateClient();
+            rateClient.DefaultRequestHeaders.Add("Origin", "https://app.example.test");
+            var statuses = new List<HttpStatusCode>();
+            for (var attempt = 0; attempt < 40; attempt++)
+            {
+                using var response = await rateClient.PostAsJsonAsync("/api/v1/auth/resend-confirmation", new { email = "missing@example.test" });
+                statuses.Add(response.StatusCode);
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                    Assert.Equal("60", response.Headers.RetryAfter?.ToString());
+            }
+            Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
         }
         finally
         {

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 
 function ConfirmForm() {
   const search = useSearchParams();
-  const [state, setState] = useState<"idle" | "pending" | "done" | "error">("idle");
+  const [state, setState] = useState<"idle" | "pending" | "done" | "error" | "limited">("idle");
   async function confirm() {
     setState("pending");
     try {
@@ -15,7 +15,7 @@ function ConfirmForm() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: search.get("userId"), token: search.get("token") }),
       });
-      setState(response.ok ? "done" : "error");
+      setState(response.ok ? "done" : response.status === 429 ? "limited" : "error");
     } catch { setState("error"); }
   }
   return <main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 px-4 py-10">
@@ -23,6 +23,7 @@ function ConfirmForm() {
     {state === "done" ? <p role="status">E-posta doğrulandı. Giriş yapabilirsiniz.</p> :
       <><Button type="button" size="lg" onClick={confirm} disabled={state === "pending" || !search.get("userId") || !search.get("token")}>E-postayı doğrula</Button>
         {state === "error" && <p role="alert" className="text-sm text-destructive">Bağlantı geçersiz veya kullanılmış.</p>}</>}
+    {state === "limited" && <p role="alert" className="text-sm text-destructive">Çok fazla deneme. Bir dakika sonra tekrar deneyin.</p>}
     <Link href="/giris" className="text-sm underline">Giriş</Link>
     <Link href="/dogrulama-yeniden-gonder" className="text-sm underline">Yeni doğrulama bağlantısı gönder</Link>
   </main>;
