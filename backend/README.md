@@ -85,3 +85,5 @@ dotnet test tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.cs
 ```
 
 CI, ayrı `integration` işinde SQL Server konteyneri ve GitHub Actions `MULK_SQL_TEST_PASSWORD` secret'ı kullanır. Fork pull request'lerinde repo secret'ı verilmediğinden bu iş çalışmaz. Bu şema henüz kayıt/giriş endpoint'i, aktif hesap seçimi veya tenant-scoped ürün sorgusu sağlamaz; bunlar FND-03 devamıdır.
+
+`AccountMembershipResolver` doğrulanmış principal içindeki kullanıcı GUID'inden tek aktif OWNER üyeliğini ve aktif hesabı SQL sorgusuyla çözer. İstemci `AccountId` değeri veya claim'i yetki kaynağı değildir; doğrulanmamış e-posta, askıdaki üyelik ve birden fazla aktif üyelikte sonuç verilmez. Her ürün endpoint'inin bu sonucu zorunlu kılması ve gerçek Identity cookie ile `/api/v1/me` akışı FND-03'ün sonraki dilimidir. İki hesaplı gerçek SQL testi bu sınırları doğrular.
