@@ -27,6 +27,7 @@ export async function proxyAuth(request: Request, path: string, mutation: boolea
   }
 
   const headers = new Headers({ Accept: "application/json" });
+  if (mutation) headers.set("Origin", expectedOrigin);
   const cookie = request.headers.get("cookie");
   const contentType = request.headers.get("content-type");
   if (cookie) headers.set("Cookie", cookie);

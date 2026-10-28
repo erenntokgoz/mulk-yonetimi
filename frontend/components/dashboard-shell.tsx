@@ -22,7 +22,7 @@ export function DashboardShell({ children, title = "Genel bakış" }: { children
             <Breadcrumb aria-label="İçerik yolu" className="hidden md:flex">
               <BreadcrumbList><BreadcrumbItem><BreadcrumbPage>{title}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList>
             </Breadcrumb>
-            <span className="ml-auto text-sm text-muted-foreground">Mülk Yönetimi</span>
+            <Link href="/giris" className="ml-auto rounded-md px-2 py-2 text-sm text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Giriş</Link>
           </header>
           <main id="main" tabIndex={-1} className="grid flex-1 content-start gap-4 p-4 sm:px-6 sm:py-0">
             {children}
