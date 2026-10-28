@@ -49,7 +49,7 @@ export default function LoginPage() {
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <Button type="submit" size="lg" disabled={busy}>{busy ? "Giriş yapılıyor…" : "Giriş yap"}</Button>
       </form>
-      <Link href="/" className="text-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Genel bakış</Link>
+      <Link href="/kayit" className="text-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Hesap oluştur</Link>
     </main>
   );
 }

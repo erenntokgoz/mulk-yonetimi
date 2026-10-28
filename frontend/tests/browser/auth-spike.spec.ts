@@ -1,5 +1,17 @@
 import { expect, test } from "@playwright/test";
 
+test("registration and email confirmation forms use the BFF", async ({ page }) => {
+  await page.goto("/kayit");
+  await page.getByLabel("Hesap adı").fill("Owner");
+  await page.getByLabel("E-posta").fill("new@example.test");
+  await page.getByLabel("Parola").fill("Valid-Password-123!");
+  await page.getByRole("button", { name: "Hesap oluştur" }).click();
+  await expect(page.getByRole("status")).toContainText("doğrulama bağlantısını");
+  await page.goto("/dogrula?userId=00000000-0000-0000-0000-000000000001&token=fixture");
+  await page.getByRole("button", { name: "E-postayı doğrula" }).click();
+  await expect(page.getByRole("status")).toContainText("E-posta doğrulandı");
+});
+
 test("login form sends credentials through BFF", async ({ page }) => {
   await page.goto("/giris");
   await page.getByRole("textbox", { name: "E-posta" }).fill("owner@example.test");
