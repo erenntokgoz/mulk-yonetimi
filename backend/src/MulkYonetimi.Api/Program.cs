@@ -1,5 +1,8 @@
 using System.Text.Json.Serialization;
 using System.Security.Claims;
+using System.Net.Mail;
+using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +11,12 @@ using MulkYonetimi.Api;
 using MulkYonetimi.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+var keysPath = builder.Configuration["Auth:DataProtectionKeysPath"];
+if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(keysPath))
+    throw new InvalidOperationException("Auth:DataProtectionKeysPath must be configured.");
+if (!string.IsNullOrWhiteSpace(keysPath))
+    builder.Services.AddDataProtection().SetApplicationName("MulkYonetimi")
+        .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -16,7 +25,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedEmail = true)
     .AddEntityFrameworkStores<ApplicationDbContext>()
-    .AddSignInManager();
+    .AddSignInManager()
+    .AddDefaultTokenProviders();
 builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
     .AddCookie(IdentityConstants.ApplicationScheme, options =>
     {
@@ -42,6 +52,7 @@ builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
     });
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<AccountMembershipResolver>();
+builder.Services.AddScoped<IConfirmationMailer, SmtpConfirmationMailer>();
 builder.Services.AddHealthChecks().AddDbContextCheck<ApplicationDbContext>("sqlserver");
 
 var app = builder.Build();
@@ -117,6 +128,59 @@ app.MapPost("/api/v1/auth/logout", async (HttpContext context,
 })
     .WithName("Logout")
     .Produces(StatusCodes.Status204NoContent)
+    .Produces(StatusCodes.Status403Forbidden);
+
+app.MapPost("/api/v1/auth/register", async (RegisterRequest input, HttpContext context,
+    UserManager<ApplicationUser> users, ApplicationDbContext db, IConfirmationMailer mailer,
+    IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    if (!AllowedOrigin(context, configuration)) return Results.Forbid();
+    if (string.IsNullOrWhiteSpace(configuration["Email:SmtpHost"]) ||
+        string.IsNullOrWhiteSpace(configuration["Email:From"])) return Results.StatusCode(503);
+    var email = input.Email?.Trim();
+    var accountName = input.AccountName?.Trim();
+    if (string.IsNullOrWhiteSpace(email) || email.Length > 256 || !new EmailAddressAttribute().IsValid(email) ||
+        string.IsNullOrWhiteSpace(accountName) || accountName.Length > 200 ||
+        string.IsNullOrWhiteSpace(input.Password)) return Results.BadRequest();
+    if (await users.FindByEmailAsync(email) is not null) return Results.Accepted();
+
+    await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+    var user = new ApplicationUser { Id = Guid.NewGuid(), UserName = email, Email = email, LockoutEnabled = true };
+    var result = await users.CreateAsync(user, input.Password);
+    if (!result.Succeeded) return Results.BadRequest(new { errors = result.Errors.Select(error => error.Code) });
+
+    var account = new Account { Id = Guid.NewGuid(), Name = accountName };
+    db.Accounts.Add(account);
+    db.AccountMembers.Add(new AccountMember { AccountId = account.Id, UserId = user.Id, Role = "OWNER", Status = "ACTIVE" });
+    await db.SaveChangesAsync(cancellationToken);
+
+    var token = await users.GenerateEmailConfirmationTokenAsync(user);
+    var url = $"{configuration["Auth:FrontendOrigin"]}/dogrula?userId={user.Id}&token={Uri.EscapeDataString(token)}";
+    try { await mailer.SendAsync(email, url, cancellationToken); }
+    catch (SmtpException) { return Results.StatusCode(503); }
+    await transaction.CommitAsync(cancellationToken);
+    return Results.Accepted();
+})
+    .WithName("Register")
+    .Produces(StatusCodes.Status202Accepted)
+    .Produces(StatusCodes.Status400BadRequest)
+    .Produces(StatusCodes.Status403Forbidden)
+    .Produces(StatusCodes.Status503ServiceUnavailable);
+
+app.MapPost("/api/v1/auth/confirm-email", async (ConfirmEmailRequest input, HttpContext context,
+    UserManager<ApplicationUser> users, IConfiguration configuration) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    if (!AllowedOrigin(context, configuration)) return Results.Forbid();
+    var user = await users.FindByIdAsync(input.UserId.ToString());
+    if (user is null || user.EmailConfirmed || string.IsNullOrWhiteSpace(input.Token)) return Results.BadRequest();
+    var result = await users.ConfirmEmailAsync(user, input.Token);
+    return result.Succeeded ? Results.NoContent() : Results.BadRequest();
+})
+    .WithName("ConfirmEmail")
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces(StatusCodes.Status400BadRequest)
     .Produces(StatusCodes.Status403Forbidden);
 
 app.Run();

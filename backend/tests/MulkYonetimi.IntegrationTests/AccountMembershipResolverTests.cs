@@ -6,10 +6,12 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MulkYonetimi.Infrastructure;
+using MulkYonetimi.Api;
 
 namespace MulkYonetimi.IntegrationTests;
 
@@ -65,16 +67,37 @@ public sealed class AccountMembershipResolverTests
             Assert.Equal(accountB.Id, await resolver.ResolveAsync(Principal(userB.Id)));
             Assert.Null(await resolver.ResolveAsync(new ClaimsPrincipal()));
 
+            var mailer = new FakeMailer();
             using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(host =>
             {
                 host.UseSetting("ConnectionStrings:DefaultConnection", builder.ConnectionString);
                 host.UseSetting("Auth:FrontendOrigin", "https://app.example.test");
+                host.UseSetting("Email:SmtpHost", "fake");
+                host.UseSetting("Email:From", "noreply@example.test");
+                host.ConfigureTestServices(services => services.AddSingleton<IConfirmationMailer>(mailer));
             });
             using (var loginClient = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false }))
             {
                 using var badOrigin = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "Valid-Password-123!" });
                 Assert.Equal(HttpStatusCode.Forbidden, badOrigin.StatusCode);
                 loginClient.DefaultRequestHeaders.Add("Origin", "https://app.example.test");
+                using var registration = await loginClient.PostAsJsonAsync("/api/v1/auth/register", new { email = "new@example.test", password = "Valid-Password-123!", accountName = "New account" });
+                Assert.Equal(HttpStatusCode.Accepted, registration.StatusCode);
+                using var duplicate = await loginClient.PostAsJsonAsync("/api/v1/auth/register", new { email = "new@example.test", password = "Valid-Password-123!", accountName = "Other account" });
+                Assert.Equal(HttpStatusCode.Accepted, duplicate.StatusCode);
+                Assert.NotNull(mailer.Url);
+                var newUser = await db.Users.SingleAsync(item => item.Email == "new@example.test");
+                Assert.False(newUser.EmailConfirmed);
+                Assert.Equal(1, await db.AccountMembers.CountAsync(item => item.UserId == newUser.Id));
+                using var beforeConfirmation = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = newUser.Email, password = "Valid-Password-123!" });
+                Assert.NotEqual(HttpStatusCode.NoContent, beforeConfirmation.StatusCode);
+                using var badConfirmation = await loginClient.PostAsJsonAsync("/api/v1/auth/confirm-email", new { userId = newUser.Id, token = "invalid" });
+                Assert.Equal(HttpStatusCode.BadRequest, badConfirmation.StatusCode);
+                var token = Uri.UnescapeDataString(mailer.Url!.Split("token=")[1]);
+                using var confirmation = await loginClient.PostAsJsonAsync("/api/v1/auth/confirm-email", new { userId = newUser.Id, token });
+                Assert.Equal(HttpStatusCode.NoContent, confirmation.StatusCode);
+                using var afterConfirmation = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = newUser.Email, password = "Valid-Password-123!" });
+                Assert.Equal(HttpStatusCode.NoContent, afterConfirmation.StatusCode);
                 using var wrongPassword = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "wrong" });
                 Assert.Equal(HttpStatusCode.Unauthorized, wrongPassword.StatusCode);
                 using var login = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "Valid-Password-123!" });
@@ -135,4 +158,14 @@ public sealed class AccountMembershipResolverTests
     }
 
     private sealed record MeDto(Guid AccountId);
+
+    private sealed class FakeMailer : IConfirmationMailer
+    {
+        public string? Url { get; private set; }
+        public Task SendAsync(string address, string confirmationUrl, CancellationToken cancellationToken)
+        {
+            Url = confirmationUrl;
+            return Task.CompletedTask;
+        }
+    }
 }
