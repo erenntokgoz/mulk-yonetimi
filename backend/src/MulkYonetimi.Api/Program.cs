@@ -83,6 +83,52 @@ app.MapGet("/api/v1/me", async (ClaimsPrincipal principal, AccountMembershipReso
     .Produces(StatusCodes.Status401Unauthorized)
     .Produces(StatusCodes.Status403Forbidden);
 
+app.MapPost("/api/v1/auth/login", async (LoginRequest input, HttpContext context,
+    UserManager<ApplicationUser> users, SignInManager<ApplicationUser> signIn,
+    AccountMembershipResolver memberships, IConfiguration configuration) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    if (!AllowedOrigin(context, configuration)) return Results.Forbid();
+    if (string.IsNullOrWhiteSpace(input.Email) || string.IsNullOrWhiteSpace(input.Password))
+        return Results.BadRequest();
+
+    var user = await users.FindByEmailAsync(input.Email.Trim());
+    if (user is null || !(await signIn.CheckPasswordSignInAsync(user, input.Password, lockoutOnFailure: true)).Succeeded)
+        return Results.Unauthorized();
+    var principal = await signIn.CreateUserPrincipalAsync(user);
+    if (await memberships.ResolveAsync(principal) is null) return Results.Forbid();
+
+    await signIn.SignInAsync(user, isPersistent: false);
+    return Results.NoContent();
+})
+    .WithName("Login")
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces(StatusCodes.Status400BadRequest)
+    .Produces(StatusCodes.Status401Unauthorized)
+    .Produces(StatusCodes.Status403Forbidden);
+
+app.MapPost("/api/v1/auth/logout", async (HttpContext context,
+    SignInManager<ApplicationUser> signIn, IConfiguration configuration) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    if (!AllowedOrigin(context, configuration)) return Results.Forbid();
+    await signIn.SignOutAsync();
+    return Results.NoContent();
+})
+    .WithName("Logout")
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces(StatusCodes.Status403Forbidden);
+
 app.Run();
+
+static bool AllowedOrigin(HttpContext context, IConfiguration configuration)
+{
+    var configured = configuration["Auth:FrontendOrigin"];
+    return Uri.TryCreate(configured, UriKind.Absolute, out var allowed) &&
+           (allowed.Scheme == Uri.UriSchemeHttp || allowed.Scheme == Uri.UriSchemeHttps) &&
+           allowed.UserInfo.Length == 0 && allowed.AbsolutePath == "/" &&
+           allowed.Query.Length == 0 && allowed.Fragment.Length == 0 &&
+           context.Request.Headers.Origin == allowed.GetLeftPart(UriPartial.Authority);
+}
 
 public partial class Program;

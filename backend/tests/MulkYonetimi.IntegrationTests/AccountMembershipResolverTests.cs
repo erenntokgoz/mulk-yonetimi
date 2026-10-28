@@ -50,6 +50,8 @@ public sealed class AccountMembershipResolverTests
             var accountA = new Account { Id = Guid.NewGuid(), Name = "A" };
             var accountB = new Account { Id = Guid.NewGuid(), Name = "B" };
             var userA = new ApplicationUser { Id = Guid.NewGuid(), UserName = "a@example.test", NormalizedUserName = "A@EXAMPLE.TEST", Email = "a@example.test", NormalizedEmail = "A@EXAMPLE.TEST", EmailConfirmed = true };
+            userA.SecurityStamp = Guid.NewGuid().ToString();
+            userA.PasswordHash = new PasswordHasher<ApplicationUser>().HashPassword(userA, "Valid-Password-123!");
             var userB = new ApplicationUser { Id = Guid.NewGuid(), UserName = "b@example.test", NormalizedUserName = "B@EXAMPLE.TEST", Email = "b@example.test", NormalizedEmail = "B@EXAMPLE.TEST", EmailConfirmed = true };
             db.AddRange(accountA, accountB, userA, userB);
             var memberA = new AccountMember { AccountId = accountA.Id, UserId = userA.Id, Role = "OWNER", Status = "ACTIVE" };
@@ -64,7 +66,27 @@ public sealed class AccountMembershipResolverTests
             Assert.Null(await resolver.ResolveAsync(new ClaimsPrincipal()));
 
             using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(host =>
-                host.UseSetting("ConnectionStrings:DefaultConnection", builder.ConnectionString));
+            {
+                host.UseSetting("ConnectionStrings:DefaultConnection", builder.ConnectionString);
+                host.UseSetting("Auth:FrontendOrigin", "https://app.example.test");
+            });
+            using (var loginClient = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false }))
+            {
+                using var badOrigin = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "Valid-Password-123!" });
+                Assert.Equal(HttpStatusCode.Forbidden, badOrigin.StatusCode);
+                loginClient.DefaultRequestHeaders.Add("Origin", "https://app.example.test");
+                using var wrongPassword = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "wrong" });
+                Assert.Equal(HttpStatusCode.Unauthorized, wrongPassword.StatusCode);
+                using var login = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "Valid-Password-123!" });
+                Assert.Equal(HttpStatusCode.NoContent, login.StatusCode);
+                var loginCookie = login.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
+                loginClient.DefaultRequestHeaders.Add("Cookie", loginCookie);
+                using var meAfterLogin = await loginClient.GetAsync("/api/v1/me");
+                Assert.Equal(HttpStatusCode.OK, meAfterLogin.StatusCode);
+                using var logout = await loginClient.PostAsJsonAsync("/api/v1/auth/logout", new { });
+                Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+                Assert.Contains("mulk.session=", logout.Headers.GetValues("Set-Cookie").Single());
+            }
             using var scope = factory.Services.CreateScope();
             var signInContext = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
             signInContext.Request.Scheme = "https";
@@ -80,6 +102,7 @@ public sealed class AccountMembershipResolverTests
                 Assert.Equal(accountA.Id, me?.AccountId);
             }
 
+            await db.Entry(userA).ReloadAsync();
             userA.EmailConfirmed = false;
             await db.SaveChangesAsync();
             Assert.Null(await resolver.ResolveAsync(principalA));
