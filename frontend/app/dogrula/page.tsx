@@ -24,6 +24,7 @@ function ConfirmForm() {
       <><Button type="button" size="lg" onClick={confirm} disabled={state === "pending" || !search.get("userId") || !search.get("token")}>E-postayı doğrula</Button>
         {state === "error" && <p role="alert" className="text-sm text-destructive">Bağlantı geçersiz veya kullanılmış.</p>}</>}
     <Link href="/giris" className="text-sm underline">Giriş</Link>
+    <Link href="/dogrulama-yeniden-gonder" className="text-sm underline">Yeni doğrulama bağlantısı gönder</Link>
   </main>;
 }
 

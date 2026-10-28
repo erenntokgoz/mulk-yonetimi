@@ -50,6 +50,7 @@ export default function LoginPage() {
         <Button type="submit" size="lg" disabled={busy}>{busy ? "Giriş yapılıyor…" : "Giriş yap"}</Button>
       </form>
       <Link href="/kayit" className="text-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Hesap oluştur</Link>
+      <Link href="/parolami-unuttum" className="text-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Parolamı unuttum</Link>
     </main>
   );
 }

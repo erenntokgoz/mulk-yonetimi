@@ -1,5 +1,20 @@
 import { expect, test } from "@playwright/test";
 
+test("recovery forms send requests and show generic receipt", async ({ page }) => {
+  await page.goto("/parolami-unuttum");
+  await page.getByLabel("E-posta").fill("owner@example.test");
+  await page.getByRole("button", { name: "Bağlantı gönder" }).click();
+  await expect(page.getByRole("status")).toContainText("bağlantı e-postayla gönderildi");
+  await page.goto("/dogrulama-yeniden-gonder");
+  await page.getByLabel("E-posta").fill("owner@example.test");
+  await page.getByRole("button", { name: "Bağlantı gönder" }).click();
+  await expect(page.getByRole("status")).toContainText("bağlantı e-postayla gönderildi");
+  await page.goto("/parola-sifirla?userId=00000000-0000-0000-0000-000000000001&token=fixture");
+  await page.getByLabel("Yeni parola").fill("New-Password-123!");
+  await page.getByRole("button", { name: "Parolayı güncelle" }).click();
+  await expect(page.getByRole("status")).toContainText("Parola güncellendi");
+});
+
 test("registration and email confirmation forms use the BFF", async ({ page }) => {
   await page.goto("/kayit");
   await page.getByLabel("Hesap adı").fill("Owner");

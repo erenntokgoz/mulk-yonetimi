@@ -3,6 +3,14 @@ import { createServer } from "node:http";
 // Test-only boundary fixture. The production Next.js page and health client stay real.
 let state = "Healthy";
 createServer(async (request, response) => {
+  if (request.method === "POST" && ["/api/v1/auth/forgot-password", "/api/v1/auth/resend-confirmation"].includes(request.url)) {
+    response.writeHead(202).end();
+    return;
+  }
+  if (request.method === "POST" && request.url === "/api/v1/auth/reset-password") {
+    response.writeHead(204).end();
+    return;
+  }
   if (request.method === "POST" && request.url === "/api/v1/auth/register") {
     response.writeHead(202).end();
     return;

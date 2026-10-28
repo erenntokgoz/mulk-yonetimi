@@ -38,6 +38,16 @@ builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.Events = new CookieAuthenticationEvents
         {
+            OnValidatePrincipal = async context =>
+            {
+                var users = context.HttpContext.RequestServices.GetRequiredService<UserManager<ApplicationUser>>();
+                var userId = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var stamp = context.Principal?.FindFirstValue(users.Options.ClaimsIdentity.SecurityStampClaimType);
+                var user = userId is null ? null : await users.FindByIdAsync(userId);
+                if (user is null || !user.EmailConfirmed || stamp is null ||
+                    stamp != await users.GetSecurityStampAsync(user))
+                    context.RejectPrincipal();
+            },
             OnRedirectToLogin = context =>
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -183,6 +193,73 @@ app.MapPost("/api/v1/auth/confirm-email", async (ConfirmEmailRequest input, Http
     .Produces(StatusCodes.Status400BadRequest)
     .Produces(StatusCodes.Status403Forbidden);
 
+app.MapPost("/api/v1/auth/resend-confirmation", async (EmailRequest input, HttpContext context,
+    UserManager<ApplicationUser> users, IConfirmationMailer mailer, IConfiguration configuration,
+    CancellationToken cancellationToken) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    if (!AllowedOrigin(context, configuration)) return Results.Forbid();
+    if (string.IsNullOrWhiteSpace(configuration["Email:SmtpHost"]) ||
+        string.IsNullOrWhiteSpace(configuration["Email:From"])) return Results.StatusCode(503);
+    if (!ValidEmail(input.Email)) return Results.BadRequest();
+    var user = await users.FindByEmailAsync(input.Email.Trim());
+    if (user is { EmailConfirmed: false })
+    {
+        var token = await users.GenerateEmailConfirmationTokenAsync(user);
+        var url = $"{configuration["Auth:FrontendOrigin"]}/dogrula?userId={user.Id}&token={Uri.EscapeDataString(token)}";
+        try { await mailer.SendAsync(user.Email!, url, cancellationToken); }
+        catch (SmtpException) { return Results.StatusCode(503); }
+    }
+    return Results.Accepted();
+})
+    .WithName("ResendConfirmation")
+    .Produces(StatusCodes.Status202Accepted)
+    .Produces(StatusCodes.Status400BadRequest)
+    .Produces(StatusCodes.Status403Forbidden)
+    .Produces(StatusCodes.Status503ServiceUnavailable);
+
+app.MapPost("/api/v1/auth/forgot-password", async (EmailRequest input, HttpContext context,
+    UserManager<ApplicationUser> users, IConfirmationMailer mailer, IConfiguration configuration,
+    CancellationToken cancellationToken) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    if (!AllowedOrigin(context, configuration)) return Results.Forbid();
+    if (string.IsNullOrWhiteSpace(configuration["Email:SmtpHost"]) ||
+        string.IsNullOrWhiteSpace(configuration["Email:From"])) return Results.StatusCode(503);
+    if (!ValidEmail(input.Email)) return Results.BadRequest();
+    var user = await users.FindByEmailAsync(input.Email.Trim());
+    if (user is { EmailConfirmed: true })
+    {
+        var token = await users.GeneratePasswordResetTokenAsync(user);
+        var url = $"{configuration["Auth:FrontendOrigin"]}/parola-sifirla?userId={user.Id}&token={Uri.EscapeDataString(token)}";
+        try { await mailer.SendPasswordResetAsync(user.Email!, url, cancellationToken); }
+        catch (SmtpException) { return Results.StatusCode(503); }
+    }
+    return Results.Accepted();
+})
+    .WithName("ForgotPassword")
+    .Produces(StatusCodes.Status202Accepted)
+    .Produces(StatusCodes.Status400BadRequest)
+    .Produces(StatusCodes.Status403Forbidden)
+    .Produces(StatusCodes.Status503ServiceUnavailable);
+
+app.MapPost("/api/v1/auth/reset-password", async (ResetPasswordRequest input, HttpContext context,
+    UserManager<ApplicationUser> users, IConfiguration configuration) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    if (!AllowedOrigin(context, configuration)) return Results.Forbid();
+    if (input.UserId == Guid.Empty || string.IsNullOrWhiteSpace(input.Token) ||
+        string.IsNullOrWhiteSpace(input.Password)) return Results.BadRequest();
+    var user = await users.FindByIdAsync(input.UserId.ToString());
+    if (user is null || !user.EmailConfirmed) return Results.BadRequest();
+    var result = await users.ResetPasswordAsync(user, input.Token, input.Password);
+    return result.Succeeded ? Results.NoContent() : Results.BadRequest();
+})
+    .WithName("ResetPassword")
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces(StatusCodes.Status400BadRequest)
+    .Produces(StatusCodes.Status403Forbidden);
+
 app.Run();
 
 static bool AllowedOrigin(HttpContext context, IConfiguration configuration)
@@ -194,5 +271,8 @@ static bool AllowedOrigin(HttpContext context, IConfiguration configuration)
            allowed.Query.Length == 0 && allowed.Fragment.Length == 0 &&
            context.Request.Headers.Origin == allowed.GetLeftPart(UriPartial.Authority);
 }
+
+static bool ValidEmail(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 256 &&
+    new EmailAddressAttribute().IsValid(value);
 
 public partial class Program;
