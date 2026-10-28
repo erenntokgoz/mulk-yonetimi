@@ -25,11 +25,29 @@ public sealed class AccountMember
     public required string Status { get; set; }
 }
 
+public sealed class OutboxMessage
+{
+    public Guid Id { get; set; }
+    public Guid AccountId { get; set; }
+    public required string Kind { get; set; }
+    public int PayloadVersion { get; set; } = 1;
+    public required string RecipientEmail { get; set; }
+    public required string ProtectedUrl { get; set; }
+    public string Status { get; set; } = "PENDING";
+    public int AttemptCount { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime NextAttemptAtUtc { get; set; }
+    public DateTime? ClaimedUntilUtc { get; set; }
+    public Guid? ClaimId { get; set; }
+    public DateTime? SentAtUtc { get; set; }
+}
+
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<AccountMember> AccountMembers => Set<AccountMember>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -58,6 +76,17 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .OnDelete(DeleteBehavior.Restrict);
             member.HasOne<ApplicationUser>().WithMany().HasForeignKey(item => item.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<OutboxMessage>(message =>
+        {
+            message.Property(item => item.Kind).HasMaxLength(32);
+            message.Property(item => item.RecipientEmail).HasMaxLength(256);
+            message.Property(item => item.Status).HasMaxLength(16);
+            message.Property(item => item.CreatedAtUtc).HasDefaultValueSql("SYSUTCDATETIME()");
+            message.HasOne<Account>().WithMany().HasForeignKey(item => item.AccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+            message.HasIndex(item => new { item.Status, item.NextAttemptAtUtc });
         });
     }
 }

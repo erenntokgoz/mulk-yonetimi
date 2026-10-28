@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -74,6 +75,8 @@ public sealed class AccountMembershipResolverTests
                 host.UseSetting("Auth:FrontendOrigin", "https://app.example.test");
                 host.UseSetting("Email:SmtpHost", "fake");
                 host.UseSetting("Email:From", "noreply@example.test");
+                host.UseSetting("Email:WorkerEnabled", "false");
+                host.UseSetting("Email:SendTimeoutSeconds", "1");
                 host.ConfigureTestServices(services => services.AddSingleton<IConfirmationMailer>(mailer));
             });
             using (var loginClient = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false }))
@@ -85,6 +88,11 @@ public sealed class AccountMembershipResolverTests
                 Assert.Equal(HttpStatusCode.Accepted, registration.StatusCode);
                 using var duplicate = await loginClient.PostAsJsonAsync("/api/v1/auth/register", new { email = "new@example.test", password = "Valid-Password-123!", accountName = "Other account" });
                 Assert.Equal(HttpStatusCode.Accepted, duplicate.StatusCode);
+                Assert.Null(mailer.Url);
+                Assert.Equal(1, await db.OutboxMessages.CountAsync(item => item.RecipientEmail == "new@example.test"));
+                var queued = await db.OutboxMessages.AsNoTracking().SingleAsync(item => item.RecipientEmail == "new@example.test");
+                Assert.DoesNotContain("/dogrula", queued.ProtectedUrl);
+                await DispatchMailAsync(factory);
                 Assert.NotNull(mailer.Url);
                 var newUser = await db.Users.SingleAsync(item => item.Email == "new@example.test");
                 Assert.False(newUser.EmailConfirmed);
@@ -104,6 +112,7 @@ public sealed class AccountMembershipResolverTests
                 var priorCookie = priorLogin.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
                 using var resetRequest = await loginClient.PostAsJsonAsync("/api/v1/auth/forgot-password", new { email = userA.Email });
                 Assert.Equal(HttpStatusCode.Accepted, resetRequest.StatusCode);
+                await DispatchMailAsync(factory);
                 Assert.NotNull(mailer.Url);
                 var resetToken = Uri.UnescapeDataString(mailer.Url!.Split("token=")[1]);
                 using var reset = await loginClient.PostAsJsonAsync("/api/v1/auth/reset-password", new { userId = userA.Id, token = resetToken, password = "New-Password-123!" });
@@ -116,6 +125,53 @@ public sealed class AccountMembershipResolverTests
                 Assert.Equal(HttpStatusCode.NoContent, newPassword.StatusCode);
                 using var oldPassword = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "Valid-Password-123!" });
                 Assert.Equal(HttpStatusCode.Unauthorized, oldPassword.StatusCode);
+                using (var mailScope = factory.Services.CreateScope())
+                {
+                    var queue = mailScope.ServiceProvider.GetRequiredService<EmailOutboxQueue>();
+                    queue.Add(accountA.Id, "CONFIRM_EMAIL", userA.Email!, "https://app.example.test/retry");
+                    await mailScope.ServiceProvider.GetRequiredService<ApplicationDbContext>().SaveChangesAsync();
+                }
+                mailer.FailNext = true;
+                await DispatchMailAsync(factory);
+                var retry = await db.OutboxMessages.AsNoTracking().SingleAsync(item => item.ProtectedUrl != queued.ProtectedUrl && item.RecipientEmail == userA.Email && item.Kind == "CONFIRM_EMAIL");
+                Assert.Equal("PENDING", retry.Status);
+                Assert.Equal(1, retry.AttemptCount);
+                Assert.True(retry.NextAttemptAtUtc > DateTime.UtcNow);
+                await db.OutboxMessages.Where(item => item.Id == retry.Id)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.NextAttemptAtUtc, DateTime.UtcNow.AddSeconds(-1)));
+                await DispatchMailAsync(factory);
+                Assert.Equal("SENT", (await db.OutboxMessages.AsNoTracking().SingleAsync(item => item.Id == retry.Id)).Status);
+                using (var mailScope = factory.Services.CreateScope())
+                {
+                    mailScope.ServiceProvider.GetRequiredService<EmailOutboxQueue>()
+                        .Add(accountA.Id, "CONFIRM_EMAIL", userA.Email!, "https://app.example.test/concurrent");
+                    await mailScope.ServiceProvider.GetRequiredService<ApplicationDbContext>().SaveChangesAsync();
+                }
+                var sentBefore = mailer.SendCount;
+                await Task.WhenAll(DispatchMailAsync(factory), DispatchMailAsync(factory));
+                Assert.Equal(sentBefore + 1, mailer.SendCount);
+                using (var mailScope = factory.Services.CreateScope())
+                {
+                    mailScope.ServiceProvider.GetRequiredService<EmailOutboxQueue>()
+                        .Add(accountA.Id, "CONFIRM_EMAIL", userA.Email!, "https://app.example.test/timeout");
+                    await mailScope.ServiceProvider.GetRequiredService<ApplicationDbContext>().SaveChangesAsync();
+                }
+                mailer.HangNext = true;
+                await DispatchMailAsync(factory);
+                var timedOut = await db.OutboxMessages.AsNoTracking().SingleAsync(item => item.RecipientEmail == userA.Email && item.Kind == "CONFIRM_EMAIL" && item.Status == "PENDING");
+                Assert.Equal(1, timedOut.AttemptCount);
+                await db.OutboxMessages.Where(item => item.Id == timedOut.Id)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.Status, "FAILED"));
+                using (var healthResponse = await loginClient.GetAsync("/health"))
+                {
+                    using var health = JsonDocument.Parse(await healthResponse.Content.ReadAsStringAsync());
+                    Assert.Equal("Degraded", health.RootElement.GetProperty("status").GetString());
+                    Assert.Contains(health.RootElement.GetProperty("checks").EnumerateArray(),
+                        check => check.GetProperty("name").GetString() == "outbox" &&
+                            check.GetProperty("status").GetString() == "Degraded");
+                }
+                await db.OutboxMessages.Where(item => item.Id == timedOut.Id)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.Status, "SENT"));
                 using var wrongPassword = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "wrong" });
                 Assert.Equal(HttpStatusCode.Unauthorized, wrongPassword.StatusCode);
                 using var login = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "New-Password-123!" });
@@ -164,6 +220,10 @@ public sealed class AccountMembershipResolverTests
             Assert.Null(await resolver.ResolveAsync(principalA));
             using var rateClient = factory.CreateClient();
             rateClient.DefaultRequestHeaders.Add("Origin", "https://app.example.test");
+            var queuedBeforeAmbiguousAccount = await db.OutboxMessages.CountAsync();
+            using var ambiguousRecovery = await rateClient.PostAsJsonAsync("/api/v1/auth/forgot-password", new { email = userA.Email });
+            Assert.Equal(HttpStatusCode.Accepted, ambiguousRecovery.StatusCode);
+            Assert.Equal(queuedBeforeAmbiguousAccount, await db.OutboxMessages.CountAsync());
             var statuses = new List<HttpStatusCode>();
             for (var attempt = 0; attempt < 40; attempt++)
             {
@@ -193,17 +253,30 @@ public sealed class AccountMembershipResolverTests
 
     private sealed record MeDto(Guid AccountId);
 
+    private static async Task DispatchMailAsync(WebApplicationFactory<Program> factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<EmailOutboxDispatcher>().DispatchOnceAsync(CancellationToken.None);
+    }
+
     private sealed class FakeMailer : IConfirmationMailer
     {
         public string? Url { get; private set; }
-        public Task SendAsync(string address, string confirmationUrl, CancellationToken cancellationToken)
+        public bool FailNext { get; set; }
+        public bool HangNext { get; set; }
+        private int sendCount;
+        public int SendCount => Volatile.Read(ref sendCount);
+        public async Task SendAsync(string address, string confirmationUrl, CancellationToken cancellationToken)
         {
+            if (FailNext) { FailNext = false; throw new System.Net.Mail.SmtpException("temporary"); }
+            if (HangNext) { HangNext = false; await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken); }
             Url = confirmationUrl;
-            return Task.CompletedTask;
+            Interlocked.Increment(ref sendCount);
         }
         public Task SendPasswordResetAsync(string address, string resetUrl, CancellationToken cancellationToken)
         {
             Url = resetUrl;
+            Interlocked.Increment(ref sendCount);
             return Task.CompletedTask;
         }
     }

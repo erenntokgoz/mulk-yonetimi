@@ -24,18 +24,19 @@ API: `http://localhost:5080`. Development OpenAPI: `http://localhost:5080/openap
 Invoke-WebRequest http://localhost:5080/health -SkipHttpErrorCheck
 ```
 
-`GET /health`, gerçek EF Core `CanConnectAsync` SQL Server kontrolünü raporlar:
+`GET /health`, gerçek EF Core SQL Server bağlantısını ve `FAILED` outbox satırlarını kontrol eder:
 
 ```json
 {
   "status": "Healthy",
   "checks": [
-    { "name": "sqlserver", "status": "Healthy", "durationMs": 1.2, "description": null }
+    { "name": "sqlserver", "status": "Healthy", "durationMs": 1.2, "description": null },
+    { "name": "outbox", "status": "Healthy", "durationMs": 0.8, "description": null }
   ]
 }
 ```
 
-`Healthy` ve `Degraded` için HTTP 200, `Unhealthy` için HTTP 503 döner. Eksik veya erişilemeyen veritabanı sağlıklı gösterilmez. Cevap önbelleğe alınmaz. Bağlantı/exception ayrıntıları dışarı verilmez; `description` bu dilimde daima `null` olur. Bilinmeyen route ve yakalanmamış hatalar için ProblemDetails altyapısı kuruludur. Bu foundation yalnız sistem sağlık bilgisini açar; ürün yetkilendirmesi ve tenant verisi henüz yoktur.
+`Healthy` ve `Degraded` için HTTP 200, `Unhealthy` için HTTP 503 döner. Eksik veya erişilemeyen veritabanı sağlıklı gösterilmez. `FAILED` outbox satırı varsa durum `Degraded` olur. Cevap önbelleğe alınmaz. Bağlantı/exception ayrıntıları dışarı verilmez; `description` daima `null` olur. Bilinmeyen route ve yakalanmamış hatalar için ProblemDetails altyapısı kuruludur.
 
 ## Kontroller
 
@@ -92,6 +93,6 @@ CI, ayrı `integration` işinde SQL Server konteyneri ve GitHub Actions `MULK_SQ
 
 `POST /api/v1/auth/login` doğrulanmış e-posta, parola ve tek aktif hesap üyeliği ister; başarısız kimlik bilgisine 401, kullanılamayan hesaba 403 döner. `POST /api/v1/auth/logout` cookie'yi temizler. Auth mutasyonları `Auth:FrontendOrigin` ile eşleşen `Origin` başlığını zorunlu kılar; production deployment bu değeri açıkça sağlamalıdır. BFF aynı Origin'i backend'e taşır.
 
-`POST /api/v1/auth/register` kullanıcı, hesap ve OWNER üyeliğini tek SQL transaction'ında oluşturur; Identity doğrulama tokenını SMTP ile yollar. `POST /api/v1/auth/confirm-email` tokenı doğrular. SMTP yapılandırması eksikse kayıt 503 döner; e-posta teslim hatasında transaction geri alınır. Production için `Email__SmtpHost`, `Email__SmtpPort` (varsayılan 587), `Email__From`, `Email__SmtpUser`, `Email__SmtpPassword`, `Auth__FrontendOrigin` ve `Auth__DataProtectionKeysPath` ayarlanmalıdır. Keys path kalıcı ve çoklu instance arasında ortak olmalıdır; eksikse uygulama başlatılmaz. SMTP sunucusu STARTTLS desteklemelidir.
+`POST /api/v1/auth/register` kullanıcı, hesap, OWNER üyeliği ve doğrulama e-postasını SQL outbox'a tek transaction'da kaydeder. `POST /api/v1/auth/confirm-email` tokenı doğrular. SMTP yapılandırması eksikse kayıt 503 döner; geçici SMTP hatası kaydı geri almaz, worker gönderimi tekrar dener. Worker 15 saniyede bir vadesi gelen en fazla 20 mesajı işler; 5 başarısız denemeden sonra satır `FAILED` olur. Gönderim 90 saniyede iptal edilir; iki dakikalık claim süresi daha uzundur. Başarısız denemeler yalnız mesaj ID'si, türü, deneme sayısı ve durumu ile loglanır; alıcı, URL ve token loglanmaz. `/health` outbox için `FAILED` satırı varsa `Degraded` bildirir, sayı yalnız yapılandırılmış sağlık denetimi verisinde ve sunucu logunda bulunur. Mesajdaki URL ve Identity tokenı Data Protection ile şifreli saklanır; outbox payload sürümü 1'dir. `Email__WorkerEnabled=false` yalnız otomatik işleyiciyi kapatır; normal ortamda açık tutun. Outbox migration'ını uygulama açılışından önce kontrollü dağıtım adımıyla çalıştırın. Production için `Email__SmtpHost`, `Email__SmtpPort` (varsayılan 587), `Email__From`, `Email__SmtpUser`, `Email__SmtpPassword`, `Auth__FrontendOrigin` ve `Auth__DataProtectionKeysPath` ayarlanmalıdır. Keys path kalıcı ve çoklu instance arasında ortak olmalıdır; eksikse uygulama başlatılmaz. SMTP sunucusu STARTTLS desteklemelidir. Gerçek sağlayıcı teslimi staging ortamında ayrıca doğrulanmalıdır.
 
-`POST /api/v1/auth/resend-confirmation` ve `/forgot-password` geçerli e-posta için hesap bulunmasa da 202 döner; `/reset-password` Identity tokenıyla yeni parolayı kaydeder. Cookie her istekte security stamp ve doğrulanmış e-posta açısından kontrol edilir; parola sıfırlanınca eski oturum kullanılamaz. Auth POST uçları doğrudan istemci IP'si başına dakikada 25 istekle sınırlandırılır (429, `Retry-After: 60`). Ters proxy arkasında gerçek IP yalnız güvenilen proxy ayarlarıyla iletilmelidir; aksi halde istemciler limit paylaşır. Sayaç instance içindedir. E-posta outbox'ı ve dağıtık rate limiting henüz uygulanmadı.
+`POST /api/v1/auth/resend-confirmation` ve `/forgot-password` geçerli e-posta için hesap bulunmasa da 202 döner; `/reset-password` Identity tokenıyla yeni parolayı kaydeder. Cookie her istekte security stamp ve doğrulanmış e-posta açısından kontrol edilir; parola sıfırlanınca eski oturum kullanılamaz. Auth POST uçları istemci IP'si başına dakikada 25 istekle sınırlandırılır (429, `Retry-After: 60`). Ters proxy varsa yalnız o proxy'nin IP adresini `Network__KnownProxies__0` (gerekiyorsa sonraki indeksler) üzerinden verin; `X-Forwarded-For` ve `X-Forwarded-Proto` yalnız bu adresten kabul edilir ve tek hop işlenir. Proxy adresi tanımlı değilse forwarded header işleme kapalıdır. Bu ayar gerçek staging proxy'siyle doğrulanmalıdır. Sayaç hâlâ instance içindedir; çoklu instance dağıtımında ortak bir store ve dağıtık limit tasarımı gerekir.
