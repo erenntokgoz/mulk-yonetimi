@@ -1,0 +1,49 @@
+name: mulk-yonetimi
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-CU22-GDR1-ubuntu-22.04@sha256:bf438d7104f861f5e1e1ba14b063d60a5bd883964b3c9b3b3c0064536177baa5
+    container_name: mulk-yonetimi-sqlserver
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: "${MULK_SQL_SA_PASSWORD:?Set MULK_SQL_SA_PASSWORD in .env}"
+    ports:
+      - "127.0.0.1:${MULK_SQL_PORT:-14333}:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa
+          -P "$${MSSQL_SA_PASSWORD}" -C -b -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+
+  sqlserver-init:
+    image: mcr.microsoft.com/mssql/server:2022-CU22-GDR1-ubuntu-22.04@sha256:bf438d7104f861f5e1e1ba14b063d60a5bd883964b3c9b3b3c0064536177baa5
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: "${MULK_SQL_SA_PASSWORD:?Set MULK_SQL_SA_PASSWORD in .env}"
+    entrypoint:
+      - /bin/bash
+      - -c
+      - >-
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa
+        -P "$${MSSQL_SA_PASSWORD}" -C -b
+        -Q "IF DB_ID(N'MulkYonetimi') IS NULL CREATE DATABASE [MulkYonetimi]"
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  sqlserver-data:
+    name: mulk-yonetimi-sqlserver-data

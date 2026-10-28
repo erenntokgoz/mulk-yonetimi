@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MulkYonetimi.Api/MulkYonetimi.Api.csproj" />
+    <Project Path="src/MulkYonetimi.Infrastructure/MulkYonetimi.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MulkYonetimi.Api.Tests/MulkYonetimi.Api.Tests.csproj" />
+  </Folder>
+</Solution>

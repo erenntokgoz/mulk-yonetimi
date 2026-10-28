@@ -1,0 +1,7 @@
+root = false
+
+[**/obj/**/*.cs]
+generated_code = true
+
+[*.g.cs]
+generated_code = true
