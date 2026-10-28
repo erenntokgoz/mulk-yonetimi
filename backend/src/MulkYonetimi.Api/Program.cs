@@ -2,7 +2,9 @@ using System.Text.Json.Serialization;
 using System.Security.Claims;
 using System.Net.Mail;
 using System.ComponentModel.DataAnnotations;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -63,11 +65,30 @@ builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<AccountMembershipResolver>();
 builder.Services.AddScoped<IConfirmationMailer, SmtpConfirmationMailer>();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = (context, _) =>
+    {
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        return ValueTask.CompletedTask;
+    };
+    options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 25,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+});
 builder.Services.AddHealthChecks().AddDbContextCheck<ApplicationDbContext>("sqlserver");
 
 var app = builder.Build();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+app.UseRouting();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -123,6 +144,7 @@ app.MapPost("/api/v1/auth/login", async (LoginRequest input, HttpContext context
     return Results.NoContent();
 })
     .WithName("Login")
+    .RequireRateLimiting("auth")
     .Produces(StatusCodes.Status204NoContent)
     .Produces(StatusCodes.Status400BadRequest)
     .Produces(StatusCodes.Status401Unauthorized)
@@ -137,6 +159,7 @@ app.MapPost("/api/v1/auth/logout", async (HttpContext context,
     return Results.NoContent();
 })
     .WithName("Logout")
+    .RequireRateLimiting("auth")
     .Produces(StatusCodes.Status204NoContent)
     .Produces(StatusCodes.Status403Forbidden);
 
@@ -173,6 +196,7 @@ app.MapPost("/api/v1/auth/register", async (RegisterRequest input, HttpContext c
     return Results.Accepted();
 })
     .WithName("Register")
+    .RequireRateLimiting("auth")
     .Produces(StatusCodes.Status202Accepted)
     .Produces(StatusCodes.Status400BadRequest)
     .Produces(StatusCodes.Status403Forbidden)
@@ -189,6 +213,7 @@ app.MapPost("/api/v1/auth/confirm-email", async (ConfirmEmailRequest input, Http
     return result.Succeeded ? Results.NoContent() : Results.BadRequest();
 })
     .WithName("ConfirmEmail")
+    .RequireRateLimiting("auth")
     .Produces(StatusCodes.Status204NoContent)
     .Produces(StatusCodes.Status400BadRequest)
     .Produces(StatusCodes.Status403Forbidden);
@@ -213,6 +238,7 @@ app.MapPost("/api/v1/auth/resend-confirmation", async (EmailRequest input, HttpC
     return Results.Accepted();
 })
     .WithName("ResendConfirmation")
+    .RequireRateLimiting("auth")
     .Produces(StatusCodes.Status202Accepted)
     .Produces(StatusCodes.Status400BadRequest)
     .Produces(StatusCodes.Status403Forbidden)
@@ -238,6 +264,7 @@ app.MapPost("/api/v1/auth/forgot-password", async (EmailRequest input, HttpConte
     return Results.Accepted();
 })
     .WithName("ForgotPassword")
+    .RequireRateLimiting("auth")
     .Produces(StatusCodes.Status202Accepted)
     .Produces(StatusCodes.Status400BadRequest)
     .Produces(StatusCodes.Status403Forbidden)
@@ -256,6 +283,7 @@ app.MapPost("/api/v1/auth/reset-password", async (ResetPasswordRequest input, Ht
     return result.Succeeded ? Results.NoContent() : Results.BadRequest();
 })
     .WithName("ResetPassword")
+    .RequireRateLimiting("auth")
     .Produces(StatusCodes.Status204NoContent)
     .Produces(StatusCodes.Status400BadRequest)
     .Produces(StatusCodes.Status403Forbidden);

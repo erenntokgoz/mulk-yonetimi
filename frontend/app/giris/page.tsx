@@ -24,6 +24,7 @@ export default function LoginPage() {
       if (!response.ok) {
         setError(response.status === 401 ? "E-posta veya parola hatalı." :
           response.status === 403 ? "Hesap erişimi kullanılamıyor. E-posta doğrulamasını ve hesap durumunu kontrol edin." :
+          response.status === 429 ? "Çok fazla deneme. Bir dakika sonra tekrar deneyin." :
           "Giriş yapılamadı. Daha sonra tekrar deneyin.");
         return;
       }

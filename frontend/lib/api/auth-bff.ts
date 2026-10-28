@@ -51,6 +51,8 @@ export async function proxyAuth(request: Request, path: string, mutation: boolea
   const responseHeaders = new Headers({ "Cache-Control": "no-store" });
   const upstreamContentType = upstream.headers.get("content-type");
   if (upstreamContentType) responseHeaders.set("Content-Type", upstreamContentType);
+  const retryAfter = upstream.headers.get("retry-after");
+  if (upstream.status === 429 && retryAfter) responseHeaders.set("Retry-After", retryAfter);
   for (const setCookie of upstream.headers.getSetCookie()) responseHeaders.append("Set-Cookie", setCookie);
   return new Response(upstream.status === 204 ? null : await upstream.arrayBuffer(), {
     status: upstream.status,
