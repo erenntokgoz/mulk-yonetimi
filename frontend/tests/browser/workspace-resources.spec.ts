@@ -71,7 +71,7 @@ test("notifications filters unread items, marks one read, and marks all read", a
   await page.getByRole("checkbox", { name: "Yalnızca okunmamış" }).uncheck();
   await expect(page.getByText("Yeni vade bildirimi")).toBeVisible();
   await page.getByRole("button", { name: "Tümünü okundu işaretle" }).click();
-  await expect(page.getByRole("status")).toContainText("Bildirimler okundu olarak işaretlendi");
+  await expect(page.getByRole("status").filter({ hasText: "Bildirimler okundu olarak işaretlendi" })).toBeVisible();
   expect(readAll).toBe(true);
 });
 
