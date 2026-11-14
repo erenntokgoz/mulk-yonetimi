@@ -14,7 +14,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --conditions=react-server --test tests/*.test.ts",
     "test:browser": "playwright test",
-    "build": "next build"
+    "build": "next build",
+    "api:types": "openapi-typescript http://127.0.0.1:5080/openapi/v1.json --output lib/api/generated.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "1.1.4",
@@ -37,6 +38,7 @@
     "autoprefixer": "10.4.20",
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.3",
+    "openapi-typescript": "7.13.0",
     "postcss": "8.4.49",
     "tailwindcss": "3.4.17",
     "tailwindcss-animate": "1.0.7",

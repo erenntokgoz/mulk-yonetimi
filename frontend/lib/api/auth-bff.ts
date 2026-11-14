@@ -32,6 +32,8 @@ export async function proxyAuth(request: Request, path: string, mutation: boolea
   const contentType = request.headers.get("content-type");
   if (cookie) headers.set("Cookie", cookie);
   if (contentType) headers.set("Content-Type", contentType);
+  const idempotencyKey = request.headers.get("idempotency-key");
+  if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
 
   let upstream: Response;
   try {

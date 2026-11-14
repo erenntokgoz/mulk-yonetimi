@@ -12,17 +12,24 @@ public interface IConfirmationMailer
 {
     Task SendAsync(string address, string confirmationUrl, CancellationToken cancellationToken);
     Task SendPasswordResetAsync(string address, string resetUrl, CancellationToken cancellationToken);
+    Task SendNotificationAsync(string address, string subject, string body, CancellationToken cancellationToken);
 }
 
 public sealed class SmtpConfirmationMailer(IConfiguration configuration) : IConfirmationMailer
 {
     public async Task SendAsync(string address, string confirmationUrl, CancellationToken cancellationToken)
-        => await SendMessageAsync(address, confirmationUrl, "E-posta doğrulama", cancellationToken);
+        => await SendMessageAsync(address, "E-posta doğrulama",
+            $"İşlemi tamamlamak için bağlantıyı açın: {confirmationUrl}", cancellationToken);
 
     public async Task SendPasswordResetAsync(string address, string resetUrl, CancellationToken cancellationToken)
-        => await SendMessageAsync(address, resetUrl, "Parola sıfırlama", cancellationToken);
+        => await SendMessageAsync(address, "Parola sıfırlama",
+            $"İşlemi tamamlamak için bağlantıyı açın: {resetUrl}", cancellationToken);
 
-    private async Task SendMessageAsync(string address, string url, string subject, CancellationToken cancellationToken)
+    public async Task SendNotificationAsync(string address, string subject, string body,
+        CancellationToken cancellationToken) =>
+        await SendMessageAsync(address, subject, body, cancellationToken);
+
+    private async Task SendMessageAsync(string address, string subject, string body, CancellationToken cancellationToken)
     {
         var host = configuration["Email:SmtpHost"];
         var sender = configuration["Email:From"];
@@ -33,7 +40,7 @@ public sealed class SmtpConfirmationMailer(IConfiguration configuration) : IConf
             EnableSsl = true,
             Credentials = new NetworkCredential(configuration["Email:SmtpUser"], configuration["Email:SmtpPassword"])
         };
-        using var message = new MailMessage(sender, address, subject, $"İşlemi tamamlamak için bağlantıyı açın: {url}");
+        using var message = new MailMessage(sender, address, subject, body);
         await client.SendMailAsync(message, cancellationToken);
     }
 }

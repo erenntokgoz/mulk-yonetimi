@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { AuthShell } from "@/components/auth-shell";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -38,7 +39,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 px-4 py-10">
+    <AuthShell><main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 px-4 py-10">
       <div><h1 className="text-2xl font-semibold">Giriş</h1><p className="mt-2 text-sm text-muted-foreground">Mülk Yönetimi hesabınızla devam edin.</p></div>
       <form onSubmit={submit} className="grid gap-4">
         <label className="grid gap-2 text-sm font-medium">E-posta
@@ -52,6 +53,6 @@ export default function LoginPage() {
       </form>
       <Link href="/kayit" className="text-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Hesap oluştur</Link>
       <Link href="/parolami-unuttum" className="text-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Parolamı unuttum</Link>
-    </main>
+    </main></AuthShell>
   );
 }

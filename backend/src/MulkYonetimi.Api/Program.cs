@@ -23,9 +23,26 @@ if (!string.IsNullOrWhiteSpace(keysPath))
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(options =>
-    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<HealthStatus>(allowIntegerValues: false)));
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<HealthStatus>(allowIntegerValues: false));
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<PropertyKind>(allowIntegerValues: false));
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<UnitUsageType>(allowIntegerValues: false));
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<TenantKind>(allowIntegerValues: false));
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<LeaseStatus>(allowIntegerValues: false));
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<PaymentMethod>(allowIntegerValues: false));
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<DepositCustody>(allowIntegerValues: false));
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<DepositMovementType>(allowIntegerValues: false));
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<ExpenseCategory>(allowIntegerValues: false));
+});
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+var documentStorageOptions = DocumentStorageOptions.FromConfiguration(builder.Configuration);
+builder.Services.AddSingleton(documentStorageOptions);
+builder.Services.AddSingleton<IR2DocumentStorage>(serviceProvider =>
+    documentStorageOptions.IsConfigured
+        ? new R2DocumentStorage(documentStorageOptions)
+        : new UnconfiguredR2DocumentStorage());
+builder.Services.AddSingleton<IDocumentMalwareScanner, UnconfiguredDocumentMalwareScanner>();
 builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedEmail = true)
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager()
@@ -69,6 +86,12 @@ builder.Services.AddScoped<IConfirmationMailer, SmtpConfirmationMailer>();
 builder.Services.AddScoped<EmailOutboxQueue>();
 builder.Services.AddScoped<EmailOutboxDispatcher>();
 builder.Services.AddHostedService<EmailOutboxWorker>();
+builder.Services.AddScoped<NotificationJob>();
+builder.Services.AddHostedService<NotificationWorker>();
+builder.Services.AddScoped<DocumentCleanupJob>();
+builder.Services.AddHostedService<DocumentCleanupWorker>();
+builder.Services.AddScoped<RentChargeJob>();
+builder.Services.AddHostedService<RentChargeWorker>();
 var trustedProxies = builder.Configuration.GetSection("Network:KnownProxies").Get<string[]>() ?? [];
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -319,17 +342,21 @@ app.MapPost("/api/v1/auth/reset-password", async (ResetPasswordRequest input, Ht
     .Produces(StatusCodes.Status400BadRequest)
     .Produces(StatusCodes.Status403Forbidden);
 
+app.MapPropertyEndpoints();
+app.MapAccountSettingsEndpoints();
+app.MapTenantEndpoints();
+app.MapLeaseEndpoints();
+app.MapRentChargeEndpoints();
+app.MapPaymentEndpoints();
+app.MapDepositEndpoints();
+app.MapExpenseEndpoints();
+app.MapReportEndpoints();
+app.MapNotificationEndpoints();
+app.MapDocumentEndpoints();
 app.Run();
 
-static bool AllowedOrigin(HttpContext context, IConfiguration configuration)
-{
-    var configured = configuration["Auth:FrontendOrigin"];
-    return Uri.TryCreate(configured, UriKind.Absolute, out var allowed) &&
-           (allowed.Scheme == Uri.UriSchemeHttp || allowed.Scheme == Uri.UriSchemeHttps) &&
-           allowed.UserInfo.Length == 0 && allowed.AbsolutePath == "/" &&
-           allowed.Query.Length == 0 && allowed.Fragment.Length == 0 &&
-           context.Request.Headers.Origin == allowed.GetLeftPart(UriPartial.Authority);
-}
+static bool AllowedOrigin(HttpContext context, IConfiguration configuration) =>
+    RequestOrigin.IsAllowed(context, configuration);
 
 static bool ValidEmail(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 256 &&
     new EmailAddressAttribute().IsValid(value);

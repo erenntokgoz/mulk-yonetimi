@@ -44,8 +44,23 @@ jobs:
           dotnet-version: '10.0.x'
       - run: dotnet restore MulkYonetimi.slnx --locked-mode
       - run: dotnet build MulkYonetimi.slnx --no-restore --configuration Release
-      - run: dotnet test MulkYonetimi.slnx --no-build --configuration Release
+      - name: Check portfolio OpenAPI and API contract
+        run: dotnet test MulkYonetimi.slnx --no-build --configuration Release --filter 'FullyQualifiedName~MulkYonetimi.Api.Tests.PropertyContractTests'
+      - name: Run remaining backend tests
+        run: dotnet test MulkYonetimi.slnx --no-build --configuration Release --filter 'FullyQualifiedName!~MulkYonetimi.Api.Tests.PropertyContractTests'
       - run: dotnet format MulkYonetimi.slnx --verify-no-changes --no-restore
+      - name: Prepare API and migration artifacts
+        if: github.event_name == 'push'
+        run: |
+          dotnet publish src/MulkYonetimi.Api -c Release --no-build -o "${RUNNER_TEMP}/release/api"
+          dotnet tool restore
+          dotnet tool run dotnet-ef migrations script --idempotent --project src/MulkYonetimi.Infrastructure --startup-project src/MulkYonetimi.Api --context ApplicationDbContext --configuration Release --no-build --output "${RUNNER_TEMP}/release/migrate.sql"
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          name: api-release-${{ github.sha }}
+          path: ${{ runner.temp }}/release
+          if-no-files-found: error
 
   integration:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository

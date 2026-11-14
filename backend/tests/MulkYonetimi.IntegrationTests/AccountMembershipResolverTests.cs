@@ -279,5 +279,10 @@ public sealed class AccountMembershipResolverTests
             Interlocked.Increment(ref sendCount);
             return Task.CompletedTask;
         }
+        public Task SendNotificationAsync(string address, string subject, string body, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref sendCount);
+            return Task.CompletedTask;
+        }
     }
 }

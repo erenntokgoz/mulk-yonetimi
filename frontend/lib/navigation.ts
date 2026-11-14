@@ -1,15 +1,15 @@
 export const sections = [
-  { path: "/", title: "Genel bakış", unavailable: "" },
-  { path: "/portfoy", title: "Portföy", unavailable: "Mülk kayıtları şu anda kullanıma açık değil." },
-  { path: "/kiracilar", title: "Kiracılar", unavailable: "Kiracı kayıtları şu anda kullanıma açık değil." },
-  { path: "/sozlesmeler", title: "Sözleşmeler", unavailable: "Sözleşme kayıtları şu anda kullanıma açık değil." },
-  { path: "/kira-tahsilatlar", title: "Kira ve tahsilatlar", unavailable: "Alacak ve tahsilat kayıtları şu anda kullanıma açık değil." },
-  { path: "/depozitolar", title: "Depozitolar", unavailable: "Depozito kayıtları şu anda kullanıma açık değil." },
-  { path: "/giderler", title: "Giderler", unavailable: "Gider kayıtları şu anda kullanıma açık değil." },
-  { path: "/belgeler", title: "Belgeler", unavailable: "Belge kayıtları şu anda kullanıma açık değil." },
-  { path: "/raporlar", title: "Raporlar", unavailable: "Raporlar şu anda kullanıma açık değil." },
-  { path: "/bildirimler", title: "Bildirimler", unavailable: "Bildirimler şu anda kullanıma açık değil." },
-  { path: "/ayarlar", title: "Ayarlar", unavailable: "Hesap ayarları şu anda kullanıma açık değil." },
+  { path: "/", title: "Genel bakış", group: "GENEL", unavailable: "" },
+  { path: "/portfoy", title: "Portföy", group: "MÜLK YÖNETİMİ", unavailable: "Mülk kayıtları şu anda kullanıma açık değil." },
+  { path: "/kiracilar", title: "Kiracılar", group: "MÜLK YÖNETİMİ", unavailable: "Kiracı kayıtları şu anda kullanıma açık değil." },
+  { path: "/sozlesmeler", title: "Sözleşmeler", group: "MÜLK YÖNETİMİ", unavailable: "Sözleşme kayıtları şu anda kullanıma açık değil." },
+  { path: "/kira-tahsilatlar", title: "Kira ve tahsilatlar", group: "FİNANS", unavailable: "Alacak ve tahsilat kayıtları şu anda kullanıma açık değil." },
+  { path: "/depozitolar", title: "Depozitolar", group: "FİNANS", unavailable: "Depozito kayıtları şu anda kullanıma açık değil." },
+  { path: "/giderler", title: "Giderler", group: "FİNANS", unavailable: "Gider kayıtları şu anda kullanıma açık değil." },
+  { path: "/belgeler", title: "Belgeler", group: "KAYITLAR", unavailable: "" },
+  { path: "/raporlar", title: "Raporlar", group: "KAYITLAR", unavailable: "Raporlar şu anda kullanıma açık değil." },
+  { path: "/bildirimler", title: "Bildirimler", group: "SİSTEM", unavailable: "" },
+  { path: "/ayarlar", title: "Ayarlar", group: "SİSTEM", unavailable: "" },
 ] as const;
 
 export function findSection(path: string) {

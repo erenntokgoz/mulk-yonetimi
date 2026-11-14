@@ -1,6 +1,5 @@
 import { DashboardShell } from "@/components/dashboard-shell";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { OverviewDashboard } from "@/components/overview-dashboard";
 import { getBackendHealth, type HealthResult, type HealthStatus } from "@/lib/api/health";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +11,10 @@ const statusLabels: Record<HealthStatus, string> = {
 };
 
 export default async function Home() {
+  return <DashboardShell><OverviewDashboard /><SystemHealth /></DashboardShell>;
+}
+
+async function SystemHealth() {
   let result: HealthResult | null = null;
   try {
     result = await getBackendHealth();
@@ -27,17 +30,19 @@ export default async function Home() {
       : null;
 
   return (
-    <DashboardShell>
-      <h1 className="text-2xl font-semibold tracking-tight">Genel bakış</h1>
-      <Card className="w-full max-w-3xl">
-        <CardHeader><CardTitle>Sistem durumu</CardTitle><CardDescription>Uygulama hizmeti ve veritabanı bağlantısı</CardDescription></CardHeader>
-        <CardContent className="space-y-4">
-          <div role="status" className="flex items-center gap-2 text-lg font-medium"><span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${report?.status === "Healthy" ? "bg-green-700" : "bg-amber-700"}`} />{status}</div>
-          {detail && <p className="text-sm text-muted-foreground">{detail}</p>}
-          {report && <dl className="border-t text-sm">{report.checks.map((check, index) => <div key={`${check.name}-${index}`} className="flex justify-between gap-4 border-b py-3"><dt>{check.name === "sqlserver" ? "SQL Server" : "Bağlı hizmet"}</dt><dd className="font-medium">{statusLabels[check.status]}</dd></div>)}</dl>}
-        </CardContent>
-        <CardFooter className="border-t pt-5"><form action="/" method="get"><Button type="submit" variant="outline">Durumu yenile</Button></form></CardFooter>
-      </Card>
-    </DashboardShell>
+      <section className="grid gap-4 lg:grid-cols-2" aria-label="Sistem sağlığı">
+        <section aria-label="Sistem durumu" className="rounded-lg border bg-card p-4">
+          <h2 className="font-semibold">Sistem durumu</h2>
+          <div role="status" className="mt-2 flex items-center gap-3 text-sm font-medium"><span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${report?.status === "Healthy" ? "bg-emerald-400" : "bg-amber-400"}`} />{status}</div>
+          {detail && <p className="mt-2 text-xs leading-5 text-muted-foreground">{detail}</p>}
+          <form action="/" method="get" className="mt-3"><button type="submit" className="text-xs underline">Durumu yenile</button></form>
+        </section>
+        <section aria-label="Hizmet kontrolleri" className="rounded-lg border bg-card p-4">
+          <h2 className="font-semibold">Hizmet kontrolleri</h2>
+          <div className="mt-2">
+              {report ? report.checks.length ? <dl className="divide-y divide-border text-sm">{report.checks.map((check, index) => <div key={`${check.name}-${index}`} className="grid gap-1 py-4"><div className="flex items-center justify-between gap-4"><dt>{check.name === "sqlserver" ? "SQL Server" : "Bağlı hizmet"}</dt><dd className="font-medium">{statusLabels[check.status]}</dd></div><p className="text-xs text-muted-foreground">Yanıt süresi: {check.durationMs} ms</p>{check.description && <p className="text-xs text-muted-foreground">{check.description}</p>}</div>)}</dl> : <p className="text-sm text-muted-foreground">İzlenecek hizmet yok.</p> : <p className="text-sm text-muted-foreground">Hizmet bilgisi alınamadı.</p>}
+          </div>
+        </section>
+      </section>
   );
 }

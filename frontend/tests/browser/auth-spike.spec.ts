@@ -34,6 +34,10 @@ test("login form sends credentials through BFF", async ({ page }) => {
   await page.getByRole("button", { name: "Giriş yap" }).click();
   await expect(page).toHaveURL(/\/$/);
   expect((await page.context().cookies()).some((cookie) => cookie.name === "mulk.session")).toBe(true);
+  await expect(page.getByRole("button", { name: "Çıkış yap" })).toBeVisible();
+  await page.getByRole("button", { name: "Çıkış yap" }).click();
+  await expect(page.getByRole("link", { name: "Giriş" })).toBeVisible();
+  expect((await page.context().cookies()).some((cookie) => cookie.name === "mulk.session")).toBe(false);
 });
 
 test("BFF forwards an HttpOnly session cookie and sends it to /me", async ({ page }) => {

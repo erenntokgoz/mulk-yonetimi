@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { AuthShell } from "@/components/auth-shell";
 
 export function EmailActionForm({ title, endpoint }: { title: string; endpoint: string }) {
   const [state, setState] = useState<"idle" | "pending" | "sent" | "error" | "limited">("idle");
@@ -15,7 +16,7 @@ export function EmailActionForm({ title, endpoint }: { title: string; endpoint: 
       setState(response.status === 202 ? "sent" : response.status === 429 ? "limited" : "error");
     } catch { setState("error"); }
   }
-  return <main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 px-4 py-10">
+  return <AuthShell><main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 px-4 py-10">
     <h1 className="text-2xl font-semibold">{title}</h1>
     {state === "sent" ? <p role="status">Bu adres için işlem gerekiyorsa bağlantı e-postayla gönderildi.</p> :
       <form onSubmit={submit} className="grid gap-4">
@@ -25,5 +26,5 @@ export function EmailActionForm({ title, endpoint }: { title: string; endpoint: 
         <Button type="submit" size="lg" disabled={state === "pending"}>Bağlantı gönder</Button>
       </form>}
     <Link href="/giris" className="text-sm underline">Giriş</Link>
-  </main>;
+  </main></AuthShell>;
 }

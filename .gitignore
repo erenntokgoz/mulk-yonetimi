@@ -32,3 +32,4 @@ Thumbs.db
 .superpowers/
 playwright-report/
 test-results/
+/.local/mailpit/

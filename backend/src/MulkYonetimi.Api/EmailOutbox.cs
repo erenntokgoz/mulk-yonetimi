@@ -21,6 +21,24 @@ public sealed class EmailOutboxQueue(ApplicationDbContext db, IDataProtectionPro
             NextAttemptAtUtc = DateTime.UtcNow
         });
     }
+
+    public void AddNotification(Guid accountId, Guid userId, string eventKey, string notificationType,
+        string recipientEmail, string subject, string body)
+    {
+        db.OutboxMessages.Add(new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            AccountId = accountId,
+            UserId = userId,
+            EventKey = $"notification:{userId}:{eventKey}",
+            NotificationType = notificationType,
+            Kind = "NOTIFICATION",
+            RecipientEmail = recipientEmail,
+            Subject = subject,
+            ProtectedUrl = protector.Protect(body),
+            NextAttemptAtUtc = DateTime.UtcNow
+        });
+    }
 }
 
 public sealed class EmailOutboxDispatcher(ApplicationDbContext db, IDataProtectionProvider protection,
@@ -60,6 +78,27 @@ public sealed class EmailOutboxDispatcher(ApplicationDbContext db, IDataProtecti
                     await mailer.SendAsync(message.RecipientEmail, url, sendTimeout.Token);
                 else if (message.Kind == "RESET_PASSWORD")
                     await mailer.SendPasswordResetAsync(message.RecipientEmail, url, sendTimeout.Token);
+                else if (message.Kind == "NOTIFICATION" && message.UserId is { } userId &&
+                    message.Subject is { } subject && message.NotificationType is { } notificationType)
+                {
+                    var preferences = await db.NotificationPreferences.AsNoTracking().SingleOrDefaultAsync(item =>
+                        item.AccountId == message.AccountId && item.UserId == userId, cancellationToken);
+                    var enabled = preferences is not null && preferences.EmailEnabled &&
+                        IsEmailEnabledForType(preferences, notificationType);
+                    var confirmed = await db.Users.AsNoTracking().AnyAsync(item =>
+                        item.Id == userId && item.EmailConfirmed, cancellationToken);
+                    if (!enabled || !confirmed)
+                    {
+                        await db.OutboxMessages.Where(item => item.Id == id && item.ClaimId == claimId)
+                            .ExecuteUpdateAsync(setters => setters
+                                .SetProperty(item => item.Status, "CANCELLED")
+                                .SetProperty(item => item.ClaimId, (Guid?)null)
+                                .SetProperty(item => item.ClaimedUntilUtc, (DateTime?)null), cancellationToken);
+                        processed++;
+                        continue;
+                    }
+                    await mailer.SendNotificationAsync(message.RecipientEmail, subject, url, sendTimeout.Token);
+                }
                 else
                     throw new InvalidOperationException("Unknown outbox message kind.");
 
@@ -89,6 +128,15 @@ public sealed class EmailOutboxDispatcher(ApplicationDbContext db, IDataProtecti
         }
         return processed;
     }
+
+    private static bool IsEmailEnabledForType(NotificationPreference preferences, string type) => type switch
+    {
+        "RENT_DUE" => preferences.RentDueEnabled,
+        "OVERDUE_RENT" => preferences.OverdueRentEnabled,
+        "LEASE_END" => preferences.LeaseEndEnabled,
+        "RENT_ANNIVERSARY" => preferences.RentAnniversaryEnabled,
+        _ => false
+    };
 }
 
 public sealed class EmailOutboxHealthCheck(ApplicationDbContext db,
