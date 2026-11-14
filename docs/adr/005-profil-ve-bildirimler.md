@@ -1,4 +1,4 @@
-# ADR: Profil ve bildirim kapsamı
+# ADR 005 — Profil ve bildirim kapsamı
 
 - Durum: Kabul edildi
 - Tarih: 14 Kasım 2026

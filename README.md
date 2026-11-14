@@ -1,74 +1,47 @@
-# Mülk Yönetimi
+# Mülküm (Mülk Yönetimi)
 
-Konut ve ticari gayrimenkul yöneten bireysel mülk sahipleri için üretim odaklı SaaS uygulaması.
+Konut ve ticari gayrimenkul yöneten bireysel mülk sahipleri için SaaS uygulaması: mülk ve birimler, kiracılar, sözleşmeler, kira alacakları, tahsilatlar, depozitolar, giderler, raporlar, bildirimler ve belgeler.
 
-## Proje yapısı
+Teknik mülakat projesidir; teslim tarihi `AGENTS.md` içindedir. Çalışmaya devam edecek kişi için tam durum: [docs/CODEX-HANDOFF.md](docs/CODEX-HANDOFF.md).
+
+## Teknoloji
+
+| Katman | Teknoloji |
+| --- | --- |
+| Frontend | Next.js 16 (App Router), TypeScript, Tailwind 3, Vercel |
+| Backend | ASP.NET Core 10 Web API, EF Core 10, ASP.NET Identity |
+| Veritabanı | SQL Server (yerelde Docker, canlıda Azure SQL) |
+| E-posta | MailKit, outbox tablosu ve arka plan işçisi |
+| Dosyalar | Cloudflare R2 private bucket (henüz yapılandırılmadı) |
+
+İş kuralları, kimlik doğrulama, tenant izolasyonu ve para hesapları backend'dedir. Tarayıcı yalnız Next.js BFF rotalarıyla (`frontend/app/api/bff`) konuşur. API kontratı OpenAPI'dir; `frontend/lib/api/generated.ts` buradan üretilir.
+
+## Dizin yapısı
 
 ```text
-frontend/   Next.js 16 web uygulaması
-backend/    ASP.NET Core 10 API ve testler
-docs/       Tasarım, plan ve karar kayıtları
+frontend/   Next.js uygulaması ve Playwright testleri
+backend/    API (src/MulkYonetimi.Api), EF Core (src/MulkYonetimi.Infrastructure), testler
+deploy/     Canlı API için compose, nginx ve idempotent migration scripti
+docs/       ADR'ler, denetim, yayın ve yedekleme belgeleri
 ```
 
-## Önkoşullar
+## Yerel çalıştırma
 
-- .NET SDK 10
-- Node.js ve Corepack/pnpm
-- Docker Desktop veya Docker Engine + Compose
-
-Sürüm kontrolleri:
+Gereksinimler: .NET SDK 10, Node.js 24, pnpm 12.15, Docker.
 
 ```powershell
-dotnet --version
-node --version
-pnpm --version
-docker --version
-docker compose version
+Copy-Item .env.example .env        # MULK_SQL_SA_PASSWORD için yerel bir parola yazın
+docker compose up -d               # SQL Server 127.0.0.1,14333; MulkYonetimi veritabanını oluşturur
 ```
 
-## Yerel SQL Server
-
-1. `.env.example` dosyasını `.env` adıyla kopyalayın.
-2. `MULK_SQL_SA_PASSWORD` için yalnız yerel geliştirmede kullanılacak güçlü bir parola belirleyin.
-3. SQL Server'ı başlatın:
+Migration'lar API açılışında uygulanmaz; yerel veritabanı için [backend/README.md](backend/README.md) komutlarını kullanın. API (`http://localhost:5080`):
 
 ```powershell
-docker compose up -d
-docker compose ps -a
+$env:ConnectionStrings__DefaultConnection = 'Server=127.0.0.1,14333;Database=MulkYonetimi;User Id=sa;Password=<yerel-parola>;Encrypt=True;TrustServerCertificate=True'
+dotnet run --project backend/src/MulkYonetimi.Api --launch-profile http
 ```
 
-Windows kullanıcı kurulumunda Docker komutları bulunamıyorsa Docker'ın CLI ve kimlik bilgisi yardımcı programları için açık PowerShell oturumunun PATH'ine kurulum dizinini ekleyin.
-
-```powershell
-$env:Path = "$(Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\resources\bin');$env:Path"
-```
-
-`sqlserver-init` servisi ilk sağlıklı başlangıçta `MulkYonetimi` veritabanını idempotent biçimde oluşturup çıkar. Host bağlantısı varsayılan olarak `127.0.0.1,14333` olur. Container verisi `mulk-yonetimi-sqlserver-data` named volume'ünde saklanır.
-
-Başlangıç doğrulamasında `sqlserver` servisi `healthy`, `sqlserver-init` servisi `Exited (0)` görünmelidir. Ardından backend `/health` yanıtının `Healthy` ve `sqlserver` kontrolünün `Healthy` olduğu doğrulanmalıdır.
-
-Windows'ta WSL veya Docker eksikse kurulum adımları ve ayrı SQL entegrasyon testi komutu [kurtarma kaydında](docs/recovery-status.md#yerel-ortam) yer alır.
-
-## Backend
-
-Backend uygulaması varsayılan olarak `http://localhost:5080` adresinde çalışır. Bağlantı bilgisini process environment üzerinden verin:
-
-```powershell
-$env:ConnectionStrings__DefaultConnection = 'Server=127.0.0.1,14333;Database=MulkYonetimi;User Id=sa;Password=<local-password>;Encrypt=True;TrustServerCertificate=True'
-dotnet run --project backend/src/MulkYonetimi.Api
-```
-
-Sağlık kontrolü:
-
-```powershell
-Invoke-RestMethod http://localhost:5080/health
-```
-
-Backend'e özgü test ve build komutları `backend/README.md` içinde tutulur.
-
-28 Ekim 2026 yerel doğrulamasında SQL Server konteyneri `healthy`, `sqlserver-init` `Exited (0)` ve backend `/health` yanıtı HTTP 200 / `Healthy` oldu. Frontend production sunucusu HTTP 200 ile `Çalışıyor` ve `SQL Server` durumunu gösterdi. Bu makinede `localhost,14333` ile backend bağlantısı başarısız olduğu için host bağlantısında açık IPv4 adresi kullanılır.
-
-## Frontend
+Frontend (`http://localhost:3000`):
 
 ```powershell
 Set-Location frontend
@@ -77,16 +50,37 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Frontend varsayılan olarak `http://localhost:3000` adresinde çalışır ve backend'e server-side `BACKEND_BASE_URL` üzerinden bağlanır. Frontend'e özgü kontroller `frontend/README.md` içinde tutulur.
+Yerel e-posta için [docs/local-email.md](docs/local-email.md).
+
+## Testler
+
+```powershell
+# frontend (frontend/ içinde)
+pnpm lint; pnpm typecheck; pnpm test; pnpm build; pnpm test:browser   # test:browser önce build ister
+
+# backend
+dotnet build backend/MulkYonetimi.slnx -c Release
+dotnet test backend/tests/MulkYonetimi.Api.Tests -c Release
+dotnet format backend/MulkYonetimi.slnx --verify-no-changes
+```
+
+Gerçek SQL Server entegrasyon testleri `MULK_SQL_TEST_ADMIN_CONNECTION` (SQL Server `master` bağlantısı) ister; ayrıntı `backend/README.md` içindedir. CI (`.github/workflows/ci.yml`) frontend, backend ve integration işlerini çalıştırır.
+
+## Yayın
+
+Frontend Vercel'de (`main` dalı otomatik yayınlanır), API paylaşımlı bir Ubuntu sunucusunda Docker içinde, veritabanı Azure SQL'dedir. Topoloji: [ADR 003](docs/adr/003-yayin-topolojisi.md). Kurulum ve güncelleme adımları: [docs/deploy-ubuntu-azure.md](docs/deploy-ubuntu-azure.md). Yedekleme: [docs/sql-backup-restore.md](docs/sql-backup-restore.md).
+
+## Belgeler
+
+- [AGENTS.md](AGENTS.md): çalışma kuralları ve mimari sınırlar
+- [docs/adr/](docs/adr): mimari kararlar
+- [docs/requirements-audit.md](docs/requirements-audit.md): PRD, tasarım ve backlog karşısında durum
+- [docs/design/public-site-plan.md](docs/design/public-site-plan.md): herkese açık site planı
 
 ## Secret politikası
 
-Gerçek parola, cookie secret, token veya erişim anahtarı commit edilmez. `.env.example` yalnız değişken adlarını ve güvenli olmayan örnekleri belgeler; gerçek değerler `.env`, deployment secret store veya uygun secret manager içinde tutulur.
+Parola, token, cookie secret ve erişim anahtarları commit edilmez. `.env.example` ve `deploy/api.env.example` yalnız değişken adlarını gösterir.
 
-## CI
+## Git düzeni
 
-`.github/workflows/ci.yml` üç iş tanımlar. Frontend işi kilitli kurulum, lint, typecheck, birim testi, production build ve Playwright çalıştırır. Backend işi solution için kilitli restore, Release build, test ve format kontrolü yapar. Ayrı `integration` işi, gerçek SQL Server konteynerinde `MulkYonetimi.IntegrationTests.csproj` testlerini çalıştırır ve `MULK_SQL_TEST_PASSWORD` depo secret'ını kullanır. Fork pull request'lerinde SQL işi atlanır.
-
-## Git branch düzeni
-
-`main` gösterim ve teslim için kararlı daldır. `develop` günlük geliştirme dalıdır; yeni işler gerektiğinde `feature/<backlog-id>` dalında geliştirilip pull request ile `develop` dalına alınır. Teslim edilecek doğrulanmış değişiklikler pull request ile `main` dalına taşınır. Frontend ve backend için kalıcı ayrı dallar kullanılmaz; iki uygulama aynı ürün değişikliklerinde birlikte sürümlenebilir.
+`main` korumalıdır: pull request ve yeşil CI gerekir. Günlük iş `develop` dalındadır; küçük PR'larla `main`'e alınır.

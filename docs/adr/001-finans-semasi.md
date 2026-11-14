@@ -8,4 +8,4 @@ AGENTS.md ve PRD v1.1 esas alınır. Para alanları SQL Server'da `decimal(19,2)
 
 Finans migration'ları bu hassasiyeti ve anahtarı uygulamalı. Aynı dönem için eşzamanlı üretimde tek alacak kalması gerçek SQL Server'da doğrulanmalı.
 
-Kaynak taslak [ADR-PORTFOLIO-001](../../backend/ADR-PORTFOLIO-001.md).
+Portföy dilimi finans şeması eklemiyor; kurallar [ADR 007](007-portfoy-sozlesme-ve-finans-kurallari.md) içindedir.
