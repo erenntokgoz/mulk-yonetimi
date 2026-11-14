@@ -24,7 +24,7 @@ export function SectionNavigation({ onNavigate }: { onNavigate?: () => void }) {
     <nav aria-label="Ana gezinme" className="reference-nav grid gap-4">
       <label className="nav-search relative block">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-        <input type="search" aria-label="Menüde ara" placeholder="Menüde ara" value={query} onChange={(event) => setQuery(event.target.value)} className="h-11 w-full rounded-md border bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+        <input type="search" aria-label="Menüde ara" aria-keyshortcuts="Control+K Meta+K" placeholder="Menüde ara" value={query} onChange={(event) => setQuery(event.target.value)} className="h-11 w-full rounded-md border bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
       </label>
       {groups.map(({ group, items }) => (
         <section key={group} aria-label={group} className="nav-group grid gap-1">

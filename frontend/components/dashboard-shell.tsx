@@ -3,6 +3,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { MobileMenu } from "@/components/mobile-menu";
 import { SectionNavigation } from "@/components/section-navigation";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from "@/components/ui/breadcrumb";
+import { ShellShortcuts } from "@/components/shell-shortcuts";
 import { SidebarToggle } from "@/components/sidebar-toggle";
 import { SessionControl } from "@/components/session-control";
 import { ThemeControl } from "@/components/theme-control";
@@ -11,6 +12,7 @@ import { RouteSurface } from "@/components/route-surface";
 export function DashboardShell({ children, title = "Genel bakış" }: { children: React.ReactNode; title?: string }) {
   return (
       <div className="app-shell flex min-h-screen w-full flex-col">
+        <ShellShortcuts />
         <a href="#main" className="skip-link">İçeriğe geç</a>
         <aside id="app-sidebar" aria-label="Uygulama" className="glass-sidebar fixed z-10 hidden w-56 flex-col lg:flex">
           <div className="sidebar-brand flex h-16 items-center px-4">
