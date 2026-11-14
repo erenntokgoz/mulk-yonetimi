@@ -17,6 +17,10 @@ var builder = WebApplication.CreateBuilder(args);
 var keysPath = builder.Configuration["Auth:DataProtectionKeysPath"];
 if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(keysPath))
     throw new InvalidOperationException("Auth:DataProtectionKeysPath must be configured.");
+if (!builder.Environment.IsDevelopment() &&
+    (string.IsNullOrWhiteSpace(builder.Configuration["AllowedHosts"]) ||
+     builder.Configuration["AllowedHosts"] == "*"))
+    throw new InvalidOperationException("AllowedHosts must name the API host in production.");
 if (!string.IsNullOrWhiteSpace(keysPath))
     builder.Services.AddDataProtection().SetApplicationName("MulkYonetimi")
         .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
@@ -43,7 +47,16 @@ builder.Services.AddSingleton<IR2DocumentStorage>(serviceProvider =>
     documentStorageOptions.IsConfigured
         ? new R2DocumentStorage(documentStorageOptions)
         : new UnconfiguredR2DocumentStorage());
-builder.Services.AddSingleton<IDocumentMalwareScanner, UnconfiguredDocumentMalwareScanner>();
+var scannerHost = string.IsNullOrWhiteSpace(builder.Configuration["Scanner:Host"])
+    ? null : builder.Configuration["Scanner:Host"];
+if (scannerHost is not null && scannerHost != "127.0.0.1")
+    throw new InvalidOperationException("Scanner:Host must be 127.0.0.1 when configured.");
+var scannerPort = builder.Configuration.GetValue("Scanner:Port", 3310);
+if (scannerPort is < 1 or > 65535) throw new InvalidOperationException("Scanner:Port is invalid.");
+builder.Services.AddSingleton<IDocumentMalwareScanner>(services =>
+    documentStorageOptions.IsConfigured && scannerHost is not null
+        ? new ClamAvScanner(services.GetRequiredService<IR2DocumentStorage>(), scannerHost, scannerPort)
+        : new UnconfiguredDocumentMalwareScanner());
 builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedEmail = true)
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager()
@@ -185,7 +198,7 @@ app.MapGet("/api/v1/me", async (ClaimsPrincipal principal, AccountMembershipReso
 
 app.MapPost("/api/v1/auth/login", async (LoginRequest input, HttpContext context,
     UserManager<ApplicationUser> users, SignInManager<ApplicationUser> signIn,
-    AccountMembershipResolver memberships, IConfiguration configuration) =>
+    AccountMembershipResolver memberships, ApplicationDbContext db, IConfiguration configuration) =>
 {
     context.Response.Headers.CacheControl = "no-store";
     if (!AllowedOrigin(context, configuration)) return Results.Forbid();
@@ -196,6 +209,12 @@ app.MapPost("/api/v1/auth/login", async (LoginRequest input, HttpContext context
     if (user is null || !(await signIn.CheckPasswordSignInAsync(user, input.Password, lockoutOnFailure: true)).Succeeded)
         return Results.Unauthorized();
     var principal = await signIn.CreateUserPrincipalAsync(user);
+    var pending = await (from member in db.AccountMembers.AsNoTracking()
+                         join account in db.Accounts.AsNoTracking() on member.AccountId equals account.Id
+                         where member.UserId == user.Id && member.Role == "OWNER" && member.Status == "ACTIVE" &&
+                             account.Status == "PENDING"
+                         select account.Id).AnyAsync();
+    if (pending) return Results.Problem(statusCode: 423, title: "Hesap pilot onayı bekliyor.");
     if (await memberships.ResolveAsync(principal) is null) return Results.Forbid();
 
     await signIn.SignInAsync(user, isPersistent: false);
@@ -206,7 +225,8 @@ app.MapPost("/api/v1/auth/login", async (LoginRequest input, HttpContext context
     .Produces(StatusCodes.Status204NoContent)
     .Produces(StatusCodes.Status400BadRequest)
     .Produces(StatusCodes.Status401Unauthorized)
-    .Produces(StatusCodes.Status403Forbidden);
+    .Produces(StatusCodes.Status403Forbidden)
+    .Produces(423);
 
 app.MapPost("/api/v1/auth/logout", async (HttpContext context,
     SignInManager<ApplicationUser> signIn, IConfiguration configuration) =>
@@ -241,9 +261,14 @@ app.MapPost("/api/v1/auth/register", async (RegisterRequest input, HttpContext c
     var result = await users.CreateAsync(user, input.Password);
     if (!result.Succeeded) return Results.BadRequest(new { errors = result.Errors.Select(error => error.Code) });
 
-    var account = new Account { Id = Guid.NewGuid(), Name = accountName };
+    var defaultUnitLimit = configuration.GetValue<int?>("Pilot:DefaultUnitLimit");
+    if (defaultUnitLimit is < 1) throw new InvalidOperationException("Pilot:DefaultUnitLimit must be positive when set.");
+    var account = new Account { Id = Guid.NewGuid(), Name = accountName, Status = "PENDING" };
     db.Accounts.Add(account);
     db.AccountMembers.Add(new AccountMember { AccountId = account.Id, UserId = user.Id, Role = "OWNER", Status = "ACTIVE" });
+    db.AccountPlans.Add(new AccountPlan { AccountId = account.Id, Code = "PILOT" });
+    db.AccountEntitlements.Add(new AccountEntitlement { AccountId = account.Id, Code = "UNIT_LIMIT",
+        LimitValue = defaultUnitLimit });
     await db.SaveChangesAsync(cancellationToken);
 
     var token = await users.GenerateEmailConfirmationTokenAsync(user);
@@ -290,7 +315,8 @@ app.MapPost("/api/v1/auth/resend-confirmation", async (EmailRequest input, HttpC
     {
         var accountIds = await (from member in db.AccountMembers
                                 join account in db.Accounts on member.AccountId equals account.Id
-                                where member.UserId == user.Id && member.Status == "ACTIVE" && account.Status == "ACTIVE"
+                                where member.UserId == user.Id && member.Status == "ACTIVE" &&
+                                    (account.Status == "ACTIVE" || account.Status == "PENDING")
                                 select member.AccountId).Take(2).ToListAsync(cancellationToken);
         if (accountIds.Count != 1) return Results.Accepted();
         var token = await users.GenerateEmailConfirmationTokenAsync(user);
@@ -321,7 +347,8 @@ app.MapPost("/api/v1/auth/forgot-password", async (EmailRequest input, HttpConte
     {
         var accountIds = await (from member in db.AccountMembers
                                 join account in db.Accounts on member.AccountId equals account.Id
-                                where member.UserId == user.Id && member.Status == "ACTIVE" && account.Status == "ACTIVE"
+                                where member.UserId == user.Id && member.Status == "ACTIVE" &&
+                                    (account.Status == "ACTIVE" || account.Status == "PENDING")
                                 select member.AccountId).Take(2).ToListAsync(cancellationToken);
         if (accountIds.Count != 1) return Results.Accepted();
         var token = await users.GeneratePasswordResetTokenAsync(user);
@@ -367,6 +394,7 @@ app.MapExpenseEndpoints();
 app.MapReportEndpoints();
 app.MapNotificationEndpoints();
 app.MapDocumentEndpoints();
+app.MapPilotEndpoints();
 app.Run();
 
 static bool AllowedOrigin(HttpContext context, IConfiguration configuration) =>

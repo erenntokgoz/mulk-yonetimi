@@ -49,6 +49,9 @@ public sealed class PropertyIsolationTests
             await db.Database.MigrateAsync();
             var (accountA, userA) = AddOwner(db, "a");
             var (accountB, userB) = AddOwner(db, "b");
+            db.AccountPlans.Add(new AccountPlan { AccountId = accountA.Id, Code = "PILOT" });
+            db.AccountEntitlements.Add(new AccountEntitlement { AccountId = accountA.Id,
+                Code = "UNIT_LIMIT", LimitValue = 1 });
             await db.SaveChangesAsync();
 
             using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(host =>
@@ -77,6 +80,13 @@ public sealed class PropertyIsolationTests
             });
             Assert.Equal("Müstakil ev", propertyA.Name);
             Assert.Equal("Ankara", propertyA.Address);
+            using var overQuota = await clientA.PostAsJsonAsync(Properties, new
+            {
+                name = "İkinci tek birim", address = "Ankara", propertyKind = "SINGLE_UNIT",
+                defaultUnitUsageType = "RESIDENTIAL"
+            });
+            Assert.Equal(HttpStatusCode.Conflict, overQuota.StatusCode);
+            Assert.Equal(propertyA.Id, Assert.Single((await ListAsync(clientA)).Items).Id);
             Assert.Equal(8, propertyA.Version.Length);
             Assert.Equal(propertyA.Id, Assert.Single((await ListAsync(clientA)).Items).Id);
             Assert.Equal(propertyB.Id, Assert.Single((await ListAsync(clientB)).Items).Id);
@@ -490,6 +500,10 @@ public sealed class PropertyIsolationTests
         Assert.Equal("Dükkan", unit.Label);
         Assert.Equal("3", unit.DoorNumber);
         Assert.Equal(45.25m, unit.AreaM2);
+        using var overQuota = await clientA.PostAsJsonAsync(unitsA,
+            new { label = "İkinci dükkan", usageType = "COMMERCIAL" });
+        Assert.Equal(HttpStatusCode.Conflict, overQuota.StatusCode);
+        Assert.Equal(unit.Id, Assert.Single((await clientA.GetFromJsonAsync<UnitPage>(unitsA, Json))!.Items).Id);
         Assert.Empty((await clientB.GetFromJsonAsync<UnitPage>(unitsB, Json))!.Items);
     }
 

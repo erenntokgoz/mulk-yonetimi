@@ -131,6 +131,8 @@ public sealed class PropertyContractTests
         HasResponse("/api/v1/reports/cashflow", "get", "200");
         HasResponse("/api/v1/reports/cashflow.csv", "get", "200");
         HasResponse("/api/v1/reports/payments.csv", "get", "200");
+        HasResponse("/api/v1/admin/accounts/{id}/activate", "post", "204");
+        HasResponse("/api/v1/admin/accounts/{id}/activate", "post", "403");
 
         var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
         Assert.Contains(schemas.GetProperty("CreatePropertyRequest").GetProperty("required").EnumerateArray(),

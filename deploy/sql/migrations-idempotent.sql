@@ -1163,3 +1163,43 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114234749_PilotPlans'
+)
+BEGIN
+    CREATE TABLE [AccountEntitlements] (
+        [AccountId] uniqueidentifier NOT NULL,
+        [Code] nvarchar(32) NOT NULL,
+        [LimitValue] int NULL,
+        CONSTRAINT [PK_AccountEntitlements] PRIMARY KEY ([AccountId], [Code]),
+        CONSTRAINT [FK_AccountEntitlements_Accounts_AccountId] FOREIGN KEY ([AccountId]) REFERENCES [Accounts] ([Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114234749_PilotPlans'
+)
+BEGIN
+    CREATE TABLE [AccountPlans] (
+        [AccountId] uniqueidentifier NOT NULL,
+        [Code] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK_AccountPlans] PRIMARY KEY ([AccountId]),
+        CONSTRAINT [FK_AccountPlans_Accounts_AccountId] FOREIGN KEY ([AccountId]) REFERENCES [Accounts] ([Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114234749_PilotPlans'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261114234749_PilotPlans', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

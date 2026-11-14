@@ -77,6 +77,9 @@ public sealed class AccountMembershipResolverTests
                 host.UseSetting("Email:From", "noreply@example.test");
                 host.UseSetting("Email:WorkerEnabled", "false");
                 host.UseSetting("Email:SendTimeoutSeconds", "1");
+                host.UseSetting("Pilot:AdminUserId", userA.Id.ToString());
+                host.UseSetting("Pilot:AdminKey", "pilot-test-key-with-at-least-32-characters");
+                host.UseSetting("Pilot:DefaultUnitLimit", "1");
                 host.ConfigureTestServices(services => services.AddSingleton<IConfirmationMailer>(mailer));
             });
             using (var loginClient = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false }))
@@ -95,6 +98,33 @@ public sealed class AccountMembershipResolverTests
                 await DispatchMailAsync(factory);
                 Assert.NotNull(mailer.Url);
                 var newUser = await db.Users.SingleAsync(item => item.Email == "new@example.test");
+                using (var expiredFactory = new WebApplicationFactory<Program>().WithWebHostBuilder(host =>
+                {
+                    host.UseSetting("ConnectionStrings:DefaultConnection", builder.ConnectionString);
+                    host.UseSetting("Auth:FrontendOrigin", "https://app.example.test");
+                    host.UseSetting("Email:WorkerEnabled", "false");
+                    host.ConfigureTestServices(services => services.Configure<DataProtectionTokenProviderOptions>(
+                        options => options.TokenLifespan = TimeSpan.FromMinutes(-1)));
+                }))
+                {
+                    using var expiredScope = expiredFactory.Services.CreateScope();
+                    var tokenUsers = expiredScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                    var expiredConfirmationToken = await tokenUsers.GenerateEmailConfirmationTokenAsync(newUser);
+                    var expiredResetToken = await tokenUsers.GeneratePasswordResetTokenAsync(userA);
+                    using var expiredClient = expiredFactory.CreateClient();
+                    expiredClient.DefaultRequestHeaders.Add("Origin", "https://app.example.test");
+                    using var expiredConfirmation = await expiredClient.PostAsJsonAsync("/api/v1/auth/confirm-email",
+                        new { userId = newUser.Id, token = expiredConfirmationToken });
+                    Assert.Equal(HttpStatusCode.BadRequest, expiredConfirmation.StatusCode);
+                    using var expiredReset = await expiredClient.PostAsJsonAsync("/api/v1/auth/reset-password",
+                        new { userId = userA.Id, token = expiredResetToken, password = "Another-Valid-Password-123!" });
+                    Assert.Equal(HttpStatusCode.BadRequest, expiredReset.StatusCode);
+                }
+                var newAccountId = await db.AccountMembers.Where(item => item.UserId == newUser.Id)
+                    .Select(item => item.AccountId).SingleAsync();
+                Assert.Equal("PENDING", (await db.Accounts.AsNoTracking().SingleAsync(item => item.Id == newAccountId)).Status);
+                Assert.Equal(1, (await db.AccountEntitlements.AsNoTracking().SingleAsync(item =>
+                    item.AccountId == newAccountId && item.Code == "UNIT_LIMIT")).LimitValue);
                 Assert.False(newUser.EmailConfirmed);
                 Assert.Equal(1, await db.AccountMembers.CountAsync(item => item.UserId == newUser.Id));
                 using var beforeConfirmation = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = newUser.Email, password = "Valid-Password-123!" });
@@ -105,7 +135,21 @@ public sealed class AccountMembershipResolverTests
                 using var confirmation = await loginClient.PostAsJsonAsync("/api/v1/auth/confirm-email", new { userId = newUser.Id, token });
                 Assert.Equal(HttpStatusCode.NoContent, confirmation.StatusCode);
                 using var afterConfirmation = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = newUser.Email, password = "Valid-Password-123!" });
-                Assert.Equal(HttpStatusCode.NoContent, afterConfirmation.StatusCode);
+                Assert.Equal((HttpStatusCode)423, afterConfirmation.StatusCode);
+                using var operatorLogin = await loginClient.PostAsJsonAsync("/api/v1/auth/login",
+                    new { email = userA.Email, password = "Valid-Password-123!" });
+                Assert.Equal(HttpStatusCode.NoContent, operatorLogin.StatusCode);
+                using var deniedApproval = await loginClient.PostAsync($"/api/v1/admin/accounts/{newAccountId}/activate", null);
+                Assert.Equal(HttpStatusCode.Forbidden, deniedApproval.StatusCode);
+                using var approve = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/admin/accounts/{newAccountId}/activate");
+                approve.Headers.Add("X-Pilot-Admin-Key", "pilot-test-key-with-at-least-32-characters");
+                using var approved = await loginClient.SendAsync(approve);
+                Assert.Equal(HttpStatusCode.NoContent, approved.StatusCode);
+                Assert.Equal("ACTIVE", (await db.Accounts.AsNoTracking().SingleAsync(item => item.Id == newAccountId)).Status);
+                Assert.Single(await db.AuditEvents.AsNoTracking().Where(item => item.AccountId == newAccountId &&
+                    item.Action == "ACTIVATED" && item.ActorUserId == userA.Id).ToArrayAsync());
+                using var activatedLogin = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = newUser.Email, password = "Valid-Password-123!" });
+                Assert.Equal(HttpStatusCode.NoContent, activatedLogin.StatusCode);
                 using var resend = await loginClient.PostAsJsonAsync("/api/v1/auth/resend-confirmation", new { email = "unknown@example.test" });
                 Assert.Equal(HttpStatusCode.Accepted, resend.StatusCode);
                 using var priorLogin = await loginClient.PostAsJsonAsync("/api/v1/auth/login", new { email = userA.Email, password = "Valid-Password-123!" });

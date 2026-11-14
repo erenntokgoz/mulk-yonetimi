@@ -3,6 +3,18 @@
 name: mulk-yonetimi
 
 services:
+  clamav:
+    image: clamav/clamav:1.5
+    profiles: ["scanner"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3310:3310"
+    volumes:
+      - clamav-signatures:/var/lib/clamav
+    mem_limit: 4g
+    security_opt:
+      - no-new-privileges:true
+
   api:
     build: ../backend
     image: mulk-yonetimi-api:latest
@@ -30,5 +42,7 @@ services:
         max-file: "3"
 
 volumes:
+  clamav-signatures:
+    name: mulk-yonetimi-clamav-signatures
   dataprotection-keys:
     name: mulk-yonetimi-dataprotection-keys

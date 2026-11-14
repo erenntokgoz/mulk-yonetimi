@@ -179,6 +179,23 @@ namespace MulkYonetimi.Infrastructure.Migrations
                     b.ToTable("Accounts");
                 });
 
+            modelBuilder.Entity("MulkYonetimi.Infrastructure.AccountEntitlement", b =>
+                {
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int?>("LimitValue")
+                        .HasColumnType("int");
+
+                    b.HasKey("AccountId", "Code");
+
+                    b.ToTable("AccountEntitlements");
+                });
+
             modelBuilder.Entity("MulkYonetimi.Infrastructure.AccountMember", b =>
                 {
                     b.Property<Guid>("AccountId")
@@ -202,6 +219,21 @@ namespace MulkYonetimi.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("AccountMembers");
+                });
+
+            modelBuilder.Entity("MulkYonetimi.Infrastructure.AccountPlan", b =>
+                {
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.HasKey("AccountId");
+
+                    b.ToTable("AccountPlans");
                 });
 
             modelBuilder.Entity("MulkYonetimi.Infrastructure.ApplicationUser", b =>
@@ -1195,6 +1227,15 @@ namespace MulkYonetimi.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MulkYonetimi.Infrastructure.AccountEntitlement", b =>
+                {
+                    b.HasOne("MulkYonetimi.Infrastructure.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MulkYonetimi.Infrastructure.AccountMember", b =>
                 {
                     b.HasOne("MulkYonetimi.Infrastructure.Account", null)
@@ -1206,6 +1247,15 @@ namespace MulkYonetimi.Infrastructure.Migrations
                     b.HasOne("MulkYonetimi.Infrastructure.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MulkYonetimi.Infrastructure.AccountPlan", b =>
+                {
+                    b.HasOne("MulkYonetimi.Infrastructure.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

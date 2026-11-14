@@ -210,6 +210,8 @@ public sealed class DocumentIsolationTests
             Task.FromResult(new StoredObjectMetadata(5, "application/pdf"));
         public Task<byte[]> ReadSignatureAsync(string key, CancellationToken ct) =>
             Task.FromResult(new byte[] { 0x25, 0x50, 0x44, 0x46, 0x2d });
+        public Task<byte[]> ReadObjectAsync(string key, CancellationToken ct) =>
+            Task.FromResult(new byte[] { 0x25, 0x50, 0x44, 0x46, 0x2d });
         public Task PromoteAsync(string sourceKey, string destinationKey, string contentType, CancellationToken ct)
         {
             PromoteCalls++;

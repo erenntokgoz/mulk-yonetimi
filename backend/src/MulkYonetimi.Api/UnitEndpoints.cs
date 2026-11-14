@@ -62,7 +62,7 @@ internal static class UnitEndpoints
         AccountMembershipResolver memberships, ApplicationDbContext db, CancellationToken ct)
     {
         if (await memberships.ResolveAsync(principal, ct) is not { } accountId) return Results.Forbid();
-        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+        await using var transaction = await RentRules.LockAccountAsync(db, accountId, ct);
         var property = await db.Properties.AsNoTracking()
             .SingleOrDefaultAsync(item => item.AccountId == accountId && item.Id == id, ct);
         if (property is null) return Results.NotFound();
@@ -71,6 +71,7 @@ internal static class UnitEndpoints
 
         var errors = ValidateCreation(input);
         if (errors.Count != 0) return Results.ValidationProblem(errors);
+        if (await PilotAccess.CheckUnitQuotaAsync(db, accountId, ct) is { } overQuota) return overQuota;
         var unit = new Unit
         {
             Id = Guid.NewGuid(),

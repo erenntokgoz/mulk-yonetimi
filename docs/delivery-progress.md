@@ -9,13 +9,13 @@ The plan is `docs/superpowers/plans/2026-11-15-delivery-readiness.md`.
 - [ ] Pagination and complete selection lists
 - [x] Unit archive (code, migration, API/BFF/UI; SQL acceptance pending)
 - [x] Lease renewal (code, migration, API/BFF/UI; SQL acceptance pending)
-- [ ] Configurable quota and pilot activation
+- [x] Configurable quota and pilot activation (code, migration, API test; SQL acceptance pending)
 - [x] Audit reason and correlation ID (code and targeted unit tests; SQL audit acceptance pending)
 - [x] Cashflow and payment CSV (code and targeted unit tests; SQL acceptance pending)
-- [ ] Expired auth tokens
+- [ ] Expired auth tokens (deterministic SQL integration assertions compile; execution pending)
 - [ ] Component, real API E2E and visual regression tests
 - [ ] Typed API client and CI contract/dependency gates
-- [ ] Malware scanner and R2 acceptance harness
+- [ ] Malware scanner and R2 acceptance harness (ClamAV adapter/protocol tests done; real R2 pending)
 - [ ] Staging, restore, release and rollout docs
 - [ ] First setup guidance
 - [ ] Full verification and self-review
@@ -31,3 +31,7 @@ Production deployment, production restore and real R2 acceptance require credent
 - `dotnet build backend/MulkYonetimi.slnx -c Release --no-restore`: exit 0, 0 warnings/errors after first backend/UI slices.
 - `pnpm typecheck`: exit 0 after API type generation and frontend routes/forms. `frontend/next-env.d.ts` restored after generated typecheck.
 - SQL integration test cannot run: Docker executable absent in PATH and standard Docker Desktop location, `MULK_SQL_TEST_ADMIN_CONNECTION` unset. Integration assertions were added, not marked passing.
+- SAAS OpenAPI route: red exit 1 before activation endpoint, green 1/1 exit 0 after code. Pending registration and quota SQL assertions added; not run.
+- ClamAV protocol: red compile exit 1 before adapter, then 4/4 clean/infected/error/disconnected tests pass, exit 0. Integration test project builds exit 0, 0 warnings/errors; database tests not run.
+- Expired confirmation/reset token assertions use a negative token lifetime in the real provider and compile in SQL integration project. Their API result is unverified until SQL is available.
+- `pnpm api:types` and `pnpm typecheck`: exit 0 after pilot endpoint; generated types updated, `next-env.d.ts` restored.

@@ -52,6 +52,7 @@ public interface IR2DocumentStorage
     string CreateDownloadUrl(string key, string fileName);
     Task<StoredObjectMetadata> GetMetadataAsync(string key, CancellationToken ct);
     Task<byte[]> ReadSignatureAsync(string key, CancellationToken ct);
+    Task<byte[]> ReadObjectAsync(string key, CancellationToken ct);
     Task PromoteAsync(string sourceKey, string destinationKey, string contentType, CancellationToken ct);
     Task DeleteAsync(string key, CancellationToken ct);
 }
@@ -118,6 +119,25 @@ public sealed class R2DocumentStorage : IR2DocumentStorage, IDisposable
         return bytes[..read];
     }
 
+    public async Task<byte[]> ReadObjectAsync(string key, CancellationToken ct)
+    {
+        using var response = await client.GetObjectAsync(new GetObjectRequest
+        {
+            BucketName = options.BucketName,
+            Key = key
+        }, ct);
+        await using var buffer = new MemoryStream();
+        var chunk = new byte[8192];
+        int read;
+        while ((read = await response.ResponseStream.ReadAsync(chunk, ct)) != 0)
+        {
+            if (buffer.Length + read > options.MaximumFileSizeBytes)
+                throw new InvalidOperationException("Stored document exceeds the configured size limit.");
+            await buffer.WriteAsync(chunk.AsMemory(0, read), ct);
+        }
+        return buffer.ToArray();
+    }
+
     public async Task PromoteAsync(string sourceKey, string destinationKey, string contentType,
         CancellationToken ct)
     {
@@ -149,6 +169,7 @@ public sealed class UnconfiguredR2DocumentStorage : IR2DocumentStorage
     public string CreateDownloadUrl(string key, string fileName) => throw MissingConfiguration();
     public Task<StoredObjectMetadata> GetMetadataAsync(string key, CancellationToken ct) => Task.FromException<StoredObjectMetadata>(MissingConfiguration());
     public Task<byte[]> ReadSignatureAsync(string key, CancellationToken ct) => Task.FromException<byte[]>(MissingConfiguration());
+    public Task<byte[]> ReadObjectAsync(string key, CancellationToken ct) => Task.FromException<byte[]>(MissingConfiguration());
     public Task PromoteAsync(string sourceKey, string destinationKey, string contentType, CancellationToken ct) => Task.FromException(MissingConfiguration());
     public Task DeleteAsync(string key, CancellationToken ct) => Task.FromException(MissingConfiguration());
 }

@@ -63,6 +63,10 @@ internal static class PropertyEndpoints
         var errors = ValidateCreation(input);
         if (errors.Count != 0) return Results.ValidationProblem(errors);
 
+        await using var transaction = await RentRules.LockAccountAsync(db, accountId, ct);
+        if (input.DefaultUnitUsageType is not null &&
+            await PilotAccess.CheckUnitQuotaAsync(db, accountId, ct) is { } overQuota) return overQuota;
+
         var property = new Property
         {
             Id = Guid.NewGuid(),
@@ -87,6 +91,7 @@ internal static class PropertyEndpoints
 
         AddAudit(db, principal, accountId, property.Id, "PROPERTY", "CREATED");
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return Results.CreatedAtRoute("GetProperty", new { id = property.Id }, ToResponse(property));
     }
 

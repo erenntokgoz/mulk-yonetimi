@@ -26,6 +26,19 @@ public sealed class AccountMember
     public required string Status { get; set; }
 }
 
+public sealed class AccountPlan
+{
+    public Guid AccountId { get; set; }
+    public required string Code { get; set; }
+}
+
+public sealed class AccountEntitlement
+{
+    public Guid AccountId { get; set; }
+    public required string Code { get; set; }
+    public int? LimitValue { get; set; }
+}
+
 public sealed class OutboxMessage
 {
     public Guid Id { get; set; }
@@ -52,6 +65,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 {
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<AccountMember> AccountMembers => Set<AccountMember>();
+    public DbSet<AccountPlan> AccountPlans => Set<AccountPlan>();
+    public DbSet<AccountEntitlement> AccountEntitlements => Set<AccountEntitlement>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<Property> Properties => Set<Property>();
     public DbSet<Unit> Units => Set<Unit>();
@@ -103,6 +118,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .OnDelete(DeleteBehavior.Restrict);
             member.HasOne<ApplicationUser>().WithMany().HasForeignKey(item => item.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<AccountPlan>(plan =>
+        {
+            plan.HasKey(item => item.AccountId);
+            plan.Property(item => item.Code).HasMaxLength(32);
+            plan.HasOne<Account>().WithMany().HasForeignKey(item => item.AccountId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<AccountEntitlement>(entitlement =>
+        {
+            entitlement.HasKey(item => new { item.AccountId, item.Code });
+            entitlement.Property(item => item.Code).HasMaxLength(32);
+            entitlement.HasOne<Account>().WithMany().HasForeignKey(item => item.AccountId).OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<OutboxMessage>(message =>
