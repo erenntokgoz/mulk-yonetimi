@@ -53,7 +53,7 @@ internal static class RentChargeEndpoints
         };
         charge.Amount = amount;
         db.RentChargeCorrections.Add(correction);
-        AddAudit(db, principal, accountId, id, "RENT_CHARGE", "CORRECTED");
+        AddAudit(db, principal, accountId, id, "RENT_CHARGE", "CORRECTED", reason);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return Results.Created((string?)null, ToResponse(correction));

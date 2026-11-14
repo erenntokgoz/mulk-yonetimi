@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
@@ -24,6 +25,9 @@ export function ReportDashboard() {
   const [flow, setFlow] = useState<CashFlow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const exportQuery = new URLSearchParams({ fromDate: range.fromDate, toDate: range.toDate });
+  if (propertyId) exportQuery.set("propertyId", propertyId);
+  if (unitId) exportQuery.set("unitId", unitId);
   useEffect(() => {
     void fetch("/api/bff/properties?page=1&pageSize=100", { cache: "no-store" })
       .then(async (r) => {
@@ -145,6 +149,12 @@ export function ReportDashboard() {
             Nakit akışı net kâr değildir. Depozito hareketleri ve ödenmemiş giderler nakit akışına dahil
             edilmez.
           </p>
+          {flow && !error && (
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline"><a href={`/api/bff/reports/cashflow.csv?${exportQuery}`} download="cashflow.csv">Nakit akışı CSV</a></Button>
+              <Button asChild variant="outline"><a href={`/api/bff/reports/payments.csv?${exportQuery}`} download="payments.csv">Tahsilatlar CSV</a></Button>
+            </div>
+          )}
         </CardContent>
       </Card>
       {loading && <ListSkeleton label="Rapor yükleniyor…" />}

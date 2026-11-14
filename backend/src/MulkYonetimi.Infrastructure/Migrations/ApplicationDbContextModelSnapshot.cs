@@ -298,6 +298,10 @@ namespace MulkYonetimi.Infrastructure.Migrations
                     b.Property<Guid>("ActorUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<Guid>("EntityId")
                         .HasColumnType("uniqueidentifier");
 
@@ -308,6 +312,10 @@ namespace MulkYonetimi.Infrastructure.Migrations
 
                     b.Property<DateTime>("OccurredAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.HasKey("Id");
 
@@ -581,6 +589,47 @@ namespace MulkYonetimi.Infrastructure.Migrations
                     b.HasIndex("AccountId", "UnitId", "StartDate");
 
                     b.ToTable("Leases");
+                });
+
+            modelBuilder.Entity("MulkYonetimi.Infrastructure.LeaseRenewal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("LeaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("MonthlyAmount")
+                        .HasPrecision(19, 2)
+                        .HasColumnType("decimal(19,2)");
+
+                    b.Property<DateOnly>("NewEndDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly>("PreviousEndDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId", "LeaseId", "EffectiveFrom")
+                        .IsUnique();
+
+                    b.ToTable("LeaseRenewals");
                 });
 
             modelBuilder.Entity("MulkYonetimi.Infrastructure.Notification", b =>
@@ -1054,6 +1103,9 @@ namespace MulkYonetimi.Infrastructure.Migrations
                     b.Property<Guid>("AccountId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("ArchivedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<decimal?>("AreaM2")
                         .HasPrecision(9, 2)
                         .HasColumnType("decimal(9,2)");
@@ -1083,6 +1135,8 @@ namespace MulkYonetimi.Infrastructure.Migrations
                     b.HasIndex("AccountId", "PropertyId")
                         .IsUnique()
                         .HasFilter("[IsDefault] = 1");
+
+                    b.HasIndex("AccountId", "PropertyId", "ArchivedAtUtc");
 
                     b.HasIndex("AccountId", "PropertyId", "Label")
                         .IsUnique();
@@ -1230,6 +1284,16 @@ namespace MulkYonetimi.Infrastructure.Migrations
                     b.HasOne("MulkYonetimi.Infrastructure.Unit", null)
                         .WithMany()
                         .HasForeignKey("AccountId", "UnitId")
+                        .HasPrincipalKey("AccountId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MulkYonetimi.Infrastructure.LeaseRenewal", b =>
+                {
+                    b.HasOne("MulkYonetimi.Infrastructure.Lease", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId", "LeaseId")
                         .HasPrincipalKey("AccountId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

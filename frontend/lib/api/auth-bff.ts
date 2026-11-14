@@ -34,6 +34,7 @@ export async function proxyAuth(request: Request, path: string, mutation: boolea
   }
 
   const headers = new Headers({ Accept: "application/json" });
+  if (path.endsWith(".csv") || path.includes(".csv?")) headers.set("Accept", "text/csv");
   if (mutation) headers.set("Origin", expectedOrigin);
   const cookie = request.headers.get("cookie");
   const contentType = request.headers.get("content-type");
@@ -60,6 +61,10 @@ export async function proxyAuth(request: Request, path: string, mutation: boolea
   const responseHeaders = new Headers({ "Cache-Control": "no-store" });
   const upstreamContentType = upstream.headers.get("content-type");
   if (upstreamContentType) responseHeaders.set("Content-Type", upstreamContentType);
+  const disposition = upstream.headers.get("content-disposition");
+  if (disposition) responseHeaders.set("Content-Disposition", disposition);
+  const correlationId = upstream.headers.get("x-correlation-id");
+  if (correlationId) responseHeaders.set("X-Correlation-Id", correlationId);
   const retryAfter = upstream.headers.get("retry-after");
   if (upstream.status === 429 && retryAfter) responseHeaders.set("Retry-After", retryAfter);
   for (const setCookie of upstream.headers.getSetCookie()) responseHeaders.append("Set-Cookie", setCookie);

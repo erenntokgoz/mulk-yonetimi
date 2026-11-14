@@ -98,7 +98,7 @@ internal static class ExpenseEndpoints
             return expense.VoidReason == reason ? Results.Ok(ToResponse(expense)) : Conflict("Bu gider daha önce iptal edildi.");
         expense.VoidedAtUtc = DateTime.UtcNow;
         expense.VoidReason = reason;
-        AddAudit(db, principal, accountId, id, "EXPENSE", "VOIDED");
+        AddAudit(db, principal, accountId, id, "EXPENSE", "VOIDED", reason);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return Results.Ok(ToResponse(expense));

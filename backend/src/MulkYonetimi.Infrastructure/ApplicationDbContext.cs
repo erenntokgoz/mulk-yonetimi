@@ -58,6 +58,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<Lease> Leases => Set<Lease>();
     public DbSet<RentRatePeriod> RentRatePeriods => Set<RentRatePeriod>();
+    public DbSet<LeaseRenewal> LeaseRenewals => Set<LeaseRenewal>();
     public DbSet<RentCharge> RentCharges => Set<RentCharge>();
     public DbSet<RentChargeCorrection> RentChargeCorrections => Set<RentChargeCorrection>();
     public DbSet<Payment> Payments => Set<Payment>();
@@ -143,6 +144,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             unit.Property(item => item.DoorNumber).HasMaxLength(32);
             unit.Property(item => item.AreaM2).HasPrecision(9, 2);
             unit.Property(item => item.UsageType).HasConversion<string>().HasMaxLength(16);
+            unit.HasIndex(item => new { item.AccountId, item.PropertyId, item.ArchivedAtUtc });
             unit.HasOne<Property>().WithMany()
                 .HasForeignKey(item => new { item.AccountId, item.PropertyId })
                 .HasPrincipalKey(item => new { item.AccountId, item.Id })
@@ -170,6 +172,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         {
             audit.Property(item => item.EntityType).HasMaxLength(32);
             audit.Property(item => item.Action).HasMaxLength(32);
+            audit.Property(item => item.CorrelationId).HasMaxLength(64);
+            audit.Property(item => item.Reason).HasMaxLength(500);
             audit.HasOne<Account>().WithMany().HasForeignKey(item => item.AccountId)
                 .OnDelete(DeleteBehavior.Restrict);
             audit.HasIndex(item => new { item.AccountId, item.OccurredAtUtc });

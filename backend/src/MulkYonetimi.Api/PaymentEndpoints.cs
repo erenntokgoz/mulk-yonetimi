@@ -165,7 +165,7 @@ internal static class PaymentEndpoints
         }
         payment.VoidedAtUtc = DateTime.UtcNow;
         payment.VoidReason = input.Reason.Trim();
-        AddAudit(db, principal, accountId, id, "PAYMENT", "VOIDED");
+        AddAudit(db, principal, accountId, id, "PAYMENT", "VOIDED", payment.VoidReason);
         await db.SaveChangesAsync(ct);
         var response = await ResponseAsync(db, payment, ct);
         await transaction.CommitAsync(ct);

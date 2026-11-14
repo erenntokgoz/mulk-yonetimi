@@ -85,6 +85,27 @@ public sealed class FoundationTests
         Assert.Equal(404, json.RootElement.GetProperty("status").GetInt32());
     }
 
+    [Theory]
+    [InlineData("request-ABC_123", "request-ABC_123")]
+    [InlineData("bad header", null)]
+    [InlineData("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", null)]
+    public async Task Correlation_header_is_validated_and_echoed_on_problem_response(string supplied, string? expected)
+    {
+        using var factory = CreateFactory(HealthStatus.Healthy);
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/missing");
+        request.Headers.Add("X-Correlation-Id", supplied);
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var returned = Assert.Single(response.Headers.GetValues("X-Correlation-Id"));
+        if (expected is null) Assert.True(Guid.TryParse(returned, out _));
+        else Assert.Equal(expected, returned);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(returned, json.RootElement.GetProperty("correlationId").GetString());
+    }
+
     [Fact]
     public async Task Me_requires_an_authenticated_session_without_redirecting()
     {

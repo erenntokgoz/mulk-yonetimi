@@ -9,6 +9,13 @@ namespace MulkYonetimi.Api.Tests;
 
 public sealed class PropertyContractTests
 {
+    [Theory]
+    [InlineData("=1+1", "\"'=1+1\"")]
+    [InlineData(" \t@SUM(A1)", "\"' \t@SUM(A1)\"")]
+    [InlineData("a,\"b", "\"a,\"\"b\"")]
+    public void Csv_cells_escape_formulas_and_quotes(string input, string expected) =>
+        Assert.Equal(expected, CsvExport.Cell(input));
+
     [Fact]
     public void Deposit_movements_use_signed_balances_and_reject_invalid_amounts()
     {
@@ -94,6 +101,8 @@ public sealed class PropertyContractTests
         HasResponse("/api/v1/properties/{id}/units", "get", "200");
         HasResponse("/api/v1/properties/{id}/units", "post", "201");
         HasResponse("/api/v1/properties/{id}/units", "post", "409");
+        HasResponse("/api/v1/properties/{id}/units/{unitId}/archive", "post", "204");
+        HasResponse("/api/v1/properties/{id}/units/{unitId}/archive", "post", "409");
         HasResponse("/api/v1/tenants", "get", "200");
         HasResponse("/api/v1/tenants", "post", "201");
         HasResponse("/api/v1/tenants/{id}", "get", "404");
@@ -104,6 +113,9 @@ public sealed class PropertyContractTests
         HasResponse("/api/v1/leases/{id}/terminate", "post", "200");
         HasResponse("/api/v1/leases/{id}/rates", "get", "200");
         HasResponse("/api/v1/leases/{id}/rates", "post", "201");
+        HasResponse("/api/v1/leases/{id}/renewals", "get", "200");
+        HasResponse("/api/v1/leases/{id}/renewals", "post", "201");
+        HasResponse("/api/v1/leases/{id}/renewals", "post", "409");
         HasResponse("/api/v1/rent-charges", "get", "200");
         HasResponse("/api/v1/rent-charges/{id}/corrections", "post", "201");
         HasResponse("/api/v1/payments", "post", "201");
@@ -117,6 +129,8 @@ public sealed class PropertyContractTests
         HasResponse("/api/v1/expenses/{id}/void", "post", "200");
         HasResponse("/api/v1/dashboard/summary", "get", "200");
         HasResponse("/api/v1/reports/cashflow", "get", "200");
+        HasResponse("/api/v1/reports/cashflow.csv", "get", "200");
+        HasResponse("/api/v1/reports/payments.csv", "get", "200");
 
         var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
         Assert.Contains(schemas.GetProperty("CreatePropertyRequest").GetProperty("required").EnumerateArray(),

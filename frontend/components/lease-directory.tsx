@@ -11,6 +11,7 @@ type Property = components["schemas"]["PropertyResponse"];
 type Unit = components["schemas"]["UnitResponse"];
 type Tenant = components["schemas"]["TenantResponse"];
 type Rate = components["schemas"]["LeaseRateResponse"];
+type Renewal = components["schemas"]["LeaseRenewalResponse"];
 const headers = { "Content-Type": "application/json" };
 const dateString = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -47,6 +48,8 @@ export function LeaseDirectory() {
   const [pending, setPending] = useState(false);
   const [detailId, setDetailId] = useState("");
   const [rates, setRates] = useState<Rate[]>([]);
+  const [renewals, setRenewals] = useState<Renewal[]>([]);
+  const [renewId, setRenewId] = useState("");
   const [rateAmount, setRateAmount] = useState("");
   const [rateReason, setRateReason] = useState("");
   const [terminateId, setTerminateId] = useState("");
@@ -171,11 +174,45 @@ export function LeaseDirectory() {
     setDetailId(leaseId);
     setError("");
     try {
-      const response = await fetch(`/api/bff/leases/${leaseId}/rates`, { cache: "no-store" });
-      if (!response.ok) throw new Error("Kira bedeli geçmişi alınamadı.");
+      const [response, history] = await Promise.all([
+        fetch(`/api/bff/leases/${leaseId}/rates`, { cache: "no-store" }),
+        fetch(`/api/bff/leases/${leaseId}/renewals`, { cache: "no-store" }),
+      ]);
+      if (!response.ok || !history.ok) throw new Error("Sözleşme geçmişi alınamadı.");
       setRates((await response.json()) as Rate[]);
+      setRenewals((await history.json()) as Renewal[]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Kira bedeli geçmişi alınamadı.");
+    }
+  }
+  async function renew(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const lease = leases.find((item) => item.id === renewId);
+    if (!lease) return;
+    setPending(true);
+    setError("");
+    const data = new FormData(event.currentTarget);
+    try {
+      const payload: components["schemas"]["RenewLeaseRequest"] = {
+        version: lease.version,
+        newEndDate: String(data.get("newEndDate")),
+        effectiveFrom: String(data.get("effectiveFrom")),
+        monthlyAmount: String(data.get("monthlyAmount")),
+        reason: String(data.get("reason")),
+      };
+      const response = await fetch(`/api/bff/leases/${lease.id}/renewals`, {
+        method: "POST", headers, body: moneyBody(payload, ["monthlyAmount"]),
+      });
+      if (!response.ok) throw new Error(response.status === 409
+        ? "Sözleşme veya sonraki dönem kayıtları değişti. Listeyi yenileyin."
+        : "Yenileme kaydedilemedi. Tarih ve tutarı kontrol edin.");
+      setRenewId("");
+      await load();
+      await showRates(lease.id);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Yenileme kaydedilemedi.");
+    } finally {
+      setPending(false);
     }
   }
   async function addRate(event: FormEvent<HTMLFormElement>) {
@@ -396,6 +433,34 @@ export function LeaseDirectory() {
           </CardContent>
         </Card>
       )}
+      {renewId && (
+        <Card>
+          <CardContent className="pt-6">
+            <form onSubmit={renew} className="grid gap-4 sm:grid-cols-2">
+              <h2 className="font-semibold sm:col-span-2">Sözleşmeyi yenile</h2>
+              <label className="grid gap-2 text-sm">Yeni bitiş tarihi
+                <input name="newEndDate" type="date" required min={leases.find((item) => item.id === renewId)?.plannedEndDate ?? undefined}
+                  className="h-11 rounded-md border bg-background px-3" />
+              </label>
+              <label className="grid gap-2 text-sm">Yeni bedelin başlangıcı
+                <input name="effectiveFrom" type="date" required min={nextMonthStart()} defaultValue={nextMonthStart()}
+                  className="h-11 rounded-md border bg-background px-3" />
+              </label>
+              <label className="grid gap-2 text-sm">Aylık kira (₺)
+                <input name="monthlyAmount" type="number" min="0.01" step="0.01" required
+                  className="h-11 rounded-md border bg-background px-3" />
+              </label>
+              <label className="grid gap-2 text-sm">Gerekçe
+                <input name="reason" required maxLength={500} className="h-11 rounded-md border bg-background px-3" />
+              </label>
+              <div className="flex gap-2 sm:col-span-2">
+                <Button type="submit" disabled={pending}>{pending ? "Kaydediliyor…" : "Yenilemeyi kaydet"}</Button>
+                <Button type="button" variant="outline" onClick={() => setRenewId("")}>Vazgeç</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
       {loading ? (
         <Card>
           <CardContent>
@@ -438,6 +503,10 @@ export function LeaseDirectory() {
                     </Button>
                   )}
                   {lease.status === "ACTIVE" && (
+                    lease.plannedEndDate && <Button type="button" variant="outline" disabled={pending}
+                      onClick={() => setRenewId(lease.id)}>Yenile</Button>
+                  )}
+                  {lease.status === "ACTIVE" && (
                     <Button
                       type="button"
                       variant="outline"
@@ -477,6 +546,16 @@ export function LeaseDirectory() {
                     </ul>
                   ) : (
                     <p className="text-sm text-muted-foreground">Bedel geçmişi alınamadı veya boş.</p>
+                  )}
+                  {renewals.length > 0 && (
+                    <div className="grid gap-2 text-sm">
+                      <h4 className="font-medium">Ek protokoller</h4>
+                      <ul className="grid gap-2">{renewals.map((item) => (
+                        <li key={item.id} className="rounded border p-3">
+                          {item.previousEndDate} → {item.newEndDate} · {item.effectiveFrom} · {showMoney(item.monthlyAmount)} · {item.reason}
+                        </li>
+                      ))}</ul>
+                    </div>
                   )}
                   {lease.status === "ACTIVE" && (
                     <form onSubmit={addRate} className="grid gap-3 sm:grid-cols-3">

@@ -138,6 +138,24 @@ export function PropertyPortfolio() {
       setPending(false);
     }
   }
+  async function archiveUnit(unit: Unit) {
+    if (!unitProperty || !window.confirm(`“${unit.label}” birimi arşivlensin mi?`)) return;
+    setPending(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/bff/properties/${unitProperty.id}/units/${unit.id}/archive`, {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error(response.status === 409
+        ? "Etkin sözleşmesi olan birim arşivlenemez."
+        : "Birim arşivlenemedi.");
+      await showUnits(unitProperty);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Birim arşivlenemedi.");
+    } finally {
+      setPending(false);
+    }
+  }
   async function archive(property: Property) {
     if (!window.confirm(`“${property.name}” mülkü arşivlensin mi?`)) return;
     setPending(true);
@@ -307,6 +325,10 @@ export function PropertyPortfolio() {
                       {unit.doorNumber ? ` · Kapı ${unit.doorNumber}` : ""}
                       {unit.areaM2 ? ` · ${unit.areaM2} m²` : ""}
                     </span>
+                    <Button type="button" variant="outline" className="ml-3" disabled={pending}
+                      onClick={() => void archiveUnit(unit)}>
+                      Arşivle
+                    </Button>
                   </li>
                 ))}
               </ul>

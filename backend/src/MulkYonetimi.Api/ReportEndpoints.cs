@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Globalization;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using MulkYonetimi.Infrastructure;
 using static MulkYonetimi.Api.PortfolioAccess;
@@ -13,6 +15,11 @@ internal static class ReportEndpoints
             .Produces<DashboardSummary>().ProducesValidationProblem().ProducesProblem(404);
         app.MapPortfolioGroup("/api/v1/reports").MapGet("/cashflow", CashFlowAsync).WithName("GetCashFlow")
             .Produces<CashFlowResponse>().ProducesValidationProblem().ProducesProblem(404);
+        var exports = app.MapPortfolioGroup("/api/v1/reports");
+        exports.MapGet("/cashflow.csv", CashFlowCsvAsync).WithName("ExportCashFlow")
+            .Produces(200, contentType: "text/csv").ProducesValidationProblem().ProducesProblem(404);
+        exports.MapGet("/payments.csv", PaymentsCsvAsync).WithName("ExportPayments")
+            .Produces(200, contentType: "text/csv").ProducesValidationProblem().ProducesProblem(404);
     }
 
     private static async Task<IResult> SummaryAsync(DateOnly? periodStart, Guid? propertyId,
@@ -28,7 +35,7 @@ internal static class ReportEndpoints
 
         var properties = db.Properties.Where(item => item.AccountId == accountId && item.ArchivedAtUtc == null &&
             (propertyId == null || item.Id == propertyId));
-        var activeUnits = db.Units.Where(unit => unit.AccountId == accountId &&
+        var activeUnits = db.Units.Where(unit => unit.AccountId == accountId && unit.ArchivedAtUtc == null &&
             properties.Any(property => property.Id == unit.PropertyId));
         var units = await activeUnits.CountAsync(ct);
         var occupied = await activeUnits.CountAsync(unit => db.Leases.Any(lease => lease.AccountId == accountId &&
@@ -65,6 +72,57 @@ internal static class ReportEndpoints
         await transaction.CommitAsync(ct);
         return Results.Ok(result);
     }
+
+    private static async Task<IResult> CashFlowCsvAsync(DateOnly fromDate, DateOnly toDate, Guid? propertyId, Guid? unitId,
+        ClaimsPrincipal principal, AccountMembershipResolver memberships, ApplicationDbContext db, CancellationToken ct)
+    {
+        if (await memberships.ResolveAsync(principal, ct) is not { } accountId) return Results.Forbid();
+        if (fromDate > toDate) return Invalid("toDate", "Bitiş başlangıçtan önce olamaz.");
+        await using var transaction = await RentRules.LockAccountAsync(db, accountId, ct);
+        if (!await ScopeExistsAsync(db, accountId, propertyId, unitId, ct)) return Results.NotFound();
+        var flow = await CalculateCashAsync(db, accountId, fromDate, toDate, propertyId, unitId, ct);
+        await transaction.CommitAsync(ct);
+        var csv = new StringBuilder("fromDate,toDate,propertyId,unitId,cashIn,allocated,unallocated,cashOut,netOperatingCashFlow\r\n");
+        csv.AppendJoin(',', new[] { flow.FromDate.ToString("yyyy-MM-dd"), flow.ToDate.ToString("yyyy-MM-dd"),
+            flow.PropertyId?.ToString() ?? "", flow.UnitId?.ToString() ?? "" }.Select(CsvExport.Cell));
+        csv.Append(',').AppendJoin(',', new[] { Money(flow.CashIn), Money(flow.Allocated),
+            flow.Unallocated is { } unallocated ? Money(unallocated) : "", Money(flow.CashOut),
+            Money(flow.NetOperatingCashFlow) });
+        csv.Append("\r\n");
+        return CsvExport.Download(csv.ToString(), "cashflow.csv");
+    }
+
+    private static async Task<IResult> PaymentsCsvAsync(DateOnly fromDate, DateOnly toDate, Guid? propertyId,
+        Guid? unitId, Guid? tenantId, ClaimsPrincipal principal, AccountMembershipResolver memberships,
+        ApplicationDbContext db, CancellationToken ct)
+    {
+        if (await memberships.ResolveAsync(principal, ct) is not { } accountId) return Results.Forbid();
+        if (fromDate > toDate) return Invalid("toDate", "Bitiş başlangıçtan önce olamaz.");
+        if (!await ScopeExistsAsync(db, accountId, propertyId, unitId, ct)) return Results.NotFound();
+        var payments = db.Payments.AsNoTracking().Where(item => item.AccountId == accountId &&
+            item.PaidOn >= fromDate && item.PaidOn <= toDate && (tenantId == null || item.TenantId == tenantId));
+        if (propertyId.HasValue || unitId.HasValue)
+        {
+            var charges = ChargeScope(db, accountId, propertyId, unitId);
+            payments = payments.Where(item => db.PaymentAllocations.Any(allocation =>
+                allocation.AccountId == accountId && allocation.PaymentId == item.Id &&
+                charges.Any(charge => charge.Id == allocation.RentChargeId)));
+        }
+        var rows = await payments.OrderByDescending(item => item.PaidOn).ThenBy(item => item.Id).ToArrayAsync(ct);
+        var csv = new StringBuilder("id,tenantId,paidOn,amount,method,reference,status\r\n");
+        foreach (var item in rows)
+        {
+            csv.AppendJoin(',', new[] { item.Id.ToString(), item.TenantId.ToString(),
+                item.PaidOn.ToString("yyyy-MM-dd") }.Select(CsvExport.Cell));
+            csv.Append(',').Append(Money(item.Amount)).Append(',');
+            csv.AppendJoin(',', new[] { item.Method.ToString(), item.Reference ?? "",
+                item.VoidedAtUtc is null ? "RECORDED" : "VOIDED" }.Select(CsvExport.Cell));
+            csv.Append("\r\n");
+        }
+        return CsvExport.Download(csv.ToString(), "payments.csv");
+    }
+
+    private static string Money(decimal amount) => amount.ToString("0.00", CultureInfo.InvariantCulture);
 
     private static async Task<CashFlowResponse> CalculateCashAsync(ApplicationDbContext db, Guid accountId,
         DateOnly fromDate, DateOnly toDate, Guid? propertyId, Guid? unitId, CancellationToken ct)

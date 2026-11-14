@@ -20,7 +20,8 @@ if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(keysPath))
 if (!string.IsNullOrWhiteSpace(keysPath))
     builder.Services.AddDataProtection().SetApplicationName("MulkYonetimi")
         .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
-builder.Services.AddProblemDetails();
+builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
+    context.ProblemDetails.Extensions["correlationId"] = context.HttpContext.TraceIdentifier);
 builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -129,6 +130,19 @@ builder.Services.AddHealthChecks().AddDbContextCheck<ApplicationDbContext>("sqls
 
 var app = builder.Build();
 app.UseForwardedHeaders();
+app.Use(async (context, next) =>
+{
+    var supplied = context.Request.Headers["X-Correlation-Id"].ToString();
+    var correlationId = CorrelationContext.IsValid(supplied) ? supplied : Guid.NewGuid().ToString("N");
+    var previous = CorrelationContext.Current;
+    CorrelationContext.Current = correlationId;
+    context.TraceIdentifier = correlationId;
+    context.Response.Headers["X-Correlation-Id"] = correlationId;
+    using var scope = context.RequestServices.GetRequiredService<ILoggerFactory>()
+        .CreateLogger("RequestCorrelation").BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId });
+    try { await next(context); }
+    finally { CorrelationContext.Current = previous; }
+});
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseRouting();

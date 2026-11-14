@@ -18,7 +18,7 @@ internal static class PortfolioAccess
             });
 
     public static void AddAudit(ApplicationDbContext db, ClaimsPrincipal principal, Guid accountId,
-        Guid entityId, string entityType, string action) =>
+        Guid entityId, string entityType, string action, string? reason = null) =>
         db.AuditEvents.Add(new AuditEvent
         {
             Id = Guid.NewGuid(),
@@ -27,7 +27,9 @@ internal static class PortfolioAccess
             EntityId = entityId,
             EntityType = entityType,
             Action = action,
-            OccurredAtUtc = DateTime.UtcNow
+            OccurredAtUtc = DateTime.UtcNow,
+            CorrelationId = CorrelationContext.Current,
+            Reason = reason
         });
 
     public static IResult? ValidatePage(int page, int size)

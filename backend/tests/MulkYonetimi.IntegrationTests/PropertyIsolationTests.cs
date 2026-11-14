@@ -163,6 +163,15 @@ public sealed class PropertyIsolationTests
             db.ChangeTracker.Clear();
             await VerifyUnitsAsync(clientA, clientB, propertyA, secondPropertyA, propertyB);
             await VerifyLeasesAsync(clientA, clientB, secondPropertyA.Id, options);
+            var auditedReasons = await db.AuditEvents.AsNoTracking().Where(item => item.AccountId == accountA.Id &&
+                (item.Action == "VOIDED" || item.Action == "CORRECTED" || item.Action == "RATE_ADDED"))
+                .ToArrayAsync();
+            Assert.NotEmpty(auditedReasons);
+            Assert.All(auditedReasons, item =>
+            {
+                Assert.False(string.IsNullOrWhiteSpace(item.Reason));
+                Assert.False(string.IsNullOrWhiteSpace(item.CorrelationId));
+            });
             await VerifyTenantsAsync(clientA, clientB, accountA.Id, accountB.Id, db);
         }
         finally
@@ -221,10 +230,32 @@ public sealed class PropertyIsolationTests
         using var conflict = Assert.Single(activations, response => response.StatusCode == HttpStatusCode.Conflict);
         var active = (await activation.Content.ReadFromJsonAsync<LeaseResponse>(Json))!;
         var activePath = $"{leases}/{active.Id}";
+        var unitArchivePath = $"{Properties}/{propertyId}/units/{unit.Id}/archive";
+        using var foreignUnitArchive = await clientB.PostAsync(unitArchivePath, null);
+        Assert.Equal(HttpStatusCode.NotFound, foreignUnitArchive.StatusCode);
+        using var occupiedUnitArchive = await clientA.PostAsync(unitArchivePath, null);
+        Assert.Equal(HttpStatusCode.Conflict, occupiedUnitArchive.StatusCode);
         using var rateAdded = await clientA.PostAsJsonAsync(activePath + "/rates", rate);
         Assert.Equal(HttpStatusCode.Created, rateAdded.StatusCode);
         var rates = (await clientA.GetFromJsonAsync<LeaseRateResponse[]>(activePath + "/rates", Json))!;
         Assert.Equal(new[] { 20000m, 25000m }, rates.Select(item => item.MonthlyAmount));
+        var renewalDate = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1).AddMonths(2);
+        var renewal = new { active.Version, newEndDate = new DateOnly(2028, 12, 31),
+            effectiveFrom = renewalDate, monthlyAmount = 27000m, reason = "Ek protokol" };
+        using var foreignRenew = await clientB.PostAsJsonAsync(activePath + "/renewals", renewal);
+        Assert.Equal(HttpStatusCode.NotFound, foreignRenew.StatusCode);
+        var renewals = await Task.WhenAll(
+            clientA.PostAsJsonAsync(activePath + "/renewals", renewal),
+            clientA.PostAsJsonAsync(activePath + "/renewals", renewal));
+        using var renewed = Assert.Single(renewals, response => response.StatusCode == HttpStatusCode.Created);
+        using var renewalConflict = Assert.Single(renewals, response => response.StatusCode == HttpStatusCode.Conflict);
+        var renewalHistory = Assert.Single((await clientA.GetFromJsonAsync<LeaseRenewalResponse[]>(
+            activePath + "/renewals", Json))!);
+        Assert.Equal(input.plannedEndDate, renewalHistory.PreviousEndDate);
+        Assert.Equal(renewal.newEndDate, renewalHistory.NewEndDate);
+        Assert.Equal(new[] { 20000m, 25000m, 27000m },
+            (await clientA.GetFromJsonAsync<LeaseRateResponse[]>(activePath + "/rates", Json))!
+                .Select(item => item.MonthlyAmount));
         var february = new DateOnly(2026, 2, 1);
         await Task.WhenAll(Enumerable.Range(0, 3).Select(async _ =>
         {
@@ -233,9 +264,18 @@ public sealed class PropertyIsolationTests
         }));
         await VerifyPaymentsAsync(clientA, clientB, active);
         await VerifyOperatingLedgerAsync(clientA, clientB, active, propertyId);
+        var currentLease = (await clientA.GetFromJsonAsync<LeaseResponse>(activePath, Json))!;
         using var terminated = await clientA.PostAsJsonAsync(activePath + "/terminate",
-            new { active.Version, terminationDate = new DateOnly(2026, 2, 1), reason = "Çıkış" });
+            new { currentLease.Version, terminationDate = new DateOnly(2026, 2, 1), reason = "Çıkış" });
         Assert.Equal(HttpStatusCode.OK, terminated.StatusCode);
+        using var unitArchive = await clientA.PostAsync(unitArchivePath, null);
+        Assert.Equal(HttpStatusCode.NoContent, unitArchive.StatusCode);
+        Assert.Empty((await clientA.GetFromJsonAsync<UnitPage>($"{Properties}/{propertyId}/units", Json))!.Items);
+        var historical = Assert.Single((await clientA.GetFromJsonAsync<UnitPage>(
+            $"{Properties}/{propertyId}/units?includeArchived=true", Json))!.Items);
+        Assert.Equal(DateTimeKind.Utc, historical.ArchivedAtUtc!.Value.Kind);
+        Assert.Equal(12000m, (await clientA.GetFromJsonAsync<CashFlowResponse>(
+            "/api/v1/reports/cashflow?fromDate=2026-02-01&toDate=2026-02-28&unitId=" + unit.Id, Json))!.NetOperatingCashFlow);
         var remaining = active.Id == draft.Id ? other : draft;
         using var overlapping = await clientA.PostAsJsonAsync($"{leases}/{remaining.Id}/activate", new { remaining.Version });
         Assert.Equal(HttpStatusCode.Conflict, overlapping.StatusCode);
@@ -310,6 +350,15 @@ public sealed class PropertyIsolationTests
         Assert.Equal(29000m, dashboard.OverdueBalance);
         Assert.Equal(2000m, dashboard.RecordedExpenses);
         var cash = (await owner.GetFromJsonAsync<CashFlowResponse>(cashPath, Json))!;
+        using var cashCsv = await owner.GetAsync(cashPath.Replace("/cashflow?", "/cashflow.csv?"));
+        Assert.Equal(HttpStatusCode.OK, cashCsv.StatusCode);
+        Assert.Contains("13000.00", await cashCsv.Content.ReadAsStringAsync());
+        using var foreignCsv = await foreign.GetAsync(cashPath.Replace("/cashflow?", "/cashflow.csv?") +
+            "&propertyId=" + propertyId);
+        Assert.Equal(HttpStatusCode.NotFound, foreignCsv.StatusCode);
+        using var paymentCsv = await owner.GetAsync("/api/v1/reports/payments.csv?fromDate=2026-02-01&toDate=2026-02-28&propertyId=" + propertyId);
+        Assert.Equal(HttpStatusCode.OK, paymentCsv.StatusCode);
+        Assert.Contains("paidOn", await paymentCsv.Content.ReadAsStringAsync());
         Assert.Equal(13000m, cash.CashIn);
         Assert.Equal(8000m, cash.Allocated);
         Assert.Equal(5000m, cash.Unallocated);
