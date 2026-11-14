@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/password-input";
 import { AuthShell } from "@/components/auth-shell";
+import { setSessionState } from "@/lib/session-client";
 
 function safeNextPath(next: string | null) {
   // Only same-origin paths; rejects "//host" and "/\host" open redirects.
-  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/";
+  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/panel";
 }
 
 export default function LoginPage() {
@@ -35,6 +36,7 @@ export default function LoginPage() {
           "Giriş yapılamadı. Daha sonra tekrar deneyin.");
         return;
       }
+      setSessionState(true);
       router.push(safeNextPath(new URLSearchParams(window.location.search).get("next")));
       router.refresh();
     } catch {

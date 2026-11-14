@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const fixture = "http://127.0.0.1:5089";
 const viewports = [{ width: 375, height: 812 }, { width: 390, height: 844 }];
-const dashboardRoutes = ["/", "/portfoy", "/kiracilar", "/sozlesmeler", "/kira-tahsilatlar", "/depozitolar", "/giderler", "/belgeler", "/raporlar", "/bildirimler", "/ayarlar"];
+const dashboardRoutes = ["/panel", "/portfoy", "/kiracilar", "/sozlesmeler", "/kira-tahsilatlar", "/depozitolar", "/giderler", "/belgeler", "/raporlar", "/bildirimler", "/ayarlar"];
 const authRoutes = ["/giris", "/kayit", "/parolami-unuttum", "/parola-sifirla", "/dogrula", "/dogrulama-yeniden-gonder"];
 
 async function seed(page: Page) {
@@ -77,7 +77,7 @@ for (const viewport of viewports) {
       test(`mobile menu button shows its icon, opens, closes and restores focus (${theme})`, async ({ page }) => {
         await seed(page);
         await page.addInitScript(saved => localStorage.setItem("mulk-theme", saved), theme);
-        await page.goto("/");
+        await page.goto("/panel");
         const button = page.getByRole("button", { name: "Menüyü aç" });
         await expect(button).toBeVisible();
         const box = await button.boundingBox();

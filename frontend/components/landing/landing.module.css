@@ -1,0 +1,57 @@
+.page { min-height: 100svh; color: hsl(var(--foreground)); }
+.wrap { width: min(100% - 32px, 1120px); margin-inline: auto; }
+
+.header { position: sticky; top: 0; z-index: 20; background: hsl(var(--background) / .92); border-bottom: 1px solid hsl(var(--border) / .7); }
+.headerRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 600; letter-spacing: -.02em; }
+.tools { display: flex; align-items: center; gap: 4px; }
+.actionsHeader { display: flex; align-items: center; gap: 8px; min-width: 196px; min-height: 44px; justify-content: flex-end; }
+
+.primary, .secondary, .quiet { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding-inline: 18px; border-radius: 10px; font-size: 14px; font-weight: 500; white-space: nowrap; }
+.primary { background: hsl(211 100% 40%); color: #fff; }
+.primary:hover { background: hsl(211 100% 34%); }
+.secondary { border: 1px solid hsl(var(--border)); background: hsl(var(--card) / .6); }
+.secondary:hover, .quiet:hover { background: hsl(var(--accent) / .7); }
+.quiet { padding-inline: 12px; }
+
+.hero { display: grid; gap: 24px; padding-block: 40px 48px; align-items: center; }
+.heroText h1 { font-size: clamp(30px, 6.4vw, 52px); line-height: 1.08; letter-spacing: -.035em; font-weight: 650; max-width: 16ch; text-wrap: balance; }
+.heroText p { margin-top: 18px; max-width: 52ch; font-size: 17px; line-height: 1.6; color: hsl(var(--muted-foreground)); }
+.actionsHero { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; min-height: 44px; }
+
+/* 3B sahne: işaret izometrik bir zemin üzerinde katman katman yükselir. */
+.scene { position: relative; height: 300px; perspective: 1100px; overflow: clip; contain: layout paint; }
+.stage { position: absolute; left: 50%; top: 50%; width: 220px; height: 220px; margin: -110px 0 0 -110px; transform-style: preserve-3d; transform: rotateX(58deg) rotateZ(-32deg); }
+.plate { position: absolute; inset: -34px; border-radius: 14px; border: 1px solid hsl(var(--border)); background-color: hsl(var(--card)); background-image: linear-gradient(hsl(var(--foreground) / .07) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground) / .07) 1px, transparent 1px); background-size: 22px 22px; transform: translateZ(-2px); }
+.layer { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; stroke: hsl(211 80% calc(22% + var(--i) * 2.4%)); transform: translateZ(calc(var(--i) * 3.5px)); }
+.topCore { stroke: hsl(var(--background)); }
+:global(.dark) .layer { stroke: hsl(211 85% calc(18% + var(--i) * 3%)); }
+:global(.dark) .topCore { stroke: hsl(210 32% 96%); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .stage { animation: sway 14s ease-in-out infinite alternate; }
+  .scene[data-paused] .stage { animation-play-state: paused; }
+}
+@keyframes sway { from { transform: rotateX(58deg) rotateZ(-48deg); } to { transform: rotateX(58deg) rotateZ(-16deg); } }
+
+.group { display: grid; gap: 16px 48px; padding-block: 36px; border-top: 1px solid hsl(var(--border) / .8); }
+.group h2 { font-size: 22px; letter-spacing: -.03em; font-weight: 600; }
+.group > div > p { margin-top: 8px; color: hsl(var(--muted-foreground)); font-size: 15px; line-height: 1.6; max-width: 38ch; }
+.items { margin: 0; }
+.item { padding-block: 16px; border-top: 1px solid hsl(var(--border) / .5); }
+.item:first-child { border-top: 0; padding-top: 0; }
+.item dt { font-weight: 600; font-size: 16px; }
+.item dd { margin: 6px 0 0; color: hsl(var(--muted-foreground)); line-height: 1.65; font-size: 15px; max-width: 62ch; }
+
+.footer { margin-top: 24px; border-top: 1px solid hsl(var(--border) / .8); }
+.footerRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; min-height: 80px; font-size: 14px; color: hsl(var(--muted-foreground)); }
+.footerRow nav { display: flex; gap: 8px; }
+.footerRow a { display: inline-flex; align-items: center; min-height: 44px; padding-inline: 8px; text-decoration: underline; text-underline-offset: 4px; }
+
+@media (max-width: 480px) { .actionsHeader { min-width: 0; } .quiet { padding-inline: 8px; } .primary { padding-inline: 12px; } }
+@media (min-width: 900px) {
+  .hero { grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); padding-block: 72px 80px; }
+  .scene { height: 440px; }
+  .stage { width: 280px; height: 280px; margin: -140px 0 0 -140px; }
+  .group { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); }
+}

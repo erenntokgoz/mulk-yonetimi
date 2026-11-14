@@ -141,7 +141,6 @@ input[type='search']::-ms-clear {
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .09), 0 16px 48px rgb(0 0 0 / .12);
   backdrop-filter: blur(16px);
 }
-.dark .glass-sidebar { background: linear-gradient(165deg, #121a23dd 0%, #0b1620ce 55%, #0b2136d9 100%); }
 .brand-mark { flex-shrink: 0; border-radius: 22%; box-shadow: 0 0 0 1px rgb(120 200 255 / .25), 0 3px 14px rgb(8 135 238 / .28); }
 .sidebar-brand a { font-size: 13px; letter-spacing: -.025em; }
 .brand-caption { display: block; margin-top: 2px; font-size: 10px; font-weight: 400; letter-spacing: 0; color: hsl(var(--muted-foreground)); }
@@ -151,7 +150,7 @@ input[type='search']::-ms-clear {
 .reference-nav a { min-height: 34px; font-size: 12px; font-weight: 400; gap: 10px; border: 1px solid transparent; }
 .reference-nav a svg { width: 14px; height: 14px; opacity: .85; }
 .reference-nav a[aria-current="page"] { background: linear-gradient(110deg,#119cf7,#0873e6); border-color: #63c5ff55; box-shadow: inset 0 1px 0 #c7e8ff33,0 3px 16px #008cff26; color: white; }
-.workspace { padding-left: 236px; }
+.workspace { padding-left: 0; }
 .workspace-header { height: 54px; padding-bottom: 10px; }
 .workspace-header nav { font-size: 11px; }
 .workspace-header > a, .workspace-header > button { font-size: 12px; border: 1px solid hsl(var(--border)); background: hsl(var(--card) / .6); border-radius: 100px; padding: 6px 14px; }
@@ -255,23 +254,11 @@ body::before {
 @media (max-width: 639px) { body::before { display: none; } }
 .dark body::before { opacity: .7; }
 
-/* Kompakt koyu menü: iki temada da koyu; token'lar yalnızca bu yüzey içinde değişir. */
-.glass-sidebar, .mobile-sheet {
-  --foreground: 210 32% 96%;
-  --muted-foreground: 213 14% 70%;
-  --border: 211 17% 24%;
-  --accent: 211 55% 22%;
-  --accent-foreground: 210 40% 99%;
-  --background: 216 33% 5%;
-  --card: 214 28% 8%;
-  --ring: 204 100% 68%;
-  color: hsl(var(--foreground));
-}
-.glass-sidebar { background: linear-gradient(170deg, rgb(13 20 29 / .92), rgb(8 14 22 / .88)); border-color: rgb(120 190 255 / .16); box-shadow: inset 0 1px 0 rgb(255 255 255 / .08), inset -1px 0 0 rgb(80 186 255 / .08), 0 16px 48px rgb(0 0 0 / .22); }
-.dark .glass-sidebar { background: linear-gradient(170deg, rgb(13 20 29 / .9), rgb(8 14 22 / .86)); }
-.mobile-sheet { background: linear-gradient(170deg, rgb(13 20 29 / .97), rgb(8 14 22 / .95)); border-right: 1px solid rgb(120 190 255 / .2); box-shadow: 0 0 40px rgb(80 186 255 / .08); }
+/* Menü yüzeyleri: kenar çubuğu ve mobil çekmece, uygulamanın geri kalanıyla aynı temayı (açık/koyu) izler. */
+.glass-sidebar { background: linear-gradient(170deg, hsl(var(--card) / .96), hsl(var(--card) / .88)); border-color: hsl(var(--border)); box-shadow: inset 0 1px 0 hsl(var(--foreground) / .06), 0 16px 48px rgb(0 0 0 / .12); }
+.mobile-sheet { background: hsl(var(--card)); color: hsl(var(--foreground)); border-right: 1px solid hsl(var(--border)); box-shadow: 0 0 40px rgb(0 0 0 / .18); }
 .reference-nav a { position: relative; min-height: 32px; }
-.reference-nav a:hover:not([aria-current="page"]) { background: rgb(120 190 255 / .08); border-color: rgb(120 190 255 / .16); box-shadow: 0 0 14px -4px rgb(80 186 255 / .45); }
+.reference-nav a:hover:not([aria-current="page"]) { background: hsl(var(--accent) / .7); border-color: hsl(var(--ring) / .25); }
 .reference-nav a[aria-current="page"]::before { content: ""; position: absolute; left: -1px; top: 25%; bottom: 25%; width: 2px; border-radius: 2px; background: #bfe6ff; box-shadow: 0 0 8px #5cc0ff; }
 
 /* İnce parlayan kenar: kart üst çizgisi, hover/focus halkası. */
@@ -314,7 +301,31 @@ body::before {
 }
 
 /* Üst bar: menü düğmesi ikonu görünür kalır (dolgu ikonu küçültüyordu). */
-.workspace-header > button[aria-label="Menüyü aç"] { display: grid; place-items: center; width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 12px; color: hsl(var(--foreground)); flex-shrink: 0; }
+@media (max-width: 1023px) { .workspace-header > button[aria-label="Menüyü aç"] { display: grid; } }
+.workspace-header > button[aria-label="Menüyü aç"] {  place-items: center; width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 12px; color: hsl(var(--foreground)); flex-shrink: 0; }
 .workspace-header > button[aria-label="Menüyü aç"] svg { width: 22px; height: 22px; flex-shrink: 0; }
 .workspace-header { gap: 8px; }
 @media (max-width: 639px) { .workspace-header { padding-inline: 12px; } }
+
+/* ---- Kenar çubuğu: ≥1024px sabit, daraltılabilir; <1024px gizli (hamburger + çekmece) ---- */
+@media (max-width: 1023px) {
+  .app-shell { padding: 0; }
+  .workspace-header { background: hsl(var(--background) / .96); border-bottom: 1px solid hsl(var(--border) / .6); }
+}
+@media (min-width: 1024px) {
+  .workspace { padding-left: 236px; }
+  .glass-sidebar { width: 14rem; }
+  html[data-sidebar="collapsed"] .workspace { padding-left: 92px; }
+  html[data-sidebar="collapsed"] .glass-sidebar { width: 4rem; }
+  html[data-sidebar="collapsed"] .glass-sidebar :is(.sidebar-label, .nav-label, .nav-search, .nav-group > h2) { display: none; }
+  html[data-sidebar="collapsed"] .glass-sidebar .sidebar-brand { padding-inline: 0; justify-content: center; }
+  html[data-sidebar="collapsed"] .glass-sidebar .sidebar-brand a { padding: 0; }
+  html[data-sidebar="collapsed"] .glass-sidebar .reference-nav a { justify-content: center; padding-inline: 0; }
+  html[data-sidebar="collapsed"] .glass-sidebar .reference-nav { gap: 8px; }
+  html[data-sidebar="collapsed"] .glass-sidebar .sidebar-footer { justify-content: center; padding-inline: 0; }
+  .glass-sidebar .sidebar-footer { overflow: hidden; }
+}
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .glass-sidebar, .workspace { transition: width 200ms ease, padding-left 200ms ease; }
+}
+.workspace-header > .sidebar-toggle { padding: 0; border: 0; border-radius: 10px; background: transparent; }

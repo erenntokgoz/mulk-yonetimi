@@ -10,7 +10,7 @@ for (const [state, label] of [
 ] as const) {
   test(`renders ${state} service status accessibly`, async ({ page, request }) => {
     expect((await request.post(fixtureUrl, { data: state })).ok()).toBeTruthy();
-    await page.goto("/");
+    await page.goto("/panel");
     await expect(page.getByRole("heading", { level: 1, name: "Genel bakış" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Sistem durumu" }).getByRole("status")).toHaveText(label);
     if (state !== "Disconnected") {
@@ -23,7 +23,7 @@ for (const [state, label] of [
 }
 
 test("shows configuration failure without exposing server details", async ({ page }) => {
-  await page.goto("http://127.0.0.1:3110");
+  await page.goto("http://127.0.0.1:3110/panel");
   await expect(page.getByRole("region", { name: "Sistem durumu" }).getByRole("status")).toHaveText("Bağlantı kurulamadı");
   await expect(page.getByText(/Hizmet bağlantısı yapılandırılmamış/)).toBeVisible();
   await expect(page.locator("body")).not.toContainText("BACKEND_BASE_URL");
@@ -31,7 +31,7 @@ test("shows configuration failure without exposing server details", async ({ pag
 
 test("keyboard skip link focuses main, then refresh retrieves changed status", async ({ page, request }) => {
   expect((await request.post(fixtureUrl, { data: "Healthy" })).ok()).toBeTruthy();
-  await page.goto("/");
+  await page.goto("/panel");
   await expect(page.getByRole("region", { name: "Sistem durumu" }).getByRole("status")).toHaveText("Çalışıyor");
   await page.keyboard.press("Tab");
   const skipLink = page.getByRole("link", { name: "İçeriğe geç" });
@@ -48,7 +48,7 @@ test("keyboard skip link focuses main, then refresh retrieves changed status", a
 test("mobile shell keeps navigation and refresh usable without horizontal overflow", async ({ page, request }) => {
   expect((await request.post(fixtureUrl, { data: "Healthy" })).ok()).toBeTruthy();
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto("/");
+  await page.goto("/panel");
   await expect(page.getByRole("button", { name: "Menüyü aç" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Durumu yenile" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
@@ -57,7 +57,7 @@ test("mobile shell keeps navigation and refresh usable without horizontal overfl
 test("desktop shell uses text navigation and breadcrumb header", async ({ page, request }) => {
   expect((await request.post(fixtureUrl, { data: "Healthy" })).ok()).toBeTruthy();
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/");
+  await page.goto("/panel");
   const sidebar = page.getByRole("complementary", { name: "Uygulama" });
   await expect(sidebar).toBeVisible();
   expect(await sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(224);
@@ -67,7 +67,7 @@ test("desktop shell uses text navigation and breadcrumb header", async ({ page, 
 test("section navigation groups links and filters them by label", async ({ page, request }) => {
   expect((await request.post(fixtureUrl, { data: "Disconnected" })).ok()).toBeTruthy();
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/");
+  await page.goto("/panel");
   const nav = page.getByRole("navigation", { name: "Ana gezinme" });
   await expect(nav.getByText("MÜLK YÖNETİMİ", { exact: true })).toBeVisible();
   await expect(nav.getByText("FİNANS", { exact: true })).toBeVisible();
@@ -93,7 +93,7 @@ test("dashboard shows real portfolio summary and health details", async ({ page,
   expect((await request.post(fixtureUrl, { data: "Healthy" })).ok()).toBeTruthy();
   await page.context().addCookies([{ name: "mulk.session", value: "fixture", url: "http://127.0.0.1:3109" }]);
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/");
+  await page.goto("/panel");
   await expect(page.getByRole("heading", { level: 1, name: "Genel bakış" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Cari ay nakit akışı" })).toBeVisible();
   const details = page.getByRole("region", { name: "Hizmet kontrolleri" });
@@ -120,7 +120,7 @@ test("dashboard shows real portfolio summary and health details", async ({ page,
 test("reference mobile menu opens with keyboard and closes with Escape", async ({ page, request }) => {
   expect((await request.post(fixtureUrl, { data: "Healthy" })).ok()).toBeTruthy();
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto("/");
+  await page.goto("/panel");
   const menu = page.getByRole("button", { name: "Menüyü aç" });
   await expect(menu).toBeVisible();
   await menu.focus();
@@ -156,7 +156,7 @@ test("rent charges and payments load from the API and idempotent actions can be 
   await page.getByLabel("E-posta").fill("fixture@example.test");
   await page.getByLabel("Parola").fill("FixturePass123!");
   await page.getByRole("button", { name: "Giriş yap" }).click();
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/panel");
   const setup = await page.evaluate(async () => {
     const headers = { "Content-Type": "application/json" };
     const propertyResponse = await fetch("/api/bff/properties", { method: "POST", headers, body: JSON.stringify({ name: "Test mülk", address: "Test adres", propertyKind: "MULTI_UNIT", defaultUnitUsageType: null }) });
@@ -207,7 +207,7 @@ test("desktop and mobile navigation open core pages and mark the active route", 
 });
 
 test("dashboard has no generic welcome copy", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/panel");
   await expect(page.locator("body")).not.toContainText("Mülklerinizi yöneteceğiniz çalışma alanına hoş geldiniz");
 });
 
@@ -218,7 +218,7 @@ test("theme control switches between dark and light and persists", async ({ page
       sessionStorage.setItem("theme-test-init", "1");
     }
   });
-  await page.goto("/");
+  await page.goto("/panel");
   const root = page.locator("html");
   await expect(root).toHaveClass(/dark/);
   await page.getByRole("button", { name: "Açık temaya geç" }).click();
@@ -241,7 +241,7 @@ test("authentication screens expose the same theme control", async ({ page }) =>
 test("theme motion respects reduced-motion preference", async ({ page }) => {
   await page.context().addCookies([{ name: "mulk.session", value: "fixture", url: "http://127.0.0.1:3109" }]);
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await page.goto("/panel");
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(6, 10, 16)");
   const card = page.getByRole("heading", { name: "Cari ay nakit akışı" });
   await expect(card).toBeVisible();

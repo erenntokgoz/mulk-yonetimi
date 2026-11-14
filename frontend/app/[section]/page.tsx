@@ -3,13 +3,13 @@ import { DashboardShell } from "@/components/dashboard-shell";
 import { findSection, sections } from "@/lib/navigation";
 
 export function generateStaticParams() {
-  return sections.filter((section) => section.path !== "/").map((section) => ({ section: section.path.slice(1) }));
+  return sections.filter((section) => section.path !== "/panel").map((section) => ({ section: section.path.slice(1) }));
 }
 
 export default async function SectionPage({ params }: { params: Promise<{ section: string }> }) {
   const { section: slug } = await params;
   const section = findSection(`/${slug}`);
-  if (!section || section.path === "/") notFound();
+  if (!section || section.path === "/panel") notFound();
 
   const content = await renderSection(section.path);
   if (!content) notFound();

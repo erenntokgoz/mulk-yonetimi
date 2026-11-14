@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const dashboardRoutes = [
-  ["/", "Genel bakış"],
+  ["/panel", "Genel bakış"],
   ["/portfoy", "Portföy"],
   ["/kiracilar", "Kiracılar"],
   ["/sozlesmeler", "Sözleşmeler"],
@@ -47,7 +47,7 @@ test("captures dashboard screens at desktop and mobile widths", async ({ page })
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
       if (protectedRoutes.has(path)) await expect(page.locator("main [role=alert]")).toBeVisible();
-      else if (path !== "/") await expect(page.getByTestId("unavailable-state")).toBeVisible();
+      else if (path !== "/panel") await expect(page.getByTestId("unavailable-state")).toBeVisible();
       if (path === "/giderler") {
         await expect(page.locator("main [role=alert]")).toContainText("Giderleri görmek için giriş yapın.");
       }
@@ -61,7 +61,7 @@ test("captures dashboard screens at desktop and mobile widths", async ({ page })
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
       }
       await page.screenshot({
-        path: `test-results/visual-qa/dashboard-${path === "/" ? "overview" : path.slice(1)}-${viewport.name}.png`,
+        path: `test-results/visual-qa/dashboard-${path === "/panel" ? "overview" : path.slice(1)}-${viewport.name}.png`,
         fullPage: true,
         animations: "disabled",
       });

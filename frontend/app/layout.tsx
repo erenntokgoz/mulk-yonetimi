@@ -8,6 +8,14 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
+// Kayıtlı temayı ilk boyamadan önce uygular; kayıt yoksa koyu tema varsayılandır.
+const themeScript = `try{var t=localStorage.getItem("mulk-theme");document.documentElement.classList.toggle("dark",t!=="light");if(localStorage.getItem("mulk-sidebar")==="collapsed")document.documentElement.dataset.sidebar="collapsed"}catch(e){}`;
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="tr" className="dark"><body>{children}</body></html>;
+  return (
+    <html lang="tr" className="dark" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
+      <body>{children}</body>
+    </html>
+  );
 }

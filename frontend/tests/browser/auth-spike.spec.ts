@@ -35,7 +35,7 @@ test("login form sends credentials through BFF", async ({ page }) => {
   await page.getByRole("textbox", { name: "E-posta" }).fill("owner@example.test");
   await page.getByLabel("Parola").fill("Valid-Password-123!");
   await page.getByRole("button", { name: "Giriş yap" }).click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/panel$/);
   expect((await page.context().cookies()).some((cookie) => cookie.name === "mulk.session")).toBe(true);
   await expect(page.getByRole("button", { name: "Çıkış yap" })).toBeVisible();
   await page.getByRole("button", { name: "Çıkış yap" }).click();
