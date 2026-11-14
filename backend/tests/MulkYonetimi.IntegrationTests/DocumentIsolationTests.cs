@@ -134,38 +134,61 @@ public sealed class DocumentIsolationTests
         var account = new Account { Id = Guid.NewGuid(), Name = prefix };
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(), Email = email, UserName = email,
-            NormalizedEmail = email.ToUpperInvariant(), NormalizedUserName = email.ToUpperInvariant(),
-            EmailConfirmed = true, SecurityStamp = Guid.NewGuid().ToString()
+            Id = Guid.NewGuid(),
+            Email = email,
+            UserName = email,
+            NormalizedEmail = email.ToUpperInvariant(),
+            NormalizedUserName = email.ToUpperInvariant(),
+            EmailConfirmed = true,
+            SecurityStamp = Guid.NewGuid().ToString()
         };
         user.PasswordHash = new PasswordHasher<ApplicationUser>().HashPassword(user, Password);
         var property = new Property
         {
-            Id = Guid.NewGuid(), AccountId = account.Id, Name = prefix, Address = "Ankara",
+            Id = Guid.NewGuid(),
+            AccountId = account.Id,
+            Name = prefix,
+            Address = "Ankara",
             Kind = PropertyKind.SINGLE_UNIT
         };
         db.AddRange(account, user, property, new AccountMember
         {
-            AccountId = account.Id, UserId = user.Id, Role = "OWNER", Status = "ACTIVE"
+            AccountId = account.Id,
+            UserId = user.Id,
+            Role = "OWNER",
+            Status = "ACTIVE"
         });
         return (account, user, property);
     }
 
     private static Document AddDocument(Guid accountId, Guid propertyId, string key) => new()
     {
-        Id = Guid.NewGuid(), AccountId = accountId, PropertyId = propertyId,
-        UploadObjectKey = $"{key}/upload", ObjectKey = key, OriginalName = "lease.pdf",
-        ContentType = "application/pdf", SizeBytes = 128, Status = "ACTIVE",
-        CreatedAtUtc = DateTime.UtcNow, UploadExpiresAtUtc = DateTime.UtcNow,
+        Id = Guid.NewGuid(),
+        AccountId = accountId,
+        PropertyId = propertyId,
+        UploadObjectKey = $"{key}/upload",
+        ObjectKey = key,
+        OriginalName = "lease.pdf",
+        ContentType = "application/pdf",
+        SizeBytes = 128,
+        Status = "ACTIVE",
+        CreatedAtUtc = DateTime.UtcNow,
+        UploadExpiresAtUtc = DateTime.UtcNow,
         CompletedAtUtc = DateTime.UtcNow
     };
 
     private static Document AddPendingDocument(Guid accountId, Guid propertyId) => new()
     {
-        Id = Guid.NewGuid(), AccountId = accountId, PropertyId = propertyId,
-        UploadObjectKey = "accounts/test/pending/upload", ObjectKey = "accounts/test/pending/active",
-        OriginalName = "pending.pdf", ContentType = "application/pdf", SizeBytes = 5,
-        Status = "PENDING", CreatedAtUtc = DateTime.UtcNow,
+        Id = Guid.NewGuid(),
+        AccountId = accountId,
+        PropertyId = propertyId,
+        UploadObjectKey = "accounts/test/pending/upload",
+        ObjectKey = "accounts/test/pending/active",
+        OriginalName = "pending.pdf",
+        ContentType = "application/pdf",
+        SizeBytes = 5,
+        Status = "PENDING",
+        CreatedAtUtc = DateTime.UtcNow,
         UploadExpiresAtUtc = DateTime.UtcNow.AddMinutes(2)
     };
 

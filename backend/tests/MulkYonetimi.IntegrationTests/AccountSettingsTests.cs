@@ -39,55 +39,95 @@ public sealed class AccountSettingsTests
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             var propertyA = new Property
             {
-                Id = Guid.NewGuid(), AccountId = accountA.Id, Name = "Test mülkü",
-                Address = "Ankara", Kind = PropertyKind.SINGLE_UNIT
+                Id = Guid.NewGuid(),
+                AccountId = accountA.Id,
+                Name = "Test mülkü",
+                Address = "Ankara",
+                Kind = PropertyKind.SINGLE_UNIT
             };
             var unitA = new Unit
             {
-                Id = Guid.NewGuid(), AccountId = accountA.Id, PropertyId = propertyA.Id,
-                Label = "1", UsageType = UnitUsageType.RESIDENTIAL, IsDefault = true
+                Id = Guid.NewGuid(),
+                AccountId = accountA.Id,
+                PropertyId = propertyA.Id,
+                Label = "1",
+                UsageType = UnitUsageType.RESIDENTIAL,
+                IsDefault = true
             };
             var tenantA = new Tenant { Id = Guid.NewGuid(), AccountId = accountA.Id, Kind = TenantKind.PERSON };
             var leaseA = new Lease
             {
-                Id = Guid.NewGuid(), AccountId = accountA.Id, UnitId = unitA.Id, TenantId = tenantA.Id,
-                Status = LeaseStatus.ACTIVE, StartDate = today.AddDays(-20), DueDay = 5,
-                DepositAmount = 100m, CreatedAtUtc = DateTime.UtcNow
+                Id = Guid.NewGuid(),
+                AccountId = accountA.Id,
+                UnitId = unitA.Id,
+                TenantId = tenantA.Id,
+                Status = LeaseStatus.ACTIVE,
+                StartDate = today.AddDays(-20),
+                DueDay = 5,
+                DepositAmount = 100m,
+                CreatedAtUtc = DateTime.UtcNow
             };
             var dueCharge = new RentCharge
             {
-                Id = Guid.NewGuid(), AccountId = accountA.Id, LeaseId = leaseA.Id,
-                PeriodStart = new DateOnly(today.Year, today.Month, 1), DueDate = today.AddDays(1), Amount = 100m
+                Id = Guid.NewGuid(),
+                AccountId = accountA.Id,
+                LeaseId = leaseA.Id,
+                PeriodStart = new DateOnly(today.Year, today.Month, 1),
+                DueDate = today.AddDays(1),
+                Amount = 100m
             };
             var overdueCharge = new RentCharge
             {
-                Id = Guid.NewGuid(), AccountId = accountA.Id, LeaseId = leaseA.Id,
+                Id = Guid.NewGuid(),
+                AccountId = accountA.Id,
+                LeaseId = leaseA.Id,
                 PeriodStart = new DateOnly(today.Year, today.Month, 1).AddMonths(-1),
-                DueDate = today.AddDays(-1), Amount = 75m
+                DueDate = today.AddDays(-1),
+                Amount = 75m
             };
             var unitB = new Unit
             {
-                Id = Guid.NewGuid(), AccountId = accountA.Id, PropertyId = propertyA.Id,
-                Label = "2", UsageType = UnitUsageType.RESIDENTIAL
+                Id = Guid.NewGuid(),
+                AccountId = accountA.Id,
+                PropertyId = propertyA.Id,
+                Label = "2",
+                UsageType = UnitUsageType.RESIDENTIAL
             };
             var leaseB = new Lease
             {
-                Id = Guid.NewGuid(), AccountId = accountA.Id, UnitId = unitB.Id, TenantId = tenantA.Id,
-                Status = LeaseStatus.ACTIVE, StartDate = today.AddYears(-2), PlannedEndDate = today.AddDays(20),
-                DueDay = 5, DepositAmount = 100m, CreatedAtUtc = DateTime.UtcNow
+                Id = Guid.NewGuid(),
+                AccountId = accountA.Id,
+                UnitId = unitB.Id,
+                TenantId = tenantA.Id,
+                Status = LeaseStatus.ACTIVE,
+                StartDate = today.AddYears(-2),
+                PlannedEndDate = today.AddDays(20),
+                DueDay = 5,
+                DepositAmount = 100m,
+                CreatedAtUtc = DateTime.UtcNow
             };
             db.AddRange(propertyA, unitA, unitB, tenantA, leaseA, leaseB, dueCharge, overdueCharge);
             var notificationA = new Notification
             {
-                Id = Guid.NewGuid(), AccountId = accountA.Id, UserId = userA.Id,
-                EventKey = "test:event:a", Type = "RENT_DUE", Title = "Kira vadesi",
-                Message = "Test bildirimi", CreatedAtUtc = DateTime.UtcNow
+                Id = Guid.NewGuid(),
+                AccountId = accountA.Id,
+                UserId = userA.Id,
+                EventKey = "test:event:a",
+                Type = "RENT_DUE",
+                Title = "Kira vadesi",
+                Message = "Test bildirimi",
+                CreatedAtUtc = DateTime.UtcNow
             };
             var notificationB = new Notification
             {
-                Id = Guid.NewGuid(), AccountId = accountB.Id, UserId = userB.Id,
-                EventKey = "test:event:b", Type = "RENT_DUE", Title = "Kira vadesi",
-                Message = "Başka hesap bildirimi", CreatedAtUtc = DateTime.UtcNow
+                Id = Guid.NewGuid(),
+                AccountId = accountB.Id,
+                UserId = userB.Id,
+                EventKey = "test:event:b",
+                Type = "RENT_DUE",
+                Title = "Kira vadesi",
+                Message = "Başka hesap bildirimi",
+                CreatedAtUtc = DateTime.UtcNow
             };
             db.Notifications.AddRange(notificationA, notificationB);
             await db.SaveChangesAsync();
@@ -207,14 +247,21 @@ public sealed class AccountSettingsTests
         var account = new Account { Id = Guid.NewGuid(), Name = prefix };
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(), Email = email, UserName = email,
-            NormalizedEmail = email.ToUpperInvariant(), NormalizedUserName = email.ToUpperInvariant(),
-            EmailConfirmed = true, SecurityStamp = Guid.NewGuid().ToString()
+            Id = Guid.NewGuid(),
+            Email = email,
+            UserName = email,
+            NormalizedEmail = email.ToUpperInvariant(),
+            NormalizedUserName = email.ToUpperInvariant(),
+            EmailConfirmed = true,
+            SecurityStamp = Guid.NewGuid().ToString()
         };
         user.PasswordHash = new PasswordHasher<ApplicationUser>().HashPassword(user, Password);
         db.AddRange(account, user, new AccountMember
         {
-            AccountId = account.Id, UserId = user.Id, Role = "OWNER", Status = "ACTIVE"
+            AccountId = account.Id,
+            UserId = user.Id,
+            Role = "OWNER",
+            Status = "ACTIVE"
         });
         return (account, user);
     }
