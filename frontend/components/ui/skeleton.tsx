@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 /** Yükleme yer tutucusu. Ekran okuyucular etiketi duyar; görsel blokların hareketi azaltılmış harekette durur. */
 export function ListSkeleton({ label, rows = 3, className }: { label: string; rows?: number; className?: string }) {
   return (
-    <div role="status" aria-live="polite" className={cn("skeleton-list grid gap-3 py-2", className)}>
+    <div role="status" aria-live="polite" style={{ minHeight: `${rows * 80}px` }} className={cn("skeleton-list grid gap-3 py-2", className)}>
       <span className="sr-only">{label}</span>
       {Array.from({ length: rows }, (_, index) => (
         <div key={index} aria-hidden="true" className="skeleton-row">

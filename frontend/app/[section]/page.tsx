@@ -1,16 +1,6 @@
 import { notFound } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { findSection, sections } from "@/lib/navigation";
-import { PropertyPortfolio } from "@/components/property-portfolio";
-import { TenantDirectory } from "@/components/tenant-directory";
-import { LeaseDirectory } from "@/components/lease-directory";
-import { RentCollection } from "@/components/rent-collection";
-import { DepositDirectory } from "@/components/deposit-directory";
-import { ExpenseDirectory } from "@/components/expense-directory";
-import { ReportDashboard } from "@/components/report-dashboard";
-import { SettingsDashboard } from "@/components/settings-dashboard";
-import { NotificationDirectory } from "@/components/notification-directory";
-import { DocumentLibrary } from "@/components/document-library";
 
 export function generateStaticParams() {
   return sections.filter((section) => section.path !== "/").map((section) => ({ section: section.path.slice(1) }));
@@ -21,17 +11,25 @@ export default async function SectionPage({ params }: { params: Promise<{ sectio
   const section = findSection(`/${slug}`);
   if (!section || section.path === "/") notFound();
 
-  const content = section.path === "/portfoy" ? <PropertyPortfolio />
-    : section.path === "/kiracilar" ? <TenantDirectory />
-      : section.path === "/sozlesmeler" ? <LeaseDirectory />
-        : section.path === "/kira-tahsilatlar" ? <RentCollection />
-          : section.path === "/depozitolar" ? <DepositDirectory />
-            : section.path === "/giderler" ? <ExpenseDirectory />
-              : section.path === "/raporlar" ? <ReportDashboard />
-                : section.path === "/ayarlar" ? <SettingsDashboard />
-                  : section.path === "/bildirimler" ? <NotificationDirectory />
-                    : section.path === "/belgeler" ? <DocumentLibrary />
-                      : notFound();
+  const content = await renderSection(section.path);
+  if (!content) notFound();
 
   return <DashboardShell title={section.title}>{content}</DashboardShell>;
+}
+
+// Her bölüm yalnızca kendi bileşenini yükler; tek bir paket tüm bölümleri taşımaz.
+async function renderSection(path: string) {
+  switch (path) {
+    case "/portfoy": { const { PropertyPortfolio } = await import("@/components/property-portfolio"); return <PropertyPortfolio />; }
+    case "/kiracilar": { const { TenantDirectory } = await import("@/components/tenant-directory"); return <TenantDirectory />; }
+    case "/sozlesmeler": { const { LeaseDirectory } = await import("@/components/lease-directory"); return <LeaseDirectory />; }
+    case "/kira-tahsilatlar": { const { RentCollection } = await import("@/components/rent-collection"); return <RentCollection />; }
+    case "/depozitolar": { const { DepositDirectory } = await import("@/components/deposit-directory"); return <DepositDirectory />; }
+    case "/giderler": { const { ExpenseDirectory } = await import("@/components/expense-directory"); return <ExpenseDirectory />; }
+    case "/raporlar": { const { ReportDashboard } = await import("@/components/report-dashboard"); return <ReportDashboard />; }
+    case "/ayarlar": { const { SettingsDashboard } = await import("@/components/settings-dashboard"); return <SettingsDashboard />; }
+    case "/bildirimler": { const { NotificationDirectory } = await import("@/components/notification-directory"); return <NotificationDirectory />; }
+    case "/belgeler": { const { DocumentLibrary } = await import("@/components/document-library"); return <DocumentLibrary />; }
+    default: return null;
+  }
 }
