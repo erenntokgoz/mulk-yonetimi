@@ -1,5 +1,7 @@
-using System.Net;
-using System.Net.Mail;
+using MailKit;
+using MailKit.Net.Smtp;
+using MailKit.Security;
+using MimeKit;
 
 namespace MulkYonetimi.Api;
 
@@ -35,12 +37,24 @@ public sealed class SmtpConfirmationMailer(IConfiguration configuration) : IConf
         var sender = configuration["Email:From"];
         if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(sender))
             throw new InvalidOperationException("SMTP is not configured.");
-        using var client = new SmtpClient(host, configuration.GetValue("Email:SmtpPort", 587))
-        {
-            EnableSsl = true,
-            Credentials = new NetworkCredential(configuration["Email:SmtpUser"], configuration["Email:SmtpPassword"])
-        };
-        using var message = new MailMessage(sender, address, subject, body);
-        await client.SendMailAsync(message, cancellationToken);
+        var port = configuration.GetValue("Email:SmtpPort", 587);
+        var user = configuration["Email:SmtpUser"];
+        using var message = new MimeMessage();
+        message.From.Add(MailboxAddress.Parse(sender));
+        message.To.Add(MailboxAddress.Parse(address));
+        message.Subject = subject;
+        message.Body = new TextPart("plain") { Text = body };
+        using var client = new SmtpClient { Timeout = 30_000 };
+        await client.ConnectAsync(host, port, SmtpSecurity.For(port), cancellationToken);
+        if (!string.IsNullOrWhiteSpace(user))
+            await client.AuthenticateAsync(user, configuration["Email:SmtpPassword"] ?? string.Empty, cancellationToken);
+        await client.SendAsync(new SendRequest(message), cancellationToken);
+        await client.DisconnectAsync(true, cancellationToken);
     }
+}
+
+public static class SmtpSecurity
+{
+    public static SecureSocketOptions For(int port) =>
+        port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls;
 }
