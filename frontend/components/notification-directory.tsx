@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 type NotificationItem = components["schemas"]["NotificationItem"];
 type NotificationPage = components["schemas"]["NotificationPage"];
@@ -91,7 +92,7 @@ export function NotificationDirectory() {
     {status && <p role="status" className="text-sm text-muted-foreground">{status}</p>}
     {!loadFailed && <Card><CardContent className="grid gap-4 p-5">
       <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={unreadOnly} onChange={event => setUnreadOnly(event.target.checked)} />Yalnızca okunmamış</label>
-      {loading ? <p role="status" className="py-6 text-center text-sm text-muted-foreground">Bildirimler yükleniyor…</p> : items.length ? <ul className="grid gap-3">
+      {loading ? <ListSkeleton label="Bildirimler yükleniyor…" /> : items.length ? <ul className="grid gap-3">
         {items.map(item => <li key={item.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-4">
           <div><h2 className="font-medium">{item.title}</h2><p className="mt-1 text-sm text-muted-foreground">{item.message}</p><p className="mt-2 text-xs text-muted-foreground"><time dateTime={item.createdAtUtc}>{new Date(item.createdAtUtc).toLocaleString("tr-TR")}</time></p></div>
           {item.readAtUtc ? <span className="text-xs text-muted-foreground">Okundu</span> : <Button type="button" variant="outline" disabled={busyId === item.id} onClick={() => void markRead(item)}>Okundu işaretle</Button>}

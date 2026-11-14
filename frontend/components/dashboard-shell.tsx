@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Building2 } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 import { MobileMenu } from "@/components/mobile-menu";
 import { SectionNavigation } from "@/components/section-navigation";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from "@/components/ui/breadcrumb";
@@ -13,8 +13,8 @@ export function DashboardShell({ children, title = "Genel bakış" }: { children
         <a href="#main" className="skip-link">İçeriğe geç</a>
         <aside aria-label="Uygulama" className="glass-sidebar fixed z-10 hidden w-56 flex-col sm:flex">
           <div className="sidebar-brand flex h-16 items-center px-4">
-            <Link href="/" aria-label="Mülk Yönetimi ana sayfa" className="flex min-h-11 items-center gap-3 rounded-md px-2 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <span className="brand-mark"><Building2 className="h-4 w-4" aria-hidden="true" /></span><span>Mülk Yönetimi<span className="brand-caption">Portföy ve finans</span></span>
+            <Link href="/" aria-label="Mülküm ana sayfa" className="flex min-h-11 items-center gap-3 rounded-md px-2 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <BrandMark size={30} /><span>Mülküm<span className="brand-caption">Portföy ve finans</span></span>
             </Link>
           </div>
           <div className="min-h-0 overflow-y-auto px-3 py-2"><SectionNavigation /></div>

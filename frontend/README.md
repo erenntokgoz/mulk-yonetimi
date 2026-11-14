@@ -69,3 +69,10 @@ Sayfa bileşeni kapsamı production Next.js üzerinde Playwright ile doğrulanı
 ## Referans arayüz doğrulama kaydı
 
 28 Ekim 2026: `pnpm lint`, `pnpm typecheck`, 10 unit test, `pnpm build` ve 9 Playwright testi geçti. 1280×800 masaüstü ve 375×812 mobil Chromium ekran görüntüleri incelendi; 56 px sidebar, header, kart düzeni ve mobil taşmasız görünüm doğrulandı. Bu kontrol kaynak demo ile piksel düzeyinde eşitlik iddiası değildir.
+
+## Logo
+
+Marka adı Mülküm, işareti "iki çatı M"dir. Gerçek logoyu eklemek için şu dosyaların üzerine yazın:
+
+- `app/icon.svg`: tarayıcı sekmesi simgesi (16/32 px için sade sürüm; çerçeve ve orta çizgi yok).
+- `lib/brand-mark-svg.ts`: kenar çubuğu, giriş sayfaları (`components/brand-mark.tsx`) ve Apple simgesi (`app/apple-icon.tsx`) için tam işaret (`brandMarkSvg` dizgisi). Kare (1:1) SVG kullanın.

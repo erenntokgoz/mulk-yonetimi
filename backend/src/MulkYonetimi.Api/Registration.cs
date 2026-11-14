@@ -20,12 +20,12 @@ public interface IConfirmationMailer
 public sealed class SmtpConfirmationMailer(IConfiguration configuration) : IConfirmationMailer
 {
     public async Task SendAsync(string address, string confirmationUrl, CancellationToken cancellationToken)
-        => await SendMessageAsync(address, "E-posta doğrulama",
-            $"İşlemi tamamlamak için bağlantıyı açın: {confirmationUrl}", cancellationToken);
+        => await SendMessageAsync(address, "Mülküm: e-posta adresinizi doğrulayın",
+            $"Mülküm hesabınızı etkinleştirmek için e-posta adresinizi doğrulayın:\n{confirmationUrl}\n\nBu işlemi siz başlatmadıysanız bu iletiyi yok sayabilirsiniz.", cancellationToken);
 
     public async Task SendPasswordResetAsync(string address, string resetUrl, CancellationToken cancellationToken)
-        => await SendMessageAsync(address, "Parola sıfırlama",
-            $"İşlemi tamamlamak için bağlantıyı açın: {resetUrl}", cancellationToken);
+        => await SendMessageAsync(address, "Mülküm: parola sıfırlama",
+            $"Mülküm parolanızı sıfırlamak için bağlantıyı açın:\n{resetUrl}\n\nBu isteği siz yapmadıysanız bu iletiyi yok sayabilirsiniz. Parolanız değişmez.", cancellationToken);
 
     public async Task SendNotificationAsync(string address, string subject, string body,
         CancellationToken cancellationToken) =>
@@ -40,7 +40,7 @@ public sealed class SmtpConfirmationMailer(IConfiguration configuration) : IConf
         var port = configuration.GetValue("Email:SmtpPort", 587);
         var user = configuration["Email:SmtpUser"];
         using var message = new MimeMessage();
-        message.From.Add(MailboxAddress.Parse(sender));
+        message.From.Add(new MailboxAddress("Mülküm", MailboxAddress.Parse(sender).Address));
         message.To.Add(MailboxAddress.Parse(address));
         message.Subject = subject;
         message.Body = new TextPart("plain") { Text = body };

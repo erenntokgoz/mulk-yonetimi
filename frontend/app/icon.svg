@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Sekme simgesi (16/32 px): sadeleştirilmiş Mülküm işareti. Gerçek logoyla değiştirmek için üzerine yazın (bkz. README, "Logo"). -->
+  <rect width="64" height="64" rx="16" fill="#0f1a2e"/>
+  <path d="M12 48 L12 27 L22 17 L32 27 L42 17 L52 27 L52 48" fill="none" stroke="#2f8bff" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

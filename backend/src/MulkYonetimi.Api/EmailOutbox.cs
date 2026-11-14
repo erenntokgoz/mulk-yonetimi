@@ -142,13 +142,35 @@ public sealed class EmailOutboxDispatcher(ApplicationDbContext db, IDataProtecti
 public sealed class EmailOutboxHealthCheck(ApplicationDbContext db,
     ILogger<EmailOutboxHealthCheck> logger) : IHealthCheck
 {
+    public static readonly TimeSpan FailedWindow = TimeSpan.FromHours(24);
+    public static readonly TimeSpan PendingOverdueAfter = TimeSpan.FromMinutes(15);
+
+    public static IQueryable<OutboxMessage> RecentFailed(IQueryable<OutboxMessage> source, DateTime nowUtc)
+    {
+        var since = nowUtc - FailedWindow;
+        return source.Where(item => item.Status == "FAILED" && item.NextAttemptAtUtc >= since);
+    }
+
+    public static IQueryable<OutboxMessage> OverduePending(IQueryable<OutboxMessage> source, DateTime nowUtc)
+    {
+        var overdueBefore = nowUtc - PendingOverdueAfter;
+        return source.Where(item => item.Status == "PENDING" && item.NextAttemptAtUtc < overdueBefore);
+    }
+
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
-        var failedCount = await db.OutboxMessages.CountAsync(item => item.Status == "FAILED", cancellationToken);
-        if (failedCount == 0) return HealthCheckResult.Healthy();
-        logger.LogWarning("Outbox has {FailedCount} failed messages.", failedCount);
-        return HealthCheckResult.Degraded(data: new Dictionary<string, object> { ["failedCount"] = failedCount });
+        var now = DateTime.UtcNow;
+        var failedCount = await RecentFailed(db.OutboxMessages, now).CountAsync(cancellationToken);
+        var overdueCount = await OverduePending(db.OutboxMessages, now).CountAsync(cancellationToken);
+        if (failedCount == 0 && overdueCount == 0) return HealthCheckResult.Healthy();
+        logger.LogWarning("Outbox has {FailedCount} recent failed and {OverdueCount} overdue messages.",
+            failedCount, overdueCount);
+        return HealthCheckResult.Degraded(data: new Dictionary<string, object>
+        {
+            ["failedCount"] = failedCount,
+            ["overdueCount"] = overdueCount
+        });
     }
 }
 
