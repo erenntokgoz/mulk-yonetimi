@@ -14,10 +14,16 @@ export function HeroScene() {
     if (!el) return;
     let visible = true;
     const sync = () => el.toggleAttribute("data-paused", !visible || document.hidden);
-    const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; sync(); });
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      sync();
+    });
     observer.observe(el);
     document.addEventListener("visibilitychange", sync);
-    return () => { observer.disconnect(); document.removeEventListener("visibilitychange", sync); };
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", sync);
+    };
   }, []);
 
   return (
@@ -25,7 +31,12 @@ export function HeroScene() {
       <div className={styles.stage}>
         <div className={styles.plate} />
         {Array.from({ length: LAYERS }, (_, i) => (
-          <svg key={i} viewBox="0 0 64 64" className={styles.layer} style={{ "--i": i } as React.CSSProperties}>
+          <svg
+            key={i}
+            viewBox="0 0 64 64"
+            className={styles.layer}
+            style={{ "--i": i } as React.CSSProperties}
+          >
             <path d="M12 48 L12 27 L22 17 L32 27 L42 17 L52 27 L52 48" />
             {i === LAYERS - 1 && <path d="M32 27 L32 48" className={styles.topCore} />}
           </svg>

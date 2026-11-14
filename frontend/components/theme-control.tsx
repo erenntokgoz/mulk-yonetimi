@@ -16,11 +16,25 @@ export function ThemeControl() {
   function toggle() {
     const next = !document.documentElement.classList.contains("dark");
     document.documentElement.classList.toggle("dark", next);
-    try { localStorage.setItem("mulk-theme", next ? "dark" : "light"); } catch { /* kayıt yapılamazsa tema yalnız bu oturumda geçerli kalır */ }
+    try {
+      localStorage.setItem("mulk-theme", next ? "dark" : "light");
+    } catch {
+      /* kayıt yapılamazsa tema yalnız bu oturumda geçerli kalır */
+    }
     document.dispatchEvent(new Event("mulk-theme-change"));
   }
 
-  return <Button type="button" variant="ghost" size="icon" className="h-11 w-11 sm:h-10 sm:w-10" aria-label={dark ? "Açık temaya geç" : "Koyu temaya geç"} title={dark ? "Açık temaya geç" : "Koyu temaya geç"} onClick={toggle}>
-    {dark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-  </Button>;
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="h-11 w-11 sm:h-10 sm:w-10"
+      aria-label={dark ? "Açık temaya geç" : "Koyu temaya geç"}
+      title={dark ? "Açık temaya geç" : "Koyu temaya geç"}
+      onClick={toggle}
+    >
+      {dark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+    </Button>
+  );
 }

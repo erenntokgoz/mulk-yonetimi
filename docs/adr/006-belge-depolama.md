@@ -1,4 +1,4 @@
-# ADR: Özel belge depolama ve yaşam döngüsü
+# ADR 006 — Özel belge depolama ve yaşam döngüsü
 
 - Durum: Kısmen uygulanmış
 - Tarih: 14 Kasım 2026

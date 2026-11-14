@@ -3,7 +3,15 @@ import type { NextRequest } from "next/server";
 
 // Optimistic check only: the API still authorizes every request and returns 401 for invalid or expired sessions.
 const SESSION_COOKIE = "mulk.session";
-const PUBLIC_PATHS = new Set(["/", "/giris", "/kayit", "/dogrula", "/dogrulama-yeniden-gonder", "/parolami-unuttum", "/parola-sifirla"]);
+const PUBLIC_PATHS = new Set([
+  "/",
+  "/giris",
+  "/kayit",
+  "/dogrula",
+  "/dogrulama-yeniden-gonder",
+  "/parolami-unuttum",
+  "/parola-sifirla",
+]);
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

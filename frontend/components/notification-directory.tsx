@@ -28,9 +28,15 @@ export function NotificationDirectory() {
       const query = new URLSearchParams({ page: "1", pageSize: "25", unreadOnly: String(unreadOnly) });
       const response = await fetch(`/api/bff/notifications?${query}`, { cache: "no-store" });
       if (!response.ok) {
-        throw new Error(response.status === 401 ? "Bildirimleri görmek için giriş yapın." : response.status === 502 || response.status === 503 ? "Bildirim hizmetine şu anda ulaşılamıyor. Bağlantıyı kontrol edip yeniden deneyin." : "Bildirimler alınamadı. Yeniden deneyin.");
+        throw new Error(
+          response.status === 401
+            ? "Bildirimleri görmek için giriş yapın."
+            : response.status === 502 || response.status === 503
+              ? "Bildirim hizmetine şu anda ulaşılamıyor. Bağlantıyı kontrol edip yeniden deneyin."
+              : "Bildirimler alınamadı. Yeniden deneyin.",
+        );
       }
-      const page = await response.json() as NotificationPage;
+      const page = (await response.json()) as NotificationPage;
       setItems(page.items);
     } catch (cause) {
       setItems([]);
@@ -41,15 +47,24 @@ export function NotificationDirectory() {
     }
   }, [unreadOnly]);
 
-  useEffect(() => { void Promise.resolve().then(load); }, [load]);
+  useEffect(() => {
+    void Promise.resolve().then(load);
+  }, [load]);
 
   async function markRead(item: NotificationItem) {
     setBusyId(item.id);
     setStatus("");
     setError("");
     try {
-      const response = await fetch(`/api/bff/notifications/${encodeURIComponent(item.id)}/read`, { method: "PATCH" });
-      if (!response.ok) throw new Error(response.status === 401 ? "Bildirimi güncellemek için giriş yapın." : "Bildirim okundu olarak işaretlenemedi.");
+      const response = await fetch(`/api/bff/notifications/${encodeURIComponent(item.id)}/read`, {
+        method: "PATCH",
+      });
+      if (!response.ok)
+        throw new Error(
+          response.status === 401
+            ? "Bildirimi güncellemek için giriş yapın."
+            : "Bildirim okundu olarak işaretlenemedi.",
+        );
       setStatus("Bildirim okundu olarak işaretlendi.");
       await load();
     } catch (cause) {
@@ -65,7 +80,12 @@ export function NotificationDirectory() {
     setError("");
     try {
       const response = await fetch("/api/bff/notifications", { method: "POST" });
-      if (!response.ok) throw new Error(response.status === 401 ? "Bildirimleri güncellemek için giriş yapın." : "Bildirimler okundu olarak işaretlenemedi.");
+      if (!response.ok)
+        throw new Error(
+          response.status === 401
+            ? "Bildirimleri güncellemek için giriş yapın."
+            : "Bildirimler okundu olarak işaretlenemedi.",
+        );
       setStatus("Bildirimler okundu olarak işaretlendi.");
       await load();
     } catch (cause) {
@@ -75,29 +95,99 @@ export function NotificationDirectory() {
     }
   }
 
-  return <section className="grid gap-5" aria-labelledby="notifications-title">
-    <div className="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 id="notifications-title" className="text-2xl font-semibold tracking-tight">Bildirimler</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Vade, gecikme ve sözleşme hatırlatmaları</p>
+  return (
+    <section className="grid gap-5" aria-labelledby="notifications-title">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 id="notifications-title" className="text-2xl font-semibold tracking-tight">
+            Bildirimler
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">Vade, gecikme ve sözleşme hatırlatmaları</p>
+        </div>
+        {!loadFailed && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={loading || markingAll || items.every((item) => item.readAtUtc)}
+            onClick={() => void markAllRead()}
+          >
+            {markingAll ? "Güncelleniyor…" : "Tümünü okundu işaretle"}
+          </Button>
+        )}
       </div>
-      {!loadFailed && <Button type="button" variant="outline" disabled={loading || markingAll || items.every(item => item.readAtUtc)} onClick={() => void markAllRead()}>
-        {markingAll ? "Güncelleniyor…" : "Tümünü okundu işaretle"}
-      </Button>}
-    </div>
-    {error && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/50 bg-card p-4 text-sm">
-      <p>{error}</p>{error.includes("giriş yapın") && <Link href="/giris" className="underline">Giriş yap</Link>}
-      <Button type="button" variant="outline" disabled={loading} onClick={() => void load()}>Yeniden dene</Button>
-    </div>}
-    {status && <p role="status" className="text-sm text-muted-foreground">{status}</p>}
-    {!loadFailed && <Card><CardContent className="grid gap-4 p-5">
-      <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={unreadOnly} onChange={event => setUnreadOnly(event.target.checked)} />Yalnızca okunmamış</label>
-      {loading ? <ListSkeleton label="Bildirimler yükleniyor…" /> : items.length ? <ul className="grid gap-3">
-        {items.map(item => <li key={item.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-4">
-          <div><h2 className="font-medium">{item.title}</h2><p className="mt-1 text-sm text-muted-foreground">{item.message}</p><p className="mt-2 text-xs text-muted-foreground"><time dateTime={item.createdAtUtc}>{new Date(item.createdAtUtc).toLocaleString("tr-TR")}</time></p></div>
-          {item.readAtUtc ? <span className="text-xs text-muted-foreground">Okundu</span> : <Button type="button" variant="outline" disabled={busyId === item.id} onClick={() => void markRead(item)}>Okundu işaretle</Button>}
-        </li>)}
-      </ul> : <p className="py-8 text-center text-sm text-muted-foreground">{unreadOnly ? "Okunmamış bildirim yok." : "Görüntülenecek bildirim yok."}</p>}
-    </CardContent></Card>}
-  </section>;
+      {error && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/50 bg-card p-4 text-sm"
+        >
+          <p>{error}</p>
+          {error.includes("giriş yapın") && (
+            <Link href="/giris" className="underline">
+              Giriş yap
+            </Link>
+          )}
+          <Button type="button" variant="outline" disabled={loading} onClick={() => void load()}>
+            Yeniden dene
+          </Button>
+        </div>
+      )}
+      {status && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {status}
+        </p>
+      )}
+      {!loadFailed && (
+        <Card>
+          <CardContent className="grid gap-4 p-5">
+            <label className="flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={unreadOnly}
+                onChange={(event) => setUnreadOnly(event.target.checked)}
+              />
+              Yalnızca okunmamış
+            </label>
+            {loading ? (
+              <ListSkeleton label="Bildirimler yükleniyor…" />
+            ) : items.length ? (
+              <ul className="grid gap-3">
+                {items.map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-4"
+                  >
+                    <div>
+                      <h2 className="font-medium">{item.title}</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">{item.message}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        <time dateTime={item.createdAtUtc}>
+                          {new Date(item.createdAtUtc).toLocaleString("tr-TR")}
+                        </time>
+                      </p>
+                    </div>
+                    {item.readAtUtc ? (
+                      <span className="text-xs text-muted-foreground">Okundu</span>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={busyId === item.id}
+                        onClick={() => void markRead(item)}
+                      >
+                        Okundu işaretle
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                {unreadOnly ? "Okunmamış bildirim yok." : "Görüntülenecek bildirim yok."}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </section>
+  );
 }

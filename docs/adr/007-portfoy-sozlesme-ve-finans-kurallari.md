@@ -1,4 +1,4 @@
-# Portföy API tasarımı
+# ADR 007 — Portföy, sözleşme ve finans kuralları
 
 İlk dilim PORT-01 ve müstakil mülkün oluşturulma kuralını kapsar. Mülk adı ve tek satır adres zorunludur. İstemci oluştururken `SINGLE_UNIT` veya `MULTI_UNIT` seçer. `SINGLE_UNIT` için konut/ticari kullanım seçimi zorunludur ve varsayılan birim aynı SQL işleminde oluşur. Türün sonradan değiştirilmesi birim dönüşümü gerektirdiği için MVP'de sabittir.
 

@@ -17,7 +17,7 @@ servisleri bellek yetersizliğine sürükleme riski yüksek.
 - **Veritabanı:** Azure SQL Database ücretsiz teklif (Sweden Central; West Europe yeni aboneliğe kapalıydı). Firewall'da yalnız Ubuntu sunucunun IP'si açık.
   Migration'lar `deploy/sql/migrations-idempotent.sql` ile yönetici hesabıyla uygulanır; uygulama ayrı, DDL yetkisi olmayan
   bir kullanıcıyla bağlanır.
-- **E-posta:** Aynı sunucudaki Mailu, `587` STARTTLS.
+- **E-posta:** Aynı sunucudaki Mailu; `mail.kasam360.com.tr:465` örtük TLS (Mailu içinde 587 kapalı), MailKit ile gönderilir.
 - **Belgeler:** R2 ve zararlı yazılım tarayıcısı bağlanana kadar kapalı (fail-closed).
 
 ## Sonuçlar

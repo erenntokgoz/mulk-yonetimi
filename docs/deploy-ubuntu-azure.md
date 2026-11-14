@@ -1,4 +1,4 @@
-﻿# Yayın: Ubuntu API + Azure SQL + Vercel
+# Yayın: Ubuntu API + Azure SQL + Vercel
 
 Karar: [ADR 003](adr/003-yayin-topolojisi.md). Bu sunucuda başka servisler çalışıyor; yalnız burada adı geçen dosya,
 container ve portlara dokun.
@@ -17,14 +17,17 @@ container ve portlara dokun.
 
 ## 2. Migration ve uygulama kullanıcısı (sunucuda)
 
+Parola, yapıştırılan komutta sqlcmd isteminde bozulur; bu yüzden gizli okunup ortam değişkeniyle verilir. `-I` zorunludur
+(`QUOTED_IDENTIFIER ON` olmadan migration scripti başarısız olur).
+
 ```bash
-cd /opt/mulk-yonetimi && git pull
-docker run --rm -it -v "$PWD/deploy/sql:/sql:ro" mcr.microsoft.com/mssql-tools \
-  /opt/mssql-tools/bin/sqlcmd -S tcp:<server>.database.windows.net,1433 -d MulkYonetimi -U <admin> -N -b -I \
-  -i /sql/migrations-idempotent.sql
+cd /opt/mulk-yonetimi && git pull -q
+read -rsp "Yönetici parolası: " SQLCMDPASSWORD; echo; export SQLCMDPASSWORD
+docker run --rm -e SQLCMDPASSWORD -v "$PWD/deploy/sql:/sql:ro" mcr.microsoft.com/mssql-tools   /opt/mssql-tools/bin/sqlcmd -S tcp:mulkyonetimi-sql.database.windows.net,1433 -d MulkYonetimi -U <admin> -N -b -I   -i /sql/migrations-idempotent.sql
+unset SQLCMDPASSWORD
 ```
 
-Uygulama kullanıcısı (yönetici ile, aynı komutta `-i` yerine `-Q`):
+Uygulama kullanıcısı `mulk_app` (yönetici ile, aynı komutta `-i` yerine `-Q`):
 
 ```sql
 CREATE USER [mulk_app] WITH PASSWORD = '<guclu-parola>';
@@ -51,10 +54,22 @@ certbot --nginx -d mulkapi.duckdns.org
 
 `nginx -t` hata verirse reload yapma; mevcut siteler etkilenir.
 
+## Güncelleme
+
+```bash
+cd /opt/mulk-yonetimi && git pull -q && docker compose -f deploy/compose.api.yaml up -d --build --force-recreate
+```
+
+Yeni migration varsa önce bölüm 2'deki komut çalıştırılır; `deploy/sql/migrations-idempotent.sql` yeniden üretilmelidir.
+
 ## 5. Vercel
 
 Ortam değişkenleri: `BACKEND_BASE_URL=https://mulkapi.duckdns.org`, `FRONTEND_ORIGIN=https://<vercel-alan-adi>`.
-`deploy/api.env` içindeki `Auth__FrontendOrigin` aynı değerle eşleşmeli.
+`deploy/api.env` içindeki `Auth__FrontendOrigin` aynı değerle eşleşmeli. Bölge `fra1`.
+
+## E-posta (Mailu)
+
+SMTP: `mail.kasam360.com.tr:465` örtük TLS (Mailu içinde 587 kapalı). `Email__SmtpPort=465`, gönderen `mulkum@360labs.com.tr`. Container host ağını kullandığı için Mailu'ya ulaşır. Posta spam'e düşerse 360labs.com.tr için SPF/DKIM kaydı gerekir.
 
 ## Geri dönüş
 

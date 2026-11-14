@@ -14,9 +14,18 @@ export function takeReturnFocus() {
 }
 
 const isDesktop = () => window.matchMedia("(min-width: 1024px)").matches;
-const visibleSearch = () => Array.from(document.querySelectorAll<HTMLInputElement>(SEARCH)).find((el) => el.getClientRects().length > 0) ?? null;
-const inTextField = (el: Element | null) => !!el && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement || (el as HTMLElement).isContentEditable);
-const setMobileMenu = (detail: boolean | "toggle") => document.dispatchEvent(new CustomEvent(MOBILE_MENU_EVENT, { detail }));
+const visibleSearch = () =>
+  Array.from(document.querySelectorAll<HTMLInputElement>(SEARCH)).find(
+    (el) => el.getClientRects().length > 0,
+  ) ?? null;
+const inTextField = (el: Element | null) =>
+  !!el &&
+  (el instanceof HTMLInputElement ||
+    el instanceof HTMLTextAreaElement ||
+    el instanceof HTMLSelectElement ||
+    (el as HTMLElement).isContentEditable);
+const setMobileMenu = (detail: boolean | "toggle") =>
+  document.dispatchEvent(new CustomEvent(MOBILE_MENU_EVENT, { detail }));
 
 function whenSearchReady(callback: (input: HTMLInputElement) => void, tries = 30) {
   const input = visibleSearch();
