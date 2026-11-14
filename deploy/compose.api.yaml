@@ -8,12 +8,14 @@ services:
     image: mulk-yonetimi-api:latest
     restart: unless-stopped
     env_file: ./api.env
-    ports:
-      - "127.0.0.1:5180:8080"
+    # Host networking: the host refuses bridge-network traffic to its own public IP, so Mailu (published on the
+    # public IP) is only reachable from the host namespace. Kestrel binds to loopback only; nginx proxies to it.
+    network_mode: host
+    environment:
+      ASPNETCORE_URLS: http://127.0.0.1:5180
+      Network__KnownProxies__0: 127.0.0.1
     volumes:
       - dataprotection-keys:/keys
-    networks:
-      - mulk
     mem_limit: 512m
     cpus: 1.0
     read_only: true
@@ -26,15 +28,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-networks:
-  mulk:
-    name: mulk-yonetimi
-    ipam:
-      config:
-        # Fixed subnet so the host nginx (seen via the gateway) can be listed in Network__KnownProxies.
-        - subnet: 172.30.50.0/24
-          gateway: 172.30.50.1
 
 volumes:
   dataprotection-keys:
