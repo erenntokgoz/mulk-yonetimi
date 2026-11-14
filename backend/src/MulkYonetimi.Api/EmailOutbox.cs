@@ -109,7 +109,7 @@ public sealed class EmailOutboxDispatcher(ApplicationDbContext db, IDataProtecti
                         .SetProperty(item => item.ClaimId, (Guid?)null)
                         .SetProperty(item => item.ClaimedUntilUtc, (DateTime?)null), cancellationToken);
             }
-            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
             {
                 var attempts = message.AttemptCount + 1;
                 var next = DateTime.UtcNow.AddMinutes(Math.Min(1 << Math.Min(attempts - 1, 4), 16));
@@ -121,8 +121,8 @@ public sealed class EmailOutboxDispatcher(ApplicationDbContext db, IDataProtecti
                         .SetProperty(item => item.NextAttemptAtUtc, next)
                         .SetProperty(item => item.ClaimId, (Guid?)null)
                         .SetProperty(item => item.ClaimedUntilUtc, (DateTime?)null), cancellationToken);
-                logger.LogWarning("Outbox delivery failed: MessageId={MessageId} Kind={Kind} Attempt={Attempt} Status={Status}",
-                    id, message.Kind, attempts, status);
+                logger.LogWarning("Outbox delivery failed: MessageId={MessageId} Kind={Kind} Attempt={Attempt} Status={Status} Error={ErrorType}: {ErrorMessage}",
+                    id, message.Kind, attempts, status, exception.GetType().Name, exception.Message);
             }
             processed++;
         }
