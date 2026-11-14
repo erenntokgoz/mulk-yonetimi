@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PanelLeft } from "lucide-react";
+import { Menu } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { SectionNavigation } from "@/components/section-navigation";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ export function MobileMenu() {
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button type="button" size="icon" variant="outline" className="h-11 w-11 sm:hidden" aria-label="Menüyü aç">
-          <PanelLeft className="h-5 w-5" aria-hidden="true" />
+          <Menu className="h-5 w-5" aria-hidden="true" />
         </Button>
       </SheetTrigger>
       <SheetContent side="left" className="mobile-sheet w-72 max-w-[85vw] overflow-y-auto">
