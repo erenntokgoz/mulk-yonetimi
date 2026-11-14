@@ -1,53 +1,85 @@
-import { DashboardShell } from "@/components/dashboard-shell";
-import { OverviewDashboard } from "@/components/overview-dashboard";
-import { getBackendHealth, type HealthResult, type HealthStatus } from "@/lib/api/health";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { BrandMark } from "@/components/brand-mark";
+import { HeroScene } from "@/components/landing/hero-scene";
+import { LandingActions } from "@/components/landing/landing-actions";
+import { ThemeControl } from "@/components/theme-control";
+import styles from "@/components/landing/landing.module.css";
 
-export const dynamic = "force-dynamic";
+const description = "Mülk, birim, kiracı ve sözleşme kayıtlarını tutun; kira alacaklarını, tahsilatları, depozitoları ve giderleri tek hesapta izleyin.";
 
-const statusLabels: Record<HealthStatus, string> = {
-  Healthy: "Çalışıyor",
-  Degraded: "Kısıtlı çalışıyor",
-  Unhealthy: "Hizmet kullanılamıyor",
+export const metadata: Metadata = {
+  title: "Mülküm: mülk, kiracı ve kira takibi",
+  description,
+  openGraph: { title: "Mülküm: mülk, kiracı ve kira takibi", description, siteName: "Mülküm", locale: "tr_TR", type: "website" },
 };
 
-const checkLabels: Record<string, string> = {
-  sqlserver: "Veritabanı",
-  outbox: "E-posta kuyruğu",
-};
+const groups = [
+  {
+    title: "Kayıtlar",
+    summary: "Mülkler, kiracılar ve aralarındaki sözleşmeler.",
+    items: [
+      ["Portföy ve birimler", "Mülkleri ve mülke bağlı birimleri kaydedin. Kullanılmayan kayıtları arşivleyin."],
+      ["Kiracılar", "Kiracı iletişim bilgilerini tutun ve sözleşmelere bağlayın."],
+      ["Sözleşmeler ve bedel dönemleri", "Başlangıç tarihi, ödeme günü, aylık bedel ve depozito tutarıyla sözleşme açın. Kira bedeli değiştiğinde yeni bir bedel dönemi ekleyin; önceki bedeller geçmişte kalır."],
+    ],
+  },
+  {
+    title: "Para",
+    summary: "Alacaklar, tahsilatlar ve giderler.",
+    items: [
+      ["Kira alacağı ve kısmi tahsilat", "Etkin sözleşmeler için her dönemde bir kira alacağı oluşur. Tahsilatı tam ya da kısmi girin; kalan tutar ve ödeme durumu buna göre güncellenir."],
+      ["Depozito", "Alınan depozitoyu sözleşmeye bağlı kaydedin ve bakiyesini izleyin."],
+      ["Giderler", "Bakım gibi giderleri mülke bağlayarak tarih ve kategoriyle kaydedin."],
+      ["Nakit akışı raporu", "Seçtiğiniz dönemin tahsilat ve gider hareketlerini görün. Rapor nakit akışını gösterir; net kâr hesabı değildir."],
+    ],
+  },
+  {
+    title: "Takip ve güvenlik",
+    summary: "Bildirimler ve hesap ayrımı.",
+    items: [
+      ["Bildirimler", "Bildirimleri uygulama içinde okuyun, okundu olarak işaretleyin ve bildirim tercihlerini ayarlardan düzenleyin."],
+      ["Hesap izolasyonu", "Her hesabın verisi ayrı tutulur; bir hesap başka bir hesabın kayıtlarına erişemez. Oturum sunucuda doğrulanır. Finansal kayıtlar silinmez; iptal ya da açık düzeltme olarak işlenir."],
+    ],
+  },
+] as const;
 
-export default async function Home() {
-  return <DashboardShell><OverviewDashboard /><SystemHealth /></DashboardShell>;
-}
-
-async function SystemHealth() {
-  let result: HealthResult | null = null;
-  try {
-    result = await getBackendHealth();
-  } catch {
-    // Configuration details stay on the server.
-  }
-  const report = result?.kind === "available" ? result.health : null;
-  const status = report ? statusLabels[report.status] : "Bağlantı kurulamadı";
-  const detail = !result
-    ? "Hizmet bağlantısı yapılandırılmamış. Sistem yöneticisiyle iletişime geçin."
-    : result.kind === "unavailable"
-      ? "Hizmet durumu alınamadı. Bir süre sonra sayfayı yenileyerek tekrar deneyin."
-      : null;
-
+export default function LandingPage() {
   return (
-      <section className="grid gap-4 lg:grid-cols-2" aria-label="Sistem sağlığı">
-        <section aria-label="Sistem durumu" className="rounded-lg border bg-card p-4">
-          <h2 className="font-semibold">Sistem durumu</h2>
-          <div role="status" className="mt-2 flex items-center gap-3 text-sm font-medium"><span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${report?.status === "Healthy" ? "bg-emerald-400" : "bg-amber-400"}`} />{status}</div>
-          {detail && <p className="mt-2 text-xs leading-5 text-muted-foreground">{detail}</p>}
-          <form action="/" method="get" className="mt-3"><button type="submit" className="text-xs underline">Durumu yenile</button></form>
-        </section>
-        <section aria-label="Hizmet kontrolleri" className="rounded-lg border bg-card p-4">
-          <h2 className="font-semibold">Hizmet kontrolleri</h2>
-          <div className="mt-2">
-              {report ? report.checks.length ? <dl className="divide-y divide-border text-sm">{report.checks.map((check, index) => <div key={`${check.name}-${index}`} className="grid gap-1 py-4"><div className="flex items-center justify-between gap-4"><dt>{checkLabels[check.name] ?? "Diğer hizmet"}</dt><dd className="font-medium">{statusLabels[check.status]}</dd></div><p className="text-xs text-muted-foreground">Yanıt süresi: {Math.round(check.durationMs)} ms</p>{check.description && <p className="text-xs text-muted-foreground">{check.description}</p>}</div>)}</dl> : <p className="text-sm text-muted-foreground">İzlenecek hizmet yok.</p> : <p className="text-sm text-muted-foreground">Hizmet bilgisi alınamadı.</p>}
+    <div className={styles.page}>
+      <a href="#icerik" className="skip-link">İçeriğe geç</a>
+      <header className={styles.header}>
+        <div className={`${styles.wrap} ${styles.headerRow}`}>
+          <Link href="/" className={styles.brand} aria-label="Mülküm ana sayfa"><BrandMark size={30} />Mülküm</Link>
+          <div className={styles.tools}>
+            <ThemeControl />
+            <LandingActions placement="header" />
           </div>
+        </div>
+      </header>
+      <main id="icerik" tabIndex={-1} className={styles.wrap}>
+        <section className={styles.hero} aria-labelledby="baslik">
+          <div className={styles.heroText}>
+            <h1 id="baslik">Mülk, kiracı ve kira takibi tek hesapta</h1>
+            <p>Mülkleri ve sözleşmeleri kaydedin, kira alacaklarını ve tahsilatları izleyin, depozito ve giderleri işleyin.</p>
+            <LandingActions placement="hero" />
+          </div>
+          <HeroScene />
         </section>
-      </section>
+        {groups.map((group) => (
+          <section key={group.title} className={styles.group} aria-labelledby={`g-${group.title}`}>
+            <div><h2 id={`g-${group.title}`}>{group.title}</h2><p>{group.summary}</p></div>
+            <dl className={styles.items}>
+              {group.items.map(([name, text]) => <div key={name} className={styles.item}><dt>{name}</dt><dd>{text}</dd></div>)}
+            </dl>
+          </section>
+        ))}
+      </main>
+      <footer className={styles.footer}>
+        <div className={`${styles.wrap} ${styles.footerRow}`}>
+          <span>Mülküm: mülk, kiracı ve kira takibi</span>
+        </div>
+      </footer>
+    </div>
   );
 }

@@ -12,7 +12,7 @@ export function MobileMenu() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button type="button" size="icon" variant="outline" className="h-11 w-11 sm:hidden" aria-label="Menüyü aç">
+        <Button type="button" size="icon" variant="outline" className="h-11 w-11 lg:hidden" aria-label="Menüyü aç">
           <Menu className="h-5 w-5" aria-hidden="true" />
         </Button>
       </SheetTrigger>

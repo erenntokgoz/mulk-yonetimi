@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-for (const path of ["/", "/portfoy", "/belgeler"]) {
+for (const path of ["/panel", "/portfoy", "/belgeler"]) {
   test(`redirects ${path} to login without a session`, async ({ page }) => {
     await page.goto(path);
     await expect(page).toHaveURL(new RegExp(`/giris\\?next=${encodeURIComponent(path).replace(/[/]/g, "\\/")}$`));
@@ -43,5 +43,5 @@ test("ignores an off-site next parameter after login", async ({ page }) => {
   await page.getByLabel("E-posta").fill("owner@example.test");
   await page.getByLabel("Parola").fill("Correct-Password-123!");
   await page.getByRole("button", { name: /Giriş yap/ }).click();
-  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/);
+  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/panel$/);
 });
