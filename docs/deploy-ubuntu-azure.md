@@ -1,4 +1,4 @@
-# Yayın: Ubuntu API + Azure SQL + Vercel
+﻿# Yayın: Ubuntu API + Azure SQL + Vercel
 
 Karar: [ADR 003](adr/003-yayin-topolojisi.md). Bu sunucuda başka servisler çalışıyor; yalnız burada adı geçen dosya,
 container ve portlara dokun.
@@ -8,7 +8,7 @@ container ve portlara dokun.
 1. portal.azure.com → **SQL databases → Create**.
 2. "Want to try Azure SQL Database for free?" → **Apply offer**.
 3. Resource group: `mulk-yonetimi`. Database name: `MulkYonetimi`.
-4. Server → **Create new**: ad örn. `mulkyonetimi-sql`, bölge **West Europe**, kimlik doğrulama **SQL authentication**.
+4. Server → **Create new**: ad örn. `mulkyonetimi-sql`, bölge **Sweden Central**, kimlik doğrulama **SQL authentication**.
    Yönetici kullanıcı adı ve güçlü bir parola belirle; parolayı yalnız parola yöneticine kaydet.
 5. "Behavior when free limit reached": **Auto-pause the database until next month**.
 6. Networking → **Public endpoint**, "Allow Azure services" **No**, "Add current client IP" **No**. Firewall kuralı:

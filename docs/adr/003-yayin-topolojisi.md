@@ -1,4 +1,4 @@
-# ADR 003 — Yayın topolojisi: Vercel + Ubuntu API + Azure SQL
+﻿# ADR 003 — Yayın topolojisi: Vercel + Ubuntu API + Azure SQL
 
 - Durum: Kabul edildi
 - Tarih: 2026-11-14
@@ -14,7 +14,7 @@ servisleri bellek yetersizliğine sürükleme riski yüksek.
 - **Frontend:** Next.js Vercel'de. Tarayıcı yalnız Vercel'le konuşur; API çağrıları sunucu tarafı BFF üzerinden gider.
 - **API:** ASP.NET Core 10, Ubuntu sunucuda Docker container (`deploy/compose.api.yaml`), yalnız `127.0.0.1:5180`'e bağlı,
   önünde mevcut host nginx + certbot ile HTTPS. Bellek sınırı 512 MB.
-- **Veritabanı:** Azure SQL Database ücretsiz teklif (West Europe). Firewall'da yalnız Ubuntu sunucunun IP'si açık.
+- **Veritabanı:** Azure SQL Database ücretsiz teklif (Sweden Central; West Europe yeni aboneliğe kapalıydı). Firewall'da yalnız Ubuntu sunucunun IP'si açık.
   Migration'lar `deploy/sql/migrations-idempotent.sql` ile yönetici hesabıyla uygulanır; uygulama ayrı, DDL yetkisi olmayan
   bir kullanıcıyla bağlanır.
 - **E-posta:** Aynı sunucudaki Mailu, `587` STARTTLS.
