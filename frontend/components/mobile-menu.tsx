@@ -21,12 +21,30 @@ export function MobileMenu() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button type="button" size="icon" variant="outline" className="h-11 w-11 lg:hidden" aria-label="Menüyü aç">
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          className="h-11 w-11 lg:hidden"
+          aria-label="Menüyü aç"
+        >
           <Menu className="h-5 w-5" aria-hidden="true" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" onCloseAutoFocus={(event) => { const target = takeReturnFocus(); if (target) { event.preventDefault(); target.focus(); } }}className="mobile-sheet w-72 max-w-[85vw] overflow-y-auto">
-        <SheetTitle className="mb-7 flex items-center gap-3"><BrandMark size={24} /> Ana menü</SheetTitle>
+      <SheetContent
+        side="left"
+        onCloseAutoFocus={(event) => {
+          const target = takeReturnFocus();
+          if (target) {
+            event.preventDefault();
+            target.focus();
+          }
+        }}
+        className="mobile-sheet w-72 max-w-[85vw] overflow-y-auto"
+      >
+        <SheetTitle className="mb-7 flex items-center gap-3">
+          <BrandMark size={24} /> Ana menü
+        </SheetTitle>
         <SheetDescription className="sr-only">Uygulama sayfalarında gezinin.</SheetDescription>
         <SectionNavigation onNavigate={() => setOpen(false)} />
       </SheetContent>

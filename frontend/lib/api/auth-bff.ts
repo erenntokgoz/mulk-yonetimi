@@ -8,8 +8,15 @@ export async function proxyAuth(request: Request, path: string, mutation: boolea
   let expectedOrigin: string;
   try {
     const configured = new URL(frontendOrigin);
-    if (!["http:", "https:"].includes(configured.protocol) || configured.username || configured.password ||
-        configured.pathname !== "/" || configured.search || configured.hash) throw new Error();
+    if (
+      !["http:", "https:"].includes(configured.protocol) ||
+      configured.username ||
+      configured.password ||
+      configured.pathname !== "/" ||
+      configured.search ||
+      configured.hash
+    )
+      throw new Error();
     expectedOrigin = configured.origin;
   } catch {
     return new Response(null, { status: 503 });

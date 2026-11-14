@@ -9,32 +9,292 @@ import { ListSkeleton } from "@/components/ui/skeleton";
 type Deposit = components["schemas"]["DepositResponse"];
 type Movement = components["schemas"]["DepositMovementResponse"];
 type Lease = components["schemas"]["LeaseResponse"];
-const money = (v: number | string) => { const [integer, fraction = ""] = String(v).split("."); return `${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${fraction.padEnd(2, "0").slice(0, 2)} ₺`; };
+const money = (v: number | string) => {
+  const [integer, fraction = ""] = String(v).split(".");
+  return `${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${fraction.padEnd(2, "0").slice(0, 2)} ₺`;
+};
 const today = () => new Date().toLocaleDateString("en-CA");
 const key = () => crypto.randomUUID().replaceAll("-", "");
-const decimalBody = (v: string) => { if (!/^\d+(?:\.\d{1,2})?$/.test(v)) throw new Error("Tutarı en çok iki ondalık basamakla girin."); return v; };
-function leaseName(lease: Lease) { return `${lease.startDate} · ${money(lease.depositAmount)}`; }
+const decimalBody = (v: string) => {
+  if (!/^\d+(?:\.\d{1,2})?$/.test(v)) throw new Error("Tutarı en çok iki ondalık basamakla girin.");
+  return v;
+};
+function leaseName(lease: Lease) {
+  return `${lease.startDate} · ${money(lease.depositAmount)}`;
+}
 
 export function DepositDirectory() {
-  const [deposits, setDeposits] = useState<Deposit[]>([]); const [leases, setLeases] = useState<Lease[]>([]);
-  const [movements, setMovements] = useState<Record<string, Movement[]>>({}); const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(""); const [dataError, setDataError] = useState(""); const [pending, setPending] = useState(false); const [retry, setRetry] = useState<{ url: string; body: string; key: string } | null>(null);
-  async function load() { setLoading(true); try { const get = (url: string) => fetch(url, { cache: "no-store" });
-    const leasesRequest = get("/api/bff/leases?status=ACTIVE&page=1&pageSize=100");
-    const d = await get("/api/bff/deposits?page=1&pageSize=100");
-    if (!d.ok) { void leasesRequest.catch(() => undefined); throw new Error(d.status === 401 ? "Depozitoları görmek için giriş yapın." : "Depozito verileri alınamadı."); }
-    const dp = await d.json() as {items: Deposit[]};
-    // Hareket istekleri sözleşme yanıtını beklemeden, depozito listesi gelir gelmez başlar.
-    const movementsRequest = Promise.all(dp.items.map(async x => { const r=await get(`/api/bff/deposits/${x.id}/movements?page=1&pageSize=100`); if(!r.ok) throw new Error("Hareket kayıtları alınamadı."); return [x.id, (await r.json() as {items: Movement[]}).items] as const; }));
-    const l = await leasesRequest;
-    if (!l.ok) { void movementsRequest.catch(() => undefined); throw new Error(l.status === 401 ? "Depozitoları görmek için giriş yapın." : "Depozito verileri alınamadı."); }
-    const lp = await l.json() as {items: Lease[]};
-    setDeposits(dp.items); setLeases(lp.items); setMovements(Object.fromEntries(await movementsRequest)); setError("");setDataError(""); } catch(e) { setDataError(e instanceof Error ? e.message : "Depozito verileri alınamadı."); } finally { setLoading(false); } }
-  useEffect(() => { void Promise.resolve().then(load); }, []);
-  async function send(req: {url:string;body:string;key:string}) { setPending(true); setError(""); try { const r=await fetch(req.url,{method:"POST",headers:{"Content-Type":"application/json","Idempotency-Key":req.key},body:req.body}); if(!r.ok) throw new Error(r.status===409?"Depozito bakiyesi yetersiz veya kayıt çakıştı.":"İşlem kaydedilemedi. Aynı istek güvenle yeniden denenebilir."); setRetry(null); await load(); } catch(e) { setRetry(req); setError(e instanceof Error?e.message:"İşlem kaydedilemedi."); } finally {setPending(false);} }
-  function submit(e: FormEvent<HTMLFormElement>, url: string, fields: (d: FormData)=>object) { e.preventDefault(); const f=e.currentTarget; try { void send({url,body:JSON.stringify(fields(new FormData(f))),key:key()}); f.reset(); } catch(e) {setError(e instanceof Error?e.message:"Formu kontrol edin.");} }
-  return <section className="grid gap-5" aria-labelledby="deposit-title"><div><h1 id="deposit-title" className="text-2xl font-semibold tracking-tight">Depozitolar</h1><p className="mt-1 text-sm text-muted-foreground">Sözleşme teminatları ve iade hareketleri</p></div>
-    {(error||dataError)&&<div role="alert" className="rounded-lg border border-destructive/50 bg-card p-4 text-sm">{dataError||error}{dataError.includes("giriş yapın")&&<Link className="ml-3 underline" href="/giris">Giriş yap</Link>}{dataError&&<Button type="button" variant="outline" className="ml-3" onClick={()=>void load()}>Yeniden dene</Button>}{retry&&<Button type="button" variant="outline" className="ml-3" disabled={pending} onClick={()=>void send(retry)}>Aynı isteği tekrar dene</Button>}</div>}
-    {!dataError&&<><Card><CardContent className="grid gap-4 p-5"><h2 className="text-lg font-semibold">Depozito kaydı</h2>{loading?<ListSkeleton label="Sözleşmeler yükleniyor…" />:!leases.length?<p className="text-sm text-muted-foreground">Depozito tutarı olan etkin sözleşme yok.</p>:<form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={e=>submit(e,"/api/bff/deposits",d=>({leaseId:String(d.get("leaseId")),custodyType:String(d.get("custodyType")),note:String(d.get("note")||"")||null}))}><label className="grid gap-1 text-sm">Etkin sözleşme<select name="leaseId" required className="h-10 rounded border bg-background px-3">{leases.filter(l=>Number(l.depositAmount)>0&&!deposits.some(x=>x.leaseId===l.id)).map(l=><option key={l.id} value={l.id}>{leaseName(l)}</option>)}</select></label><label className="grid gap-1 text-sm">Muhafaza biçimi<select name="custodyType" className="h-10 rounded border bg-background px-3"><option value="OWNER_HELD">Malik tarafından tutuluyor</option><option value="BANK_BLOCKED">Bankada bloke</option></select></label><label className="grid gap-1 text-sm">Not<input name="note" maxLength={500} className="h-10 rounded border bg-background px-3" /></label><Button type="submit" disabled={pending||!leases.some(l=>Number(l.depositAmount)>0&&!deposits.some(x=>x.leaseId===l.id))} className="self-end">Kaydı aç</Button></form>}</CardContent></Card>
-    <Card><CardContent className="grid gap-4 p-5"><h2 className="text-lg font-semibold">Kayıtlı depozitolar</h2>{loading?<ListSkeleton label="Depozitolar yükleniyor…" />:deposits.length?<div className="grid gap-3">{deposits.map(d=><article key={d.id} className="grid gap-3 rounded-lg border p-4"><h3 className="font-medium">Sözleşme · {money(d.amountAgreed)}</h3><p className="text-sm text-muted-foreground">{d.custodyType==="OWNER_HELD"?"Malik tarafından tutuluyor":"Bankada bloke"} · Bakiye {money(d.balance)}{d.note?` · ${d.note}`:""}</p><form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" onSubmit={e=>submit(e,`/api/bff/deposits/${d.id}/movements`,f=>({movementOn:String(f.get("movementOn")),movementType:String(f.get("movementType")),amount:decimalBody(String(f.get("amount"))),note:String(f.get("note")||"")||null}))}><label className="grid gap-1 text-sm">Hareket tarihi<input name="movementOn" type="date" required defaultValue={today()} className="h-10 rounded border bg-background px-3" /></label><label className="grid gap-1 text-sm">Hareket<select name="movementType" className="h-10 rounded border bg-background px-3"><option value="HELD">Depozito alındı</option><option value="RETURNED">İade edildi</option><option value="ADJUSTED">Düzeltme</option></select></label><label className="grid gap-1 text-sm">Tutar (₺)<input name="amount" type="number" min="0.01" step="0.01" required className="h-10 rounded border bg-background px-3" /></label><label className="grid gap-1 text-sm">Not / gerekçe<input name="note" maxLength={500} className="h-10 rounded border bg-background px-3" /></label><Button type="submit" disabled={pending} className="self-end">Hareketi kaydet</Button></form><ul className="grid gap-2 border-t pt-3 sm:grid-cols-2">{(movements[d.id]??[]).map(m=><li key={m.id} className="text-sm">{m.movementOn} · {m.movementType==="RETURNED"?"İade":m.movementType==="HELD"?"Alındı":"Düzeltme"} · {money(m.amount)}{m.note?` · ${m.note}`:""}</li>)}</ul></article>)}</div>:<p className="py-8 text-center text-sm text-muted-foreground">Depozito kaydı yok.</p>}</CardContent></Card></> }</section>;
+  const [deposits, setDeposits] = useState<Deposit[]>([]);
+  const [leases, setLeases] = useState<Lease[]>([]);
+  const [movements, setMovements] = useState<Record<string, Movement[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [dataError, setDataError] = useState("");
+  const [pending, setPending] = useState(false);
+  const [retry, setRetry] = useState<{ url: string; body: string; key: string } | null>(null);
+  async function load() {
+    setLoading(true);
+    try {
+      const get = (url: string) => fetch(url, { cache: "no-store" });
+      const leasesRequest = get("/api/bff/leases?status=ACTIVE&page=1&pageSize=100");
+      const d = await get("/api/bff/deposits?page=1&pageSize=100");
+      if (!d.ok) {
+        void leasesRequest.catch(() => undefined);
+        throw new Error(
+          d.status === 401 ? "Depozitoları görmek için giriş yapın." : "Depozito verileri alınamadı.",
+        );
+      }
+      const dp = (await d.json()) as { items: Deposit[] };
+      // Hareket istekleri sözleşme yanıtını beklemeden, depozito listesi gelir gelmez başlar.
+      const movementsRequest = Promise.all(
+        dp.items.map(async (x) => {
+          const r = await get(`/api/bff/deposits/${x.id}/movements?page=1&pageSize=100`);
+          if (!r.ok) throw new Error("Hareket kayıtları alınamadı.");
+          return [x.id, ((await r.json()) as { items: Movement[] }).items] as const;
+        }),
+      );
+      const l = await leasesRequest;
+      if (!l.ok) {
+        void movementsRequest.catch(() => undefined);
+        throw new Error(
+          l.status === 401 ? "Depozitoları görmek için giriş yapın." : "Depozito verileri alınamadı.",
+        );
+      }
+      const lp = (await l.json()) as { items: Lease[] };
+      setDeposits(dp.items);
+      setLeases(lp.items);
+      setMovements(Object.fromEntries(await movementsRequest));
+      setError("");
+      setDataError("");
+    } catch (e) {
+      setDataError(e instanceof Error ? e.message : "Depozito verileri alınamadı.");
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    void Promise.resolve().then(load);
+  }, []);
+  async function send(req: { url: string; body: string; key: string }) {
+    setPending(true);
+    setError("");
+    try {
+      const r = await fetch(req.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": req.key },
+        body: req.body,
+      });
+      if (!r.ok)
+        throw new Error(
+          r.status === 409
+            ? "Depozito bakiyesi yetersiz veya kayıt çakıştı."
+            : "İşlem kaydedilemedi. Aynı istek güvenle yeniden denenebilir.",
+        );
+      setRetry(null);
+      await load();
+    } catch (e) {
+      setRetry(req);
+      setError(e instanceof Error ? e.message : "İşlem kaydedilemedi.");
+    } finally {
+      setPending(false);
+    }
+  }
+  function submit(e: FormEvent<HTMLFormElement>, url: string, fields: (d: FormData) => object) {
+    e.preventDefault();
+    const f = e.currentTarget;
+    try {
+      void send({ url, body: JSON.stringify(fields(new FormData(f))), key: key() });
+      f.reset();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Formu kontrol edin.");
+    }
+  }
+  return (
+    <section className="grid gap-5" aria-labelledby="deposit-title">
+      <div>
+        <h1 id="deposit-title" className="text-2xl font-semibold tracking-tight">
+          Depozitolar
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">Sözleşme teminatları ve iade hareketleri</p>
+      </div>
+      {(error || dataError) && (
+        <div role="alert" className="rounded-lg border border-destructive/50 bg-card p-4 text-sm">
+          {dataError || error}
+          {dataError.includes("giriş yapın") && (
+            <Link className="ml-3 underline" href="/giris">
+              Giriş yap
+            </Link>
+          )}
+          {dataError && (
+            <Button type="button" variant="outline" className="ml-3" onClick={() => void load()}>
+              Yeniden dene
+            </Button>
+          )}
+          {retry && (
+            <Button
+              type="button"
+              variant="outline"
+              className="ml-3"
+              disabled={pending}
+              onClick={() => void send(retry)}
+            >
+              Aynı isteği tekrar dene
+            </Button>
+          )}
+        </div>
+      )}
+      {!dataError && (
+        <>
+          <Card>
+            <CardContent className="grid gap-4 p-5">
+              <h2 className="text-lg font-semibold">Depozito kaydı</h2>
+              {loading ? (
+                <ListSkeleton label="Sözleşmeler yükleniyor…" />
+              ) : !leases.length ? (
+                <p className="text-sm text-muted-foreground">Depozito tutarı olan etkin sözleşme yok.</p>
+              ) : (
+                <form
+                  className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+                  onSubmit={(e) =>
+                    submit(e, "/api/bff/deposits", (d) => ({
+                      leaseId: String(d.get("leaseId")),
+                      custodyType: String(d.get("custodyType")),
+                      note: String(d.get("note") || "") || null,
+                    }))
+                  }
+                >
+                  <label className="grid gap-1 text-sm">
+                    Etkin sözleşme
+                    <select name="leaseId" required className="h-10 rounded border bg-background px-3">
+                      {leases
+                        .filter(
+                          (l) => Number(l.depositAmount) > 0 && !deposits.some((x) => x.leaseId === l.id),
+                        )
+                        .map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {leaseName(l)}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-sm">
+                    Muhafaza biçimi
+                    <select name="custodyType" className="h-10 rounded border bg-background px-3">
+                      <option value="OWNER_HELD">Malik tarafından tutuluyor</option>
+                      <option value="BANK_BLOCKED">Bankada bloke</option>
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-sm">
+                    Not
+                    <input name="note" maxLength={500} className="h-10 rounded border bg-background px-3" />
+                  </label>
+                  <Button
+                    type="submit"
+                    disabled={
+                      pending ||
+                      !leases.some(
+                        (l) => Number(l.depositAmount) > 0 && !deposits.some((x) => x.leaseId === l.id),
+                      )
+                    }
+                    className="self-end"
+                  >
+                    Kaydı aç
+                  </Button>
+                </form>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="grid gap-4 p-5">
+              <h2 className="text-lg font-semibold">Kayıtlı depozitolar</h2>
+              {loading ? (
+                <ListSkeleton label="Depozitolar yükleniyor…" />
+              ) : deposits.length ? (
+                <div className="grid gap-3">
+                  {deposits.map((d) => (
+                    <article key={d.id} className="grid gap-3 rounded-lg border p-4">
+                      <h3 className="font-medium">Sözleşme · {money(d.amountAgreed)}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {d.custodyType === "OWNER_HELD" ? "Malik tarafından tutuluyor" : "Bankada bloke"} ·
+                        Bakiye {money(d.balance)}
+                        {d.note ? ` · ${d.note}` : ""}
+                      </p>
+                      <form
+                        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5"
+                        onSubmit={(e) =>
+                          submit(e, `/api/bff/deposits/${d.id}/movements`, (f) => ({
+                            movementOn: String(f.get("movementOn")),
+                            movementType: String(f.get("movementType")),
+                            amount: decimalBody(String(f.get("amount"))),
+                            note: String(f.get("note") || "") || null,
+                          }))
+                        }
+                      >
+                        <label className="grid gap-1 text-sm">
+                          Hareket tarihi
+                          <input
+                            name="movementOn"
+                            type="date"
+                            required
+                            defaultValue={today()}
+                            className="h-10 rounded border bg-background px-3"
+                          />
+                        </label>
+                        <label className="grid gap-1 text-sm">
+                          Hareket
+                          <select name="movementType" className="h-10 rounded border bg-background px-3">
+                            <option value="HELD">Depozito alındı</option>
+                            <option value="RETURNED">İade edildi</option>
+                            <option value="ADJUSTED">Düzeltme</option>
+                          </select>
+                        </label>
+                        <label className="grid gap-1 text-sm">
+                          Tutar (₺)
+                          <input
+                            name="amount"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            required
+                            className="h-10 rounded border bg-background px-3"
+                          />
+                        </label>
+                        <label className="grid gap-1 text-sm">
+                          Not / gerekçe
+                          <input
+                            name="note"
+                            maxLength={500}
+                            className="h-10 rounded border bg-background px-3"
+                          />
+                        </label>
+                        <Button type="submit" disabled={pending} className="self-end">
+                          Hareketi kaydet
+                        </Button>
+                      </form>
+                      <ul className="grid gap-2 border-t pt-3 sm:grid-cols-2">
+                        {(movements[d.id] ?? []).map((m) => (
+                          <li key={m.id} className="text-sm">
+                            {m.movementOn} ·{" "}
+                            {m.movementType === "RETURNED"
+                              ? "İade"
+                              : m.movementType === "HELD"
+                                ? "Alındı"
+                                : "Düzeltme"}{" "}
+                            · {money(m.amount)}
+                            {m.note ? ` · ${m.note}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="py-8 text-center text-sm text-muted-foreground">Depozito kaydı yok.</p>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </section>
+  );
 }

@@ -30,10 +30,15 @@ export default function LoginPage() {
         body: JSON.stringify({ email: data.get("email"), password: data.get("password") }),
       });
       if (!response.ok) {
-        setError(response.status === 401 ? "E-posta veya parola hatalı." :
-          response.status === 403 ? "Hesap erişimi kullanılamıyor. E-posta doğrulamasını ve hesap durumunu kontrol edin." :
-          response.status === 429 ? "Çok fazla deneme. Bir dakika sonra tekrar deneyin." :
-          "Giriş yapılamadı. Daha sonra tekrar deneyin.");
+        setError(
+          response.status === 401
+            ? "E-posta veya parola hatalı."
+            : response.status === 403
+              ? "Hesap erişimi kullanılamıyor. E-posta doğrulamasını ve hesap durumunu kontrol edin."
+              : response.status === 429
+                ? "Çok fazla deneme. Bir dakika sonra tekrar deneyin."
+                : "Giriş yapılamadı. Daha sonra tekrar deneyin.",
+        );
         return;
       }
       setSessionState(true);
@@ -47,20 +52,50 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthShell><main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 px-4 py-10">
-      <div><h1 className="text-2xl font-semibold">Giriş</h1><p className="mt-2 text-sm text-muted-foreground">Mülküm hesabınızla devam edin.</p></div>
-      <form onSubmit={submit} className="grid gap-4">
-        <label className="grid gap-2 text-sm font-medium">E-posta
-          <input name="email" type="email" autoComplete="username" required maxLength={256} className="h-11 rounded-md border bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
-        </label>
-        <label className="grid gap-2 text-sm font-medium">Parola
-          <PasswordInput name="password" autoComplete="current-password" required />
-        </label>
-        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        <Button type="submit" size="lg" disabled={busy}>{busy ? "Giriş yapılıyor…" : "Giriş yap"}</Button>
-      </form>
-      <Link href="/kayit" className="text-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Hesap oluştur</Link>
-      <Link href="/parolami-unuttum" className="text-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Parolamı unuttum</Link>
-    </main></AuthShell>
+    <AuthShell>
+      <main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 px-4 py-10">
+        <div>
+          <h1 className="text-2xl font-semibold">Giriş</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Mülküm hesabınızla devam edin.</p>
+        </div>
+        <form onSubmit={submit} className="grid gap-4">
+          <label className="grid gap-2 text-sm font-medium">
+            E-posta
+            <input
+              name="email"
+              type="email"
+              autoComplete="username"
+              required
+              maxLength={256}
+              className="h-11 rounded-md border bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-medium">
+            Parola
+            <PasswordInput name="password" autoComplete="current-password" required />
+          </label>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <Button type="submit" size="lg" disabled={busy}>
+            {busy ? "Giriş yapılıyor…" : "Giriş yap"}
+          </Button>
+        </form>
+        <Link
+          href="/kayit"
+          className="text-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Hesap oluştur
+        </Link>
+        <Link
+          href="/parolami-unuttum"
+          className="text-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Parolamı unuttum
+        </Link>
+      </main>
+    </AuthShell>
   );
 }

@@ -1,7 +1,7 @@
 import "server-only";
 
 export type HealthStatus = "Healthy" | "Degraded" | "Unhealthy";
-export type HealthReport = {
+type HealthReport = {
   status: HealthStatus;
   checks: { name: string; status: HealthStatus; durationMs: number; description: string | null }[];
 };
