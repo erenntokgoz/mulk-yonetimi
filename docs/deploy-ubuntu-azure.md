@@ -20,7 +20,7 @@ container ve portlara dokun.
 ```bash
 cd /opt/mulk-yonetimi && git pull
 docker run --rm -it -v "$PWD/deploy/sql:/sql:ro" mcr.microsoft.com/mssql-tools \
-  /opt/mssql-tools/bin/sqlcmd -S tcp:<server>.database.windows.net,1433 -d MulkYonetimi -U <admin> -N -b \
+  /opt/mssql-tools/bin/sqlcmd -S tcp:<server>.database.windows.net,1433 -d MulkYonetimi -U <admin> -N -b -I \
   -i /sql/migrations-idempotent.sql
 ```
 
