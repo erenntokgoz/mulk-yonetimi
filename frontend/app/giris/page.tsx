@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "@/components/auth-shell";
 
+function safeNextPath(next: string | null) {
+  // Only same-origin paths; rejects "//host" and "/\host" open redirects.
+  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -29,7 +34,7 @@ export default function LoginPage() {
           "Giriş yapılamadı. Daha sonra tekrar deneyin.");
         return;
       }
-      router.push("/");
+      router.push(safeNextPath(new URLSearchParams(window.location.search).get("next")));
       router.refresh();
     } catch {
       setError("Bağlantı kurulamadı. Daha sonra tekrar deneyin.");

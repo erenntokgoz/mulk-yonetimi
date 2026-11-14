@@ -18,7 +18,7 @@ export function SessionControl() {
     try {
       const response = await fetch("/api/bff/auth/logout", { method: "POST" });
       if (!response.ok) throw new Error();
-      setSignedIn(false); router.refresh();
+      setSignedIn(false); router.replace("/giris"); router.refresh();
     } finally { setBusy(false); }
   }
   return <Button type="button" variant="ghost" className="ml-auto" disabled={busy} onClick={() => void logout()}>{busy ? "Çıkış yapılıyor…" : "Çıkış yap"}</Button>;

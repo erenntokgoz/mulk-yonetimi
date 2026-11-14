@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
 
+// Auth flows start signed out, without the default stale session cookie.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test("recovery forms send requests and show generic receipt", async ({ page }) => {
   await page.goto("/parolami-unuttum");
   await page.getByLabel("E-posta").fill("owner@example.test");
@@ -36,7 +39,7 @@ test("login form sends credentials through BFF", async ({ page }) => {
   expect((await page.context().cookies()).some((cookie) => cookie.name === "mulk.session")).toBe(true);
   await expect(page.getByRole("button", { name: "Çıkış yap" })).toBeVisible();
   await page.getByRole("button", { name: "Çıkış yap" }).click();
-  await expect(page.getByRole("link", { name: "Giriş" })).toBeVisible();
+  await expect(page).toHaveURL(/\/giris$/);
   expect((await page.context().cookies()).some((cookie) => cookie.name === "mulk.session")).toBe(false);
 });
 
