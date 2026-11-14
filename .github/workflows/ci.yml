@@ -82,7 +82,7 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
-      - run: dotnet restore MulkYonetimi.slnx --locked-mode
+      - run: dotnet restore tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.csproj --locked-mode
       - run: dotnet test tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.csproj --no-restore --configuration Release
         env:
           MULK_SQL_TEST_ADMIN_CONNECTION: Server=127.0.0.1,14333;Database=master;User Id=sa;Password=${{ secrets.MULK_SQL_TEST_PASSWORD }};Encrypt=True;TrustServerCertificate=True;Connect Timeout=10
