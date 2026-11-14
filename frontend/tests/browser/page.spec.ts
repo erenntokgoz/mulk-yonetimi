@@ -14,7 +14,7 @@ for (const [state, label] of [
     await expect(page.getByRole("heading", { level: 1, name: "Genel bakış" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Sistem durumu" }).getByRole("status")).toHaveText(label);
     if (state !== "Disconnected") {
-      await expect(page.getByText("SQL Server", { exact: true })).toBeVisible();
+      await expect(page.getByText("Veritabanı", { exact: true })).toBeVisible();
       await expect(page.locator("dd")).toHaveText(label);
     } else {
       await expect(page.getByText(/Hizmet durumu alınamadı/)).toBeVisible();
@@ -97,7 +97,7 @@ test("dashboard shows real portfolio summary and health details", async ({ page,
   await expect(page.getByRole("heading", { level: 1, name: "Genel bakış" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Cari ay nakit akışı" })).toBeVisible();
   const details = page.getByRole("region", { name: "Hizmet kontrolleri" });
-  await expect(details.getByText("SQL Server", { exact: true })).toBeVisible();
+  await expect(details.getByText("Veritabanı", { exact: true })).toBeVisible();
   const mainPanel = page.getByRole("region", { name: "Sistem sağlığı" });
   await expect(mainPanel.getByRole("status")).toHaveText("Çalışıyor");
   await expect(details.getByText("Yanıt süresi: 2 ms")).toBeVisible();
@@ -111,7 +111,7 @@ test("dashboard shows real portfolio summary and health details", async ({ page,
   expect((await request.post(fixtureUrl, { data: "Disconnected" })).ok()).toBeTruthy();
   await page.reload();
   await expect(details.getByText("Hizmet bilgisi alınamadı.")).toBeVisible();
-  await expect(details).not.toContainText("SQL Server");
+  await expect(details).not.toContainText("Veritabanı");
   await expect(page.getByRole("region", { name: "Sistem durumu" }).getByRole("status")).toHaveCount(1);
   await expect(page.getByRole("main").locator(":scope > div")).toHaveCSS("opacity", "1");
   await page.screenshot({ path: "frontend-theme-mobile.png", fullPage: true });
@@ -224,7 +224,7 @@ test("theme control switches between dark and light and persists", async ({ page
   await page.getByRole("button", { name: "Açık temaya geç" }).click();
   await expect(root).not.toHaveClass(/dark/);
   await expect(page.locator("main .bg-card").first()).toHaveCSS("opacity", "1");
-  await expect(page.locator("main .bg-card").first()).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+  await expect(page.locator("main .bg-card").first()).toHaveCSS("transform", /^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
   await page.screenshot({ path: "frontend-theme-light.png", fullPage: true });
   await page.reload();
   await expect(root).not.toHaveClass(/dark/);

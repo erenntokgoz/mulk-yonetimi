@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 type Profile = components["schemas"]["ProfileResponse"];
 type Preferences = components["schemas"]["NotificationPreferenceResponse"];
@@ -115,7 +116,7 @@ export function SettingsDashboard() {
       <Button type="button" variant="outline" disabled={loading} onClick={() => void load()}>Yeniden dene</Button>
     </div>}
     {status && <p role="status" className="text-sm text-muted-foreground">{status}</p>}
-    {loading && <p role="status" className="py-6 text-center text-sm text-muted-foreground">Ayarlar yükleniyor…</p>}
+    {loading && <ListSkeleton label="Ayarlar yükleniyor…" />}
     {!loading && profile && preferences && <>
       <Card><CardContent className="grid gap-4 p-5">
         <h2 className="text-lg font-semibold">Profil bilgileri</h2>

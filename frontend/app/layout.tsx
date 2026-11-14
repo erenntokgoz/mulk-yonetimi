@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Mülk Yönetimi",
-  description: "Mülk yönetimi çalışma alanı",
+  title: "Mülküm",
+  description: "Mülk, kiracı ve kira takibi",
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };

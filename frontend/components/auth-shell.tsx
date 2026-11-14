@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
-import { Building2 } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 import { ThemeControl } from "@/components/theme-control";
 import styles from "@/components/auth-shell.module.css";
 
 export function AuthShell({ children }: { children: ReactNode }) {
   return <div className={styles.shell}>
     <div className={styles.theme}><ThemeControl /></div>
-    <aside className={styles.brand} aria-label="Mülk Yönetimi">
-      <div className={styles.identity}><span className={styles.mark}><Building2 size={18} aria-hidden="true" /></span><span>Mülk Yönetimi</span></div>
+    <aside className={styles.brand} aria-label="Mülküm">
+      <div className={styles.identity}><BrandMark size={38} /><span>Mülküm</span></div>
       <div className={styles.drawing} aria-hidden="true">
         <svg viewBox="0 0 480 390" role="presentation">
           <path d="M42 76h136v64h74V76h186v235H321v-62h-69v93H42z" />

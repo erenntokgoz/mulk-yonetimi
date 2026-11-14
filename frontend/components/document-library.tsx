@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 type Document = components["schemas"]["DocumentResponse"];
 type DocumentPage = components["schemas"]["DocumentPage"];
@@ -159,7 +160,7 @@ export function DocumentLibrary() {
       {!dataLoaded && <Button type="button" variant="outline" disabled={loading || busy} onClick={() => void load()}>Yeniden dene</Button>}
     </div>}
     {status && <p role="status" className="text-sm text-muted-foreground">{status}</p>}
-    {loading ? <p role="status" className="py-6 text-center text-sm text-muted-foreground">Belgeler yükleniyor…</p> : dataLoaded && <>
+    {loading ? <ListSkeleton label="Belgeler yükleniyor…" /> : dataLoaded && <>
       <Card><CardContent className="grid gap-4 p-5">
         <h2 className="text-lg font-semibold">Belge yükle</h2>
         {properties.length ? <form className="grid gap-4 sm:grid-cols-[1fr_2fr_auto] sm:items-end" onSubmit={event => void upload(event)}>

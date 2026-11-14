@@ -1,0 +1,3 @@
+// Tam Mülküm işareti ("iki çatı M"). Kenar çubuğu, giriş sayfaları ve Apple simgesi bu dosyadan beslenir.
+// Gerçek logoyu eklerken bu dizgiyi (ve sekme simgesi için app/icon.svg dosyasını) değiştirin.
+export const brandMarkSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><rect width="64" height="64" rx="16" fill="#0f1a2e" stroke="#2f8bff" stroke-width="2"/><path d="M12 48 L12 27 L22 17 L32 27 L42 17 L52 27 L52 48" fill="none" stroke="#2f8bff" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/><path d="M32 27 L32 48" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/></svg>`;

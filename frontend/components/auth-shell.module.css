@@ -12,7 +12,7 @@
   gap: clamp(32px, 7vw, 112px);
   padding: clamp(28px, 6vh, 72px) clamp(28px, 8vw, 132px);
   color: var(--auth-ink);
-  background: radial-gradient(ellipse at 14% 12%, rgba(85,155,194,.11), transparent 36%), linear-gradient(135deg,#eef3f6,#e5edf2 55%,#edf1f4);
+  background: linear-gradient(180deg, rgba(60,140,200,.07), transparent 340px), linear-gradient(135deg,#eef3f6,#e5edf2 55%,#edf1f4);
 }
 
 :global(.dark) .shell {
@@ -22,7 +22,7 @@
   --auth-panel: rgba(18, 29, 40, .77);
   --auth-field: rgba(5, 13, 21, .58);
   --auth-shadow: 0 30px 90px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.08);
-  background: radial-gradient(ellipse at 14% 12%, rgba(41,115,153,.12), transparent 36%), linear-gradient(135deg,#09111a,#0c1721 55%,#101b25);
+  background: linear-gradient(180deg, rgba(41,115,153,.12), transparent 340px), linear-gradient(135deg,#09111a,#0c1721 55%,#101b25);
 }
 
 .theme { position: fixed; z-index: 5; top: 20px; right: 24px; }
@@ -65,5 +65,6 @@
   .formRegion { min-height:calc(100svh - 142px); }
   .shell :global(main) { padding:28px 22px; border-radius:18px; }
 }
+@media (max-width:760px) { .shell :global(a), .shell :global(button) { min-height:44px; } .shell :global(a) { display:inline-flex; align-items:center; } .shell :global(input) { font-size:16px; } }
 @media (max-width:390px) { .shell { padding-inline:12px; } .shell :global(main) { padding:24px 18px; } }
 @media (prefers-reduced-motion:reduce) { .brand,.shell :global(main) { animation:none; } .shell :global(input),.shell :global(button[type=submit]),.shell :global(a) { transition:none; } }

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { Building2, LayoutGrid, List, MapPin, Plus } from "lucide-react";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 type Property = components["schemas"]["PropertyResponse"];
 type PropertyPage = components["schemas"]["PropertyPage"];
@@ -23,6 +24,8 @@ export function PropertyPortfolio() {
   const [unitLoading, setUnitLoading] = useState(false);
   const [pending, setPending] = useState(false);
   const [view, setView] = useState<"table" | "cards">("table");
+  // Dar ekranlarda tablo yerine kart düzeni kullanılır.
+  useEffect(() => { void Promise.resolve().then(() => { if (window.matchMedia("(max-width: 639px)").matches) setView("cards"); }); }, []);
   async function load() {
     setLoading(true);
     try {
@@ -94,10 +97,10 @@ export function PropertyPortfolio() {
       <div className="flex gap-2 sm:col-span-2"><Button type="submit" disabled={pending}>{pending ? "Kaydediliyor…" : editing ? "Değişiklikleri kaydet" : "Kaydet"}</Button><Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); }}>Vazgeç</Button></div>
     </form></CardContent></Card>}
     {unitProperty && <Card><CardContent className="grid gap-5 p-5"><div className="flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">{unitProperty.name} · Birimler</h2><Button type="button" variant="outline" onClick={() => setUnitProperty(null)}>Kapat</Button></div>
-      {unitLoading ? <p role="status" className="text-sm text-muted-foreground">Birimler yükleniyor…</p> : units.length ? <ul className="grid gap-2">{units.map((unit) => <li key={unit.id} className="rounded-md border p-3 text-sm"><span className="font-medium">{unit.label}</span><span className="ml-2 text-muted-foreground">{unit.usageType === "RESIDENTIAL" ? "Konut" : "Ticari"}{unit.doorNumber ? ` · Kapı ${unit.doorNumber}` : ""}{unit.areaM2 ? ` · ${unit.areaM2} m²` : ""}</span></li>)}</ul> : <p className="text-sm text-muted-foreground">Bu mülkte henüz birim yok.</p>}
+      {unitLoading ? <ListSkeleton label="Birimler yükleniyor…" /> : units.length ? <ul className="grid gap-2">{units.map((unit) => <li key={unit.id} className="rounded-md border p-3 text-sm"><span className="font-medium">{unit.label}</span><span className="ml-2 text-muted-foreground">{unit.usageType === "RESIDENTIAL" ? "Konut" : "Ticari"}{unit.doorNumber ? ` · Kapı ${unit.doorNumber}` : ""}{unit.areaM2 ? ` · ${unit.areaM2} m²` : ""}</span></li>)}</ul> : <p className="text-sm text-muted-foreground">Bu mülkte henüz birim yok.</p>}
       {unitProperty.propertyKind === "MULTI_UNIT" && <form onSubmit={createUnit} className="grid gap-3 border-t pt-4 sm:grid-cols-2"><h3 className="font-medium sm:col-span-2">Birim ekle</h3><label className="grid gap-2 text-sm">Birim etiketi<input name="unitLabel" required maxLength={100} className="h-11 rounded-md border bg-background px-3" /></label><label className="grid gap-2 text-sm">Kullanım türü<select name="usageType" className="h-11 rounded-md border bg-background px-3"><option value="RESIDENTIAL">Konut</option><option value="COMMERCIAL">Ticari</option></select></label><label className="grid gap-2 text-sm">Kapı numarası<input name="doorNumber" maxLength={32} className="h-11 rounded-md border bg-background px-3" /></label><label className="grid gap-2 text-sm">Alan (m²)<input name="areaM2" type="number" min="0.01" max="9999999.99" step="0.01" className="h-11 rounded-md border bg-background px-3" /></label><Button type="submit" disabled={pending} className="sm:col-span-2">{pending ? "Kaydediliyor…" : "Birimi kaydet"}</Button></form>}
     </CardContent></Card>}
-    {loading ? <Card><CardContent className="py-10 text-center text-sm text-muted-foreground" role="status">Mülkler yükleniyor…</CardContent></Card>
+    {loading ? <Card><CardContent><ListSkeleton label="Mülkler yükleniyor…" /></CardContent></Card>
       : error && !items.length ? null : items.length === 0 ? <Card><CardContent className="portfolio-empty"><Building2 size={28} aria-hidden="true" /><h2 className="font-medium">Henüz mülk kaydı yok</h2><p className="mt-2 text-sm text-muted-foreground">Portföyünüze eklemek için “Mülk ekle” seçeneğini kullanın.</p></CardContent></Card>
         : <div key={view} className="portfolio-view">
           {view === "table" ? <div className="glass-table"><table aria-label="Mülk kayıtları"><thead><tr><th>Mülk</th><th>Adres</th><th>Tür</th><th><span className="sr-only">İşlemler</span></th></tr></thead><tbody>{items.map(property => <tr key={property.id}><td><span className="property-name"><span className="property-icon"><Building2 size={16} aria-hidden="true" /></span><span><h2>{property.name}</h2><span className="mobile-address">{property.address}</span></span></span></td><td className="address-cell">{property.address}</td><td><span className="type-badge">{property.propertyKind === "SINGLE_UNIT" ? "Tek birimli" : "Çok birimli"}</span></td><td>{actions(property)}</td></tr>)}</tbody></table></div>
