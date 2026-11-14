@@ -48,7 +48,7 @@
 .footerRow nav { display: flex; gap: 8px; }
 .footerRow a { display: inline-flex; align-items: center; min-height: 44px; padding-inline: 8px; text-decoration: underline; text-underline-offset: 4px; }
 
-@media (max-width: 480px) { .actionsHeader { min-width: 0; } .quiet { padding-inline: 8px; } .primary { padding-inline: 12px; } }
+@media (max-width: 480px) { .actionsHeader { min-width: 0; } .quiet { display: none; } .primary { padding-inline: 12px; } }
 @media (min-width: 900px) {
   .hero { grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); padding-block: 72px 80px; }
   .scene { height: 440px; }
