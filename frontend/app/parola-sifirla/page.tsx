@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/password-input";
 import { AuthShell } from "@/components/auth-shell";
 
 function ResetForm() {
@@ -27,7 +28,7 @@ function ResetForm() {
     {!hasLinkDetails && <p className="text-sm text-muted-foreground">Parola sıfırlama bağlantısı eksik veya geçersiz.</p>}
     {state === "done" ? <p role="status">Parola güncellendi. Giriş yapabilirsiniz.</p> :
       <form onSubmit={submit} className="grid gap-4">
-        <label className="grid gap-2 text-sm font-medium">Yeni parola<input name="password" type="password" autoComplete="new-password" required minLength={6} className="h-11 rounded-md border px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" /></label>
+        <label className="grid gap-2 text-sm font-medium">Yeni parola<PasswordInput name="password" autoComplete="new-password" required minLength={6} /></label>
         {state === "error" && <p role="alert" className="text-sm text-destructive">Bağlantı geçersiz veya parola kabul edilmedi.</p>}
         {state === "limited" && <p role="alert" className="text-sm text-destructive">Çok fazla deneme. Bir dakika sonra tekrar deneyin.</p>}
         <Button type="submit" size="lg" disabled={state === "pending" || !hasLinkDetails} className="disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground">Parolayı güncelle</Button>

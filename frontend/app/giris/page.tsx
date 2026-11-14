@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/password-input";
 import { AuthShell } from "@/components/auth-shell";
 
 function safeNextPath(next: string | null) {
@@ -51,7 +52,7 @@ export default function LoginPage() {
           <input name="email" type="email" autoComplete="username" required maxLength={256} className="h-11 rounded-md border bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
         </label>
         <label className="grid gap-2 text-sm font-medium">Parola
-          <input name="password" type="password" autoComplete="current-password" required className="h-11 rounded-md border bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+          <PasswordInput name="password" autoComplete="current-password" required />
         </label>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <Button type="submit" size="lg" disabled={busy}>{busy ? "Giriş yapılıyor…" : "Giriş yap"}</Button>
