@@ -33,3 +33,6 @@ Thumbs.db
 playwright-report/
 test-results/
 /.local/mailpit/
+
+# Production API secrets
+deploy/api.env
