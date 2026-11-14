@@ -16,6 +16,14 @@ Tarayıcı: http://localhost:3000. Backend bağımsız başlatılır ve varsayı
 
 `BACKEND_BASE_URL` yalnız sunucuda okunur. Production ortamında deployment ayarı olarak açıkça verin; varsayılan veya `NEXT_PUBLIC_` karşılığı yoktur. Eksik/geçersiz ayarda sayfa açık bir bağlantı yapılandırması mesajı gösterir. Sağlık isteği önbelleğe alınmaz ve 5 saniyede zaman aşımına uğrar. Yenile bağlantısı güncel durumu alır.
 
+`FRONTEND_ORIGIN` BFF auth mutation'ları için tarayıcı origin'idir (ör. `https://app.example.com`). Login/logout POST istekleri bu origin ile eşleşmeyen veya Origin header'ı olmayan istekleri 403 ile reddeder. BFF yalnız sabit login, logout ve `/me` yollarını backend'e taşır; cookie değerini JS'ye açmaz.
+
+`/giris` sayfası e-posta ve parolayı BFF üzerinden backend Identity giriş ucuna gönderir. Backend deployment'ında `Auth__FrontendOrigin`, frontend `FRONTEND_ORIGIN` ile aynı origin olmalıdır.
+`/kayit` ve `/dogrula` sayfaları kayıt ve e-posta doğrulamayı aynı BFF sınırından yürütür. Backend SMTP ayarı kayıt için zorunludur; doğrulama bağlantısı frontend origin'ine gider.
+`/parolami-unuttum`, `/parola-sifirla` ve `/dogrulama-yeniden-gonder` aynı BFF sınırından parola kurtarma ve doğrulama bağlantısı yenileme akışını yürütür.
+
+FND-03 oturum denemesi gerçek Next production sunucusu ile ayrı HTTP fixture üzerinde doğrulanır: HttpOnly cookie login yanıtından tarayıcıya geçer, `/me` isteğinde backend'e iletilir, logout cookie'yi kaldırır ve farklı/eksik Origin mutation'ları 403 alır. Backend fixture Identity yerine geçmez. CI bu tarayıcı testlerini Chromium ile çalıştırır.
+
 ## Doğrulama
 
 ```powershell
@@ -47,6 +55,10 @@ Testler Node.js test runner ve gerçek yerel HTTP sunucuları kullanır. `react-
 [Vercel admin dashboard referansı](https://github.com/vercel/nextjs-postgres-nextauth-tailwindcss-template/tree/fe026711c19ac3ee4589c86a738f59b84e611559) commit `fe026711c19ac3ee4589c86a738f59b84e611559` (MIT) temel alındı. Tailwind v3 renk tokenları, 56 px sidebar/header düzeni, mobil Sheet menüsü ve kullanılan shadcn bileşenleri kaynaktan taşındı; lisans `LICENSE.reference.md` içinde. Next.js 16 uyumluluğu için PostCSS dosyası `.cjs` uzantısını kullanır. Şablonun demo auth, Postgres, Drizzle, ürün verisi ve işlevsiz gezinme öğeleri taşınmadı. Gerçek ürün sayfaları eklenince kaynakla desktop/mobil görsel snapshot karşılaştırması ayrıca yapılacak.
 
 Auth, tenant işlemleri ve ürün CRUD akışları bu foundation kapsamının dışındadır. Backend + gerçek SQL Server ile uçtan uca smoke kontrolü kök entegrasyon adımında yürütülür.
+
+## Ürün sayfaları
+
+Genel bakış, Portföy, Kiracılar, Sözleşmeler, Kira ve tahsilatlar, Depozitolar, Giderler, Belgeler, Raporlar, Bildirimler ve Ayarlar için masaüstü/mobil gezinme vardır. Ürün API'leri henüz bulunmadığından bu sayfalar kayıt yokmuş gibi davranmaz; bölümün kullanıma açık olmadığını gösterir. CRUD, detay ekranları ve gerçek boş/veri/hata durumları ilgili backend endpoint'leriyle birlikte eklenecektir. Genel bakış şu anda yalnız sistem durumunu gösterir.
 
 ## Foundation doğrulama kaydı
 

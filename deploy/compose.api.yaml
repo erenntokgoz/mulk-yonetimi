@@ -1,0 +1,41 @@
+# Production API on the shared Ubuntu host. Database: Azure SQL (see docs/deploy-ubuntu-azure.md).
+# Run from the repo root on the server:  docker compose -f deploy/compose.api.yaml up -d --build
+name: mulk-yonetimi
+
+services:
+  api:
+    build: ../backend
+    image: mulk-yonetimi-api:latest
+    restart: unless-stopped
+    env_file: ./api.env
+    ports:
+      - "127.0.0.1:5180:8080"
+    volumes:
+      - dataprotection-keys:/keys
+    networks:
+      - mulk
+    mem_limit: 512m
+    cpus: 1.0
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  mulk:
+    name: mulk-yonetimi
+    ipam:
+      config:
+        # Fixed subnet so the host nginx (seen via the gateway) can be listed in Network__KnownProxies.
+        - subnet: 172.30.50.0/24
+          gateway: 172.30.50.1
+
+volumes:
+  dataprotection-keys:
+    name: mulk-yonetimi-dataprotection-keys

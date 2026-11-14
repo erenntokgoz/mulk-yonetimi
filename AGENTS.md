@@ -45,6 +45,13 @@ Küçük, doğrulanabilir dilimlerle ilerle; güvenli çalışan çekirdeği gen
 - Secret, token, cookie ve kişisel verileri loglama veya commit etme.
 - Tamamlandı demeden önce ilgili test, lint, typecheck ve build komutlarını çalıştır.
 
+## Arayüz metni ve görünüm
+
+- Arayüz Türkçe, sade ve profesyonel olmalıdır. Yapay zekâ şablonu gibi duran dolgu, pazarlama ve karşılama cümleleri yasaktır; örneğin “Mülklerinizi yöneteceğiniz çalışma alanına hoş geldiniz”.
+- Başlıklar ve açıklamalar kullanıcının yapabileceği işi veya gerçek veri durumunu doğrudan anlatır. Gösterişli sıfatlar, belirsiz vaatler ve gereksiz tekrar kullanılmaz.
+- Gerçek API verisi olmadan örnek mülk, finansal rakam, bildirim veya çalışanmış gibi görünen işlem düğmesi gösterilmez. Boş, yükleniyor ve hata durumları açıkça ayrılır.
+- Erişilebilirlik, klavye kullanımı, mobil düzen ve okunabilirlik her yeni sayfa/bileşenin kabul koşuludur.
+
 ## Test tabanı
 
 - Backend domain kuralları için unit test yaz.

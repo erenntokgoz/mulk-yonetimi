@@ -37,9 +37,17 @@ docker compose up -d
 docker compose ps -a
 ```
 
+Windows kullanıcı kurulumunda Docker komutları bulunamıyorsa Docker'ın CLI ve kimlik bilgisi yardımcı programları için açık PowerShell oturumunun PATH'ine kurulum dizinini ekleyin.
+
+```powershell
+$env:Path = "$(Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\resources\bin');$env:Path"
+```
+
 `sqlserver-init` servisi ilk sağlıklı başlangıçta `MulkYonetimi` veritabanını idempotent biçimde oluşturup çıkar. Host bağlantısı varsayılan olarak `127.0.0.1,14333` olur. Container verisi `mulk-yonetimi-sqlserver-data` named volume'ünde saklanır.
 
 Başlangıç doğrulamasında `sqlserver` servisi `healthy`, `sqlserver-init` servisi `Exited (0)` görünmelidir. Ardından backend `/health` yanıtının `Healthy` ve `sqlserver` kontrolünün `Healthy` olduğu doğrulanmalıdır.
+
+Windows'ta WSL veya Docker eksikse kurulum adımları ve ayrı SQL entegrasyon testi komutu [kurtarma kaydında](docs/recovery-status.md#yerel-ortam) yer alır.
 
 ## Backend
 
@@ -77,9 +85,7 @@ Gerçek parola, cookie secret, token veya erişim anahtarı commit edilmez. `.en
 
 ## CI
 
-`.github/workflows/ci.yml`, push ve pull request sırasında iki bağımsız iş çalıştırır. Frontend işi `pnpm install --frozen-lockfile`, lint, typecheck, unit test ve production build yapar. Backend işi üç `packages.lock.json` dosyasıyla kilitli restore, Release build, test ve format kontrolü yapar. Bu foundation kontrolleri için SQL Server veya secret gerekmez; gerçek SQL Server entegrasyon testleri FND-02 kapsamındadır.
-
-28 Ekim 2026'da aynı komutlar Windows üzerinde yerel olarak geçti; workflow `actionlint` ile doğrulandı. GitHub üzerindeki CI sonucu ilk push sonrasında ayrıca kontrol edilir.
+`.github/workflows/ci.yml` üç iş tanımlar. Frontend işi kilitli kurulum, lint, typecheck, birim testi, production build ve Playwright çalıştırır. Backend işi solution için kilitli restore, Release build, test ve format kontrolü yapar. Ayrı `integration` işi, gerçek SQL Server konteynerinde `MulkYonetimi.IntegrationTests.csproj` testlerini çalıştırır ve `MULK_SQL_TEST_PASSWORD` depo secret'ını kullanır. Fork pull request'lerinde SQL işi atlanır.
 
 ## Git branch düzeni
 
