@@ -59,7 +59,7 @@ public sealed record StoredObjectMetadata(long SizeBytes, string? ContentType);
 public interface IR2DocumentStorage
 {
     string CreateUploadUrl(string key, string contentType);
-    string CreateDownloadUrl(string key, string fileName);
+    string CreateDownloadUrl(string key, string fileName, string contentType);
     Task<StoredObjectMetadata> GetMetadataAsync(string key, CancellationToken ct);
     Task<byte[]> ReadSignatureAsync(string key, CancellationToken ct);
     Task<byte[]> ReadObjectAsync(string key, CancellationToken ct);
@@ -93,7 +93,9 @@ public sealed class R2DocumentStorage : IR2DocumentStorage, IDisposable
         ContentType = contentType
     });
 
-    public string CreateDownloadUrl(string key, string fileName) => client.GetPreSignedURL(new GetPreSignedUrlRequest
+    // Yanıt türü nesnenin kayıtlı içerik türünden gelir; sabit octet-stream PDF'i tarayıcıda indirilen
+    // bozuk bir ikili dosyaya çevirir. Override imza aşamasında verildiği için eski nesneler de düzelir.
+    public string CreateDownloadUrl(string key, string fileName, string contentType) => client.GetPreSignedURL(new GetPreSignedUrlRequest
     {
         BucketName = options.BucketName,
         Key = key,
@@ -101,7 +103,7 @@ public sealed class R2DocumentStorage : IR2DocumentStorage, IDisposable
         Expires = DateTime.UtcNow.AddSeconds(options.GetUrlSeconds),
         ResponseHeaderOverrides = new ResponseHeaderOverrides
         {
-            ContentType = "application/octet-stream",
+            ContentType = contentType,
             ContentDisposition = $"attachment; filename*=UTF-8''{Uri.EscapeDataString(fileName)}"
         }
     });
@@ -176,7 +178,7 @@ public sealed class UnconfiguredR2DocumentStorage : IR2DocumentStorage
         new("Private R2 storage is not configured.");
 
     public string CreateUploadUrl(string key, string contentType) => throw MissingConfiguration();
-    public string CreateDownloadUrl(string key, string fileName) => throw MissingConfiguration();
+    public string CreateDownloadUrl(string key, string fileName, string contentType) => throw MissingConfiguration();
     public Task<StoredObjectMetadata> GetMetadataAsync(string key, CancellationToken ct) => Task.FromException<StoredObjectMetadata>(MissingConfiguration());
     public Task<byte[]> ReadSignatureAsync(string key, CancellationToken ct) => Task.FromException<byte[]>(MissingConfiguration());
     public Task<byte[]> ReadObjectAsync(string key, CancellationToken ct) => Task.FromException<byte[]>(MissingConfiguration());
