@@ -39,7 +39,8 @@ export function ReportDashboard() {
         setProperties(p.items.filter((x) => !x.archivedAtUtc));
         setMoreProperties(p.hasMore);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Mülk listesi alınamadı."));
+      // Rapor isteği daha önce kendi hatasını yazdıysa (ör. oturum yok) mülk listesi hatası onu ezmez; sıra değişse de sonuç aynı kalır.
+      .catch((e) => setError((current) => current || (e instanceof Error ? e.message : "Mülk listesi alınamadı.")));
   }, []);
   async function loadMoreProperties() {
     setLoadingMore(true);
