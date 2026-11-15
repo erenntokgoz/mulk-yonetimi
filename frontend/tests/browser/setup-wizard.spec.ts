@@ -41,7 +41,7 @@ test("wizard advances from real records and hide persists until Kurulum reopens 
   await page.goto("/panel");
   const wizard = page.getByRole("region", { name: /Kurulum/ });
   await expect(wizard.locator('li[aria-current="step"]')).toContainText(
-    "Bağımsız bölüm ekle",
+    "Daire ekle",
   );
   await expect(wizard.getByText("Tamamlandı")).toHaveCount(1);
 
