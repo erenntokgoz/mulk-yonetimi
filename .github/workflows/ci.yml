@@ -112,7 +112,9 @@ jobs:
           printf 'MULK_SQL_E2E_ENABLED=true\n' >> "$GITHUB_ENV"
           printf 'MULK_SQL_E2E_DATABASE=MulkBrowserE2E_%s\n' "$GITHUB_RUN_ID" >> "$GITHUB_ENV"
           printf 'MULK_SQL_E2E_EMAIL=browser-%s@example.test\n' "$GITHUB_RUN_ID" >> "$GITHUB_ENV"
-          printf 'MULK_SQL_E2E_PASSWORD=%sAa9!\n' "$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          mulk_e2e_password="$(openssl rand -hex 24)Aa9!"
+          printf '::add-mask::%s\n' "$mulk_e2e_password"
+          printf 'MULK_SQL_E2E_PASSWORD=%s\n' "$mulk_e2e_password" >> "$GITHUB_ENV"
       - run: dotnet restore tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.csproj --locked-mode
       - run: dotnet test tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.csproj --no-restore --configuration Release
         env:
