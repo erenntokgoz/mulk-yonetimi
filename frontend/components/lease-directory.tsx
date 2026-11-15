@@ -40,8 +40,16 @@ const leaseStatus: Record<components["schemas"]["LeaseStatus"], string> = {
 
 export function LeaseDirectory() {
   const [leases, setLeases] = useState<Lease[]>([]);
+  const [leasePage, setLeasePage] = useState(1);
+  const [moreLeases, setMoreLeases] = useState(false);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [propertyPage, setPropertyPage] = useState(1);
+  const [moreProperties, setMoreProperties] = useState(false);
+  const [unitPages, setUnitPages] = useState<Record<string, { page: number; hasMore: boolean }>>({});
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [tenantPage, setTenantPage] = useState(1);
+  const [moreTenants, setMoreTenants] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
@@ -88,7 +96,7 @@ export function LeaseDirectory() {
         leaseResponse.json(),
         propertyResponse.json(),
         tenantResponse.json(),
-      ])) as [LeasePage, { items: Property[] }, { items: Tenant[] }];
+      ])) as [LeasePage, { items: Property[]; hasMore: boolean }, { items: Tenant[]; hasMore: boolean }];
       const activeProperties = propertyPage.items.filter((property) => !property.archivedAtUtc);
       const unitPages = await Promise.all(
         activeProperties.map(async (property) => {
@@ -96,18 +104,74 @@ export function LeaseDirectory() {
             cache: "no-store",
           });
           if (!response.ok) throw new Error("Birim kayıtları alınamadı.");
-          return (await response.json()) as { items: Unit[] };
+          return [property.id, (await response.json()) as { items: Unit[]; hasMore: boolean }] as const;
         }),
       );
       setLeases(leasePage.items);
-      setUnits(unitPages.flatMap((page) => page.items));
+      setLeasePage(1);
+      setMoreLeases(leasePage.hasMore);
+      setUnits(unitPages.flatMap(([, page]) => page.items.filter((unit) => !unit.archivedAtUtc)));
+      setUnitPages(Object.fromEntries(unitPages.map(([id, page]) => [id, { page: 1, hasMore: page.hasMore }])));
+      setPropertyPage(1);
+      setMoreProperties(propertyPage.hasMore);
       setTenants(tenantPage.items.filter((tenant) => !tenant.archivedAtUtc));
+      setTenantPage(1);
+      setMoreTenants(tenantPage.hasMore);
       setError("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Sözleşme verileri alınamadı.");
     } finally {
       setLoading(false);
     }
+  }
+  async function loadMoreLeases() {
+    setLoadingMore(true);
+    try {
+      const next = leasePage + 1;
+      const response = await fetch(`/api/bff/leases?page=${next}&pageSize=100`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Diğer sözleşmeler alınamadı.");
+      const page = (await response.json()) as LeasePage;
+      setLeases((current) => [...current, ...page.items]);
+      setLeasePage(next);
+      setMoreLeases(page.hasMore);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Diğer sözleşmeler alınamadı."); }
+    finally { setLoadingMore(false); }
+  }
+  async function loadMoreSelections() {
+    setLoadingMore(true);
+    try {
+      const propertyResponse = moreProperties
+        ? await fetch(`/api/bff/properties?page=${propertyPage + 1}&pageSize=100`, { cache: "no-store" }) : null;
+      const tenantResponse = moreTenants
+        ? await fetch(`/api/bff/tenants?page=${tenantPage + 1}&pageSize=100`, { cache: "no-store" }) : null;
+      if (propertyResponse && !propertyResponse.ok || tenantResponse && !tenantResponse.ok)
+        throw new Error("Diğer seçim kayıtları alınamadı.");
+      const properties = propertyResponse ? (await propertyResponse.json()) as { items: Property[]; hasMore: boolean } : null;
+      const tenantResult = tenantResponse ? (await tenantResponse.json()) as { items: Tenant[]; hasMore: boolean } : null;
+      const nextUnitPages = { ...unitPages };
+      const addedUnits: Unit[] = [];
+      const targets = [...Object.entries(unitPages).filter(([, state]) => state.hasMore).map(([id, state]) =>
+        ({ id, page: state.page + 1 })),
+        ...(properties?.items.filter((item) => !item.archivedAtUtc).map((item) => ({ id: item.id, page: 1 })) ?? [])];
+      for (const target of targets) {
+        const response = await fetch(`/api/bff/properties/${target.id}/units?page=${target.page}&pageSize=100`,
+          { cache: "no-store" });
+        if (!response.ok) throw new Error("Diğer birimler alınamadı.");
+        const result = (await response.json()) as { items: Unit[]; hasMore: boolean };
+        addedUnits.push(...result.items.filter((unit) => !unit.archivedAtUtc));
+        nextUnitPages[target.id] = { page: target.page, hasMore: result.hasMore };
+      }
+      if (properties) { setPropertyPage((current) => current + 1); setMoreProperties(properties.hasMore); }
+      if (tenantResult) {
+        setTenants((current) => [...current, ...tenantResult.items.filter((item) => !item.archivedAtUtc)]);
+        setTenantPage((current) => current + 1);
+        setMoreTenants(tenantResult.hasMore);
+      }
+      setUnits((current) => [...current, ...addedUnits]);
+      setUnitPages(nextUnitPages);
+      setError("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Diğer seçim kayıtları alınamadı."); }
+    finally { setLoadingMore(false); }
   }
   useEffect(() => {
     void Promise.resolve().then(load);
@@ -396,6 +460,9 @@ export function LeaseDirectory() {
           </CardContent>
         </Card>
       )}
+      {open && (moreProperties || moreTenants || Object.values(unitPages).some((state) => state.hasMore)) &&
+        <Button type="button" variant="outline" disabled={loadingMore}
+          onClick={() => void loadMoreSelections()}>Diğer birim ve kiracıları yükle</Button>}
       {terminateId && (
         <Card>
           <CardContent className="pt-6">
@@ -604,6 +671,8 @@ export function LeaseDirectory() {
           ))}
         </div>
       )}
+      {moreLeases && <Button type="button" variant="outline" disabled={loadingMore}
+        onClick={() => void loadMoreLeases()}>Diğer sözleşmeleri yükle</Button>}
     </section>
   );
 }

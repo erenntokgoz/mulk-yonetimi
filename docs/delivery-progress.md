@@ -6,7 +6,7 @@ The plan is `docs/superpowers/plans/2026-11-15-delivery-readiness.md`.
 
 ## Local checklist
 
-- [ ] Pagination and complete selection lists
+- [x] Pagination and complete selection lists (user-triggered next-page controls; browser regression for 101/26 records)
 - [x] Unit archive (code, migration, API/BFF/UI; SQL acceptance pending)
 - [x] Lease renewal (code, migration, API/BFF/UI; SQL acceptance pending)
 - [x] Configurable quota and pilot activation (code, migration, API test; SQL acceptance pending)
@@ -35,3 +35,4 @@ Production deployment, production restore and real R2 acceptance require credent
 - ClamAV protocol: red compile exit 1 before adapter, then 4/4 clean/infected/error/disconnected tests pass, exit 0. Integration test project builds exit 0, 0 warnings/errors; database tests not run.
 - Expired confirmation/reset token assertions use a negative token lifetime in the real provider and compile in SQL integration project. Their API result is unverified until SQL is available.
 - `pnpm api:types` and `pnpm typecheck`: exit 0 after pilot endpoint; generated types updated, `next-env.d.ts` restored.
+- Pagination/404: targeted `pnpm build` exit 0, 4 Playwright tests passed (property #101, notification #26, tenant picker #101, unauthenticated unknown route 404). Unknown route test first failed at received 200, then passed after proxy guard narrowed to known sections and Turkish 404 page. Targeted ESLint exit 0. Full browser suite remains pending.

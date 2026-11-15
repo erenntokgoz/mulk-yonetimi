@@ -29,7 +29,12 @@ function uploadError(status: number, stage: "intent" | "upload" | "complete") {
 
 export function DocumentLibrary() {
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [documentPage, setDocumentPage] = useState(1);
+  const [moreDocuments, setMoreDocuments] = useState(false);
   const [properties, setProperties] = useState<Property[]>([]);
+  const [propertyPage, setPropertyPage] = useState(1);
+  const [moreProperties, setMoreProperties] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [propertyId, setPropertyId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -63,10 +68,12 @@ export function DocumentLibrary() {
         );
       const [documentPage, propertyPage] = await Promise.all([
         documentResponse.json() as Promise<DocumentPage>,
-        propertyResponse.json() as Promise<{ items: Property[] }>,
+        propertyResponse.json() as Promise<{ items: Property[]; hasMore: boolean }>,
       ]);
       setDocuments(documentPage.items);
+      setDocumentPage(1); setMoreDocuments(documentPage.hasMore);
       setProperties(propertyPage.items.filter((property) => !property.archivedAtUtc));
+      setPropertyPage(1); setMoreProperties(propertyPage.hasMore);
       setDataLoaded(true);
     } catch (cause) {
       setDocuments([]);
@@ -77,6 +84,26 @@ export function DocumentLibrary() {
       setLoading(false);
     }
   }, []);
+
+  async function loadMore(kind: "documents" | "properties") {
+    setLoadingMore(true);
+    try {
+      const next = (kind === "documents" ? documentPage : propertyPage) + 1;
+      const response = await fetch(`/api/bff/${kind}?page=${next}&pageSize=100`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Diğer kayıtlar alınamadı.");
+      if (kind === "documents") {
+        const result = (await response.json()) as DocumentPage;
+        setDocuments((current) => [...current, ...result.items]);
+        setDocumentPage(next); setMoreDocuments(result.hasMore);
+      } else {
+        const result = (await response.json()) as { items: Property[]; hasMore: boolean };
+        setProperties((current) => [...current, ...result.items.filter((item) => !item.archivedAtUtc)]);
+        setPropertyPage(next); setMoreProperties(result.hasMore);
+      }
+      setError("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Diğer kayıtlar alınamadı."); }
+    finally { setLoadingMore(false); }
+  }
 
   useEffect(() => {
     void Promise.resolve().then(load);
@@ -239,6 +266,7 @@ export function DocumentLibrary() {
               <CardContent className="grid gap-4 p-5">
                 <h2 className="text-lg font-semibold">Belge yükle</h2>
                 {properties.length ? (
+                  <>
                   <form
                     className="grid gap-4 sm:grid-cols-[1fr_2fr_auto] sm:items-end"
                     onSubmit={(event) => void upload(event)}
@@ -278,6 +306,9 @@ export function DocumentLibrary() {
                       {busy ? "Yükleniyor…" : "Dosyayı yükle"}
                     </Button>
                   </form>
+                  {moreProperties && <Button type="button" variant="outline" disabled={loadingMore}
+                    onClick={() => void loadMore("properties")}>Diğer mülkleri yükle</Button>}
+                  </>
                 ) : (
                   <p className="text-sm text-muted-foreground">Önce bir mülk ekleyin.</p>
                 )}
@@ -327,6 +358,8 @@ export function DocumentLibrary() {
                 ) : (
                   <p className="py-8 text-center text-sm text-muted-foreground">Henüz belge yok.</p>
                 )}
+                {moreDocuments && <Button type="button" variant="outline" disabled={loadingMore}
+                  onClick={() => void loadMore("documents")}>Diğer belgeleri yükle</Button>}
               </CardContent>
             </Card>
           </>

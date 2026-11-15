@@ -14,6 +14,8 @@ const headers = { "Content-Type": "application/json" };
 
 export function PropertyPortfolio() {
   const [items, setItems] = useState<Property[]>([]);
+  const [propertyPage, setPropertyPage] = useState(1);
+  const [moreProperties, setMoreProperties] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
@@ -21,6 +23,8 @@ export function PropertyPortfolio() {
   const [conflict, setConflict] = useState(false);
   const [unitProperty, setUnitProperty] = useState<Property | null>(null);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [unitPage, setUnitPage] = useState(1);
+  const [moreUnits, setMoreUnits] = useState(false);
   const [unitLoading, setUnitLoading] = useState(false);
   const [pending, setPending] = useState(false);
   const [view, setView] = useState<"table" | "cards">("table");
@@ -40,12 +44,29 @@ export function PropertyPortfolio() {
         );
       const page = (await response.json()) as PropertyPage;
       setItems(page.items);
+      setPropertyPage(1);
+      setMoreProperties(page.hasMore);
       setError("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Mülk kayıtları alınamadı.");
     } finally {
       setLoading(false);
     }
+  }
+  async function loadMoreProperties() {
+    setLoading(true);
+    try {
+      const next = propertyPage + 1;
+      const response = await fetch(`/api/bff/properties?page=${next}&pageSize=100`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Diğer mülkler alınamadı.");
+      const result = (await response.json()) as PropertyPage;
+      setItems((current) => [...current, ...result.items]);
+      setPropertyPage(next);
+      setMoreProperties(result.hasMore);
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Diğer mülkler alınamadı.");
+    } finally { setLoading(false); }
   }
   useEffect(() => {
     void Promise.resolve().then(load);
@@ -101,11 +122,29 @@ export function PropertyPortfolio() {
       if (!response.ok) throw new Error("Birimler alınamadı.");
       const page = (await response.json()) as UnitPage;
       setUnits(page.items);
+      setUnitPage(1);
+      setMoreUnits(page.hasMore);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Birimler alınamadı.");
     } finally {
       setUnitLoading(false);
     }
+  }
+  async function loadMoreUnits() {
+    if (!unitProperty) return;
+    setUnitLoading(true);
+    try {
+      const next = unitPage + 1;
+      const response = await fetch(`/api/bff/properties/${unitProperty.id}/units?page=${next}&pageSize=100`,
+        { cache: "no-store" });
+      if (!response.ok) throw new Error("Diğer birimler alınamadı.");
+      const result = (await response.json()) as UnitPage;
+      setUnits((current) => [...current, ...result.items]);
+      setUnitPage(next);
+      setMoreUnits(result.hasMore);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Diğer birimler alınamadı.");
+    } finally { setUnitLoading(false); }
   }
   async function createUnit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -201,7 +240,7 @@ export function PropertyPortfolio() {
         </Button>
       </div>
       <div className="portfolio-toolbar">
-        <span className="portfolio-tab">Tüm mülkler {!loading && !error && <span>{items.length}</span>}</span>
+        <span className="portfolio-tab">Gösterilen mülkler {!loading && !error && <span>{items.length}</span>}</span>
         <div className="view-switch" role="group" aria-label="Portföy görünümü">
           <button
             type="button"
@@ -335,6 +374,8 @@ export function PropertyPortfolio() {
             ) : (
               <p className="text-sm text-muted-foreground">Bu mülkte henüz birim yok.</p>
             )}
+            {moreUnits && <Button type="button" variant="outline" disabled={unitLoading}
+              onClick={() => void loadMoreUnits()}>Diğer birimleri yükle</Button>}
             {unitProperty.propertyKind === "MULTI_UNIT" && (
               <form onSubmit={createUnit} className="grid gap-3 border-t pt-4 sm:grid-cols-2">
                 <h3 className="font-medium sm:col-span-2">Birim ekle</h3>
@@ -462,6 +503,8 @@ export function PropertyPortfolio() {
           )}
         </div>
       )}
+      {moreProperties && <Button type="button" variant="outline" disabled={loading}
+        onClick={() => void loadMoreProperties()}>Diğer mülkleri yükle</Button>}
     </section>
   );
 

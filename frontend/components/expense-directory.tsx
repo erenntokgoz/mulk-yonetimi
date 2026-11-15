@@ -27,8 +27,14 @@ const labels: Record<components["schemas"]["ExpenseCategory"], string> = {
 };
 export function ExpenseDirectory() {
   const [items, setItems] = useState<Expense[]>([]);
+  const [expensePage, setExpensePage] = useState(1);
+  const [moreExpenses, setMoreExpenses] = useState(false);
   const [properties, setProperties] = useState<Property[]>([]);
+  const [propertyPage, setPropertyPage] = useState(1);
+  const [moreProperties, setMoreProperties] = useState(false);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [unitPages, setUnitPages] = useState<Record<string, { page: number; hasMore: boolean }>>({});
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -52,22 +58,25 @@ export function ExpenseDirectory() {
               : "Gider verileri alınamadı.",
           );
         const [ep, pp] = (await Promise.all([e.json(), p.json()])) as [
-          { items: Expense[] },
-          { items: Property[] },
+          { items: Expense[]; hasMore: boolean },
+          { items: Property[]; hasMore: boolean },
         ];
         setItems(ep.items);
+        setExpensePage(1); setMoreExpenses(ep.hasMore);
         const active = pp.items.filter((x) => !x.archivedAtUtc);
         setProperties(active);
+        setPropertyPage(1); setMoreProperties(pp.hasMore);
         const up = await Promise.all(
           active.map(async (x) => {
             const r = await fetch(`/api/bff/properties/${x.id}/units?page=1&pageSize=100`, {
               cache: "no-store",
             });
             if (!r.ok) throw new Error("Birimler alınamadı.");
-            return ((await r.json()) as { items: Unit[] }).items;
+            return [x.id, (await r.json()) as { items: Unit[]; hasMore: boolean }] as const;
           }),
         );
-        setUnits(up.flat());
+        setUnits(up.flatMap(([, page]) => page.items.filter((item) => !item.archivedAtUtc)));
+        setUnitPages(Object.fromEntries(up.map(([id, page]) => [id, { page: 1, hasMore: page.hasMore }])));
         setError("");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Gider verileri alınamadı.");
@@ -77,6 +86,48 @@ export function ExpenseDirectory() {
     },
     [filters],
   );
+  async function loadMoreExpenses() {
+    setLoadingMore(true);
+    try {
+      const next = expensePage + 1;
+      const response = await fetch(`/api/bff/expenses?page=${next}&pageSize=100${filters.fromDate ? `&fromDate=${filters.fromDate}` : ""}${filters.toDate ? `&toDate=${filters.toDate}` : ""}`,
+        { cache: "no-store" });
+      if (!response.ok) throw new Error("Diğer giderler alınamadı.");
+      const result = (await response.json()) as { items: Expense[]; hasMore: boolean };
+      setItems((current) => [...current, ...result.items]);
+      setExpensePage(next); setMoreExpenses(result.hasMore);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Diğer giderler alınamadı."); }
+    finally { setLoadingMore(false); }
+  }
+  async function loadMoreSelections() {
+    setLoadingMore(true);
+    try {
+      const response = moreProperties ? await fetch(`/api/bff/properties?page=${propertyPage + 1}&pageSize=100`,
+        { cache: "no-store" }) : null;
+      if (response && !response.ok) throw new Error("Diğer mülkler alınamadı.");
+      const result = response ? (await response.json()) as { items: Property[]; hasMore: boolean } : null;
+      const addedProperties = result?.items.filter((item) => !item.archivedAtUtc) ?? [];
+      const targets = [...Object.entries(unitPages).filter(([, state]) => state.hasMore).map(([id, state]) =>
+        ({ id, page: state.page + 1 })), ...addedProperties.map((item) => ({ id: item.id, page: 1 }))];
+      const nextUnitPages = { ...unitPages };
+      const addedUnits: Unit[] = [];
+      for (const target of targets) {
+        const unitResponse = await fetch(`/api/bff/properties/${target.id}/units?page=${target.page}&pageSize=100`,
+          { cache: "no-store" });
+        if (!unitResponse.ok) throw new Error("Diğer birimler alınamadı.");
+        const page = (await unitResponse.json()) as { items: Unit[]; hasMore: boolean };
+        addedUnits.push(...page.items.filter((item) => !item.archivedAtUtc));
+        nextUnitPages[target.id] = { page: target.page, hasMore: page.hasMore };
+      }
+      if (result) {
+        setProperties((current) => [...current, ...addedProperties]);
+        setPropertyPage((current) => current + 1); setMoreProperties(result.hasMore);
+      }
+      setUnits((current) => [...current, ...addedUnits]); setUnitPages(nextUnitPages);
+      setError("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Diğer seçim kayıtları alınamadı."); }
+    finally { setLoadingMore(false); }
+  }
   useEffect(() => {
     void Promise.resolve().then(load);
   }, [filters, load]);
@@ -184,6 +235,7 @@ export function ExpenseDirectory() {
             <CardContent className="grid gap-4 p-5">
               <h2 className="text-lg font-semibold">Gider kaydı</h2>
               {properties.length ? (
+                <>
                 <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={submit}>
                   <label className="grid gap-1 text-sm">
                     Mülk
@@ -249,6 +301,10 @@ export function ExpenseDirectory() {
                     Gideri kaydet
                   </Button>
                 </form>
+                {(moreProperties || Object.values(unitPages).some((state) => state.hasMore)) &&
+                  <Button type="button" variant="outline" disabled={loadingMore}
+                    onClick={() => void loadMoreSelections()}>Diğer mülk ve birimleri yükle</Button>}
+                </>
               ) : (
                 <p className="text-sm text-muted-foreground">Önce portföye bir mülk ekleyin.</p>
               )}
@@ -321,6 +377,8 @@ export function ExpenseDirectory() {
                   Bu tarih aralığında gider kaydı yok.
                 </p>
               )}
+              {moreExpenses && <Button type="button" variant="outline" disabled={loadingMore}
+                onClick={() => void loadMoreExpenses()}>Diğer giderleri yükle</Button>}
             </CardContent>
           </Card>
         </>

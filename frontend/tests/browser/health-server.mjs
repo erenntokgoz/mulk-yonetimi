@@ -8,6 +8,7 @@ const units = new Map();
 let tenants = [];
 let leases = [];
 const leaseRates = new Map();
+const leaseRenewals = new Map();
 let charges = [];
 let payments = [];
 let deposits = [];
@@ -22,7 +23,7 @@ let failedRequest = null;
 let retryVerified = false;
 createServer(async (request, response) => {
   if (request.method === "POST" && request.url === "/reset-data") {
-    properties = []; units.clear(); tenants = []; leases = []; leaseRates.clear(); charges = []; payments = []; deposits = []; expenses = []; notifications = []; documents = []; idempotentResults.clear();
+    properties = []; units.clear(); tenants = []; leases = []; leaseRates.clear(); leaseRenewals.clear(); charges = []; payments = []; deposits = []; expenses = []; notifications = []; documents = []; idempotentResults.clear();
     profile = { displayName: "Test kullanıcısı", email: "fixture@example.test", emailConfirmed: false };
     notificationPreferences = { emailEnabled: false, rentDueEnabled: true, overdueRentEnabled: true, leaseEndEnabled: true, rentAnniversaryEnabled: true };
     propertyListDelay = 0; failNextFinanceOnce = false; failedRequest = null; retryVerified = false;
@@ -134,6 +135,14 @@ createServer(async (request, response) => {
       units.set(unitRoute[1], [...(units.get(unitRoute[1]) ?? []), item]);
       response.writeHead(201, { "Content-Type": "application/json" }).end(JSON.stringify(item)); return;
     }
+    const unitArchive = request.url.match(/^\/api\/v1\/properties\/([^/]+)\/units\/([^/]+)\/archive$/);
+    if (unitArchive && request.method === "POST") {
+      const item = (units.get(unitArchive[1]) ?? []).find((entry) => entry.id === unitArchive[2]);
+      if (!item) { response.writeHead(404).end(); return; }
+      if (leases.some((lease) => lease.unitId === item.id && lease.status === "ACTIVE"))
+        { response.writeHead(409).end(); return; }
+      item.archivedAtUtc = new Date().toISOString(); response.writeHead(204).end(); return;
+    }
     const archive = request.url.match(/^\/api\/v1\/properties\/([^/]+)\/archive$/);
     if (archive && request.method === "POST") {
       let body = ""; for await (const chunk of request) body += chunk;
@@ -177,7 +186,7 @@ createServer(async (request, response) => {
     if (request.method === "POST" && request.url === "/api/v1/leases") {
       let body = ""; for await (const chunk of request) body += chunk; const input = JSON.parse(body);
       const lease = { id: `10000000-0000-0000-0000-${String(leases.length + 1).padStart(12, "0")}`, ...input, status: "DRAFT", terminationDate: null, terminationReason: null, version: "AAAAAAAAB9E=" };
-      leases.push(lease); leaseRates.set(lease.id, [{ effectiveFrom: lease.startDate, monthlyAmount: input.monthlyAmount, reason: null }]);
+      leases.push(lease); leaseRates.set(lease.id, [{ effectiveFrom: lease.startDate, monthlyAmount: input.monthlyAmount, reason: null }]); leaseRenewals.set(lease.id, []);
       response.writeHead(201, { "Content-Type": "application/json" }).end(JSON.stringify(lease)); return;
     }
     const ratesPath = request.url.match(/^\/api\/v1\/leases\/([^/]+)\/rates$/);
@@ -186,6 +195,24 @@ createServer(async (request, response) => {
       let body = ""; for await (const chunk of request) body += chunk; const rate = JSON.parse(body);
       leaseRates.set(ratesPath[1], [...(leaseRates.get(ratesPath[1]) ?? []), rate]);
       response.writeHead(201, { "Content-Type": "application/json" }).end(JSON.stringify(rate)); return;
+    }
+    const renewalsPath = request.url.match(/^\/api\/v1\/leases\/([^/]+)\/renewals$/);
+    if (renewalsPath && request.method === "GET") {
+      response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(leaseRenewals.get(renewalsPath[1]) ?? [])); return;
+    }
+    if (renewalsPath && request.method === "POST") {
+      let body = ""; for await (const chunk of request) body += chunk; const input = JSON.parse(body);
+      const lease = leases.find((item) => item.id === renewalsPath[1]);
+      if (!lease) { response.writeHead(404).end(); return; }
+      if (input.version !== lease.version || lease.status !== "ACTIVE") { response.writeHead(409).end(); return; }
+      const renewal = { id: `30000000-0000-0000-0000-${String((leaseRenewals.get(lease.id) ?? []).length + 1).padStart(12, "0")}`,
+        previousEndDate: lease.plannedEndDate, newEndDate: input.newEndDate, effectiveFrom: input.effectiveFrom,
+        monthlyAmount: input.monthlyAmount, reason: input.reason, occurredAtUtc: new Date().toISOString() };
+      lease.plannedEndDate = input.newEndDate; lease.version = "AAAAAAAAB9M=";
+      leaseRenewals.set(lease.id, [...(leaseRenewals.get(lease.id) ?? []), renewal]);
+      leaseRates.set(lease.id, [...(leaseRates.get(lease.id) ?? []), {
+        effectiveFrom: input.effectiveFrom, monthlyAmount: input.monthlyAmount, reason: input.reason }]);
+      response.writeHead(201, { "Content-Type": "application/json" }).end(JSON.stringify(renewal)); return;
     }
     const action = request.url.match(/^\/api\/v1\/leases\/([^/]+)\/(activate|terminate)$/);
     const lease = action && leases.find((entry) => entry.id === action[1]);
