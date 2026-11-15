@@ -227,14 +227,26 @@ internal static class LeaseEndpoints
             return Conflict("Bu tarihten sonra bedel veya alacak kaydı var.");
         var renewal = new LeaseRenewal
         {
-            Id = Guid.NewGuid(), AccountId = accountId, LeaseId = id, PreviousEndDate = previousEnd,
-            NewEndDate = input.NewEndDate, EffectiveFrom = input.EffectiveFrom,
-            MonthlyAmount = input.MonthlyAmount, Reason = input.Reason.Trim(), OccurredAtUtc = DateTime.UtcNow
+            Id = Guid.NewGuid(),
+            AccountId = accountId,
+            LeaseId = id,
+            PreviousEndDate = previousEnd,
+            NewEndDate = input.NewEndDate,
+            EffectiveFrom = input.EffectiveFrom,
+            MonthlyAmount = input.MonthlyAmount,
+            Reason = input.Reason.Trim(),
+            OccurredAtUtc = DateTime.UtcNow
         };
         lease.PlannedEndDate = input.NewEndDate;
         db.LeaseRenewals.Add(renewal);
-        db.RentRatePeriods.Add(new RentRatePeriod { AccountId = accountId, LeaseId = id,
-            EffectiveFrom = renewal.EffectiveFrom, MonthlyAmount = renewal.MonthlyAmount, Reason = renewal.Reason });
+        db.RentRatePeriods.Add(new RentRatePeriod
+        {
+            AccountId = accountId,
+            LeaseId = id,
+            EffectiveFrom = renewal.EffectiveFrom,
+            MonthlyAmount = renewal.MonthlyAmount,
+            Reason = renewal.Reason
+        });
         AddAudit(db, principal, accountId, id, "LEASE", "RENEWED", renewal.Reason);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -249,10 +261,10 @@ internal static class LeaseEndpoints
         Guid tenantId, CancellationToken ct)
     {
         var unitAndProperty = await (from unit in db.Units
-                              join parent in db.Properties on new { unit.AccountId, Id = unit.PropertyId }
-                                  equals new { parent.AccountId, parent.Id }
-                              where unit.AccountId == accountId && unit.Id == unitId
-                              select new { unit.ArchivedAtUtc, Property = parent }).SingleOrDefaultAsync(ct);
+                                     join parent in db.Properties on new { unit.AccountId, Id = unit.PropertyId }
+                                         equals new { parent.AccountId, parent.Id }
+                                     where unit.AccountId == accountId && unit.Id == unitId
+                                     select new { unit.ArchivedAtUtc, Property = parent }).SingleOrDefaultAsync(ct);
         var tenant = await db.Tenants.SingleOrDefaultAsync(item => item.AccountId == accountId && item.Id == tenantId, ct);
         if (unitAndProperty is null || tenant is null) return Results.NotFound();
         return unitAndProperty.ArchivedAtUtc != null || unitAndProperty.Property.ArchivedAtUtc != null ||

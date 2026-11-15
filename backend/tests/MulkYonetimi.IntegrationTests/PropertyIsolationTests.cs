@@ -50,8 +50,12 @@ public sealed class PropertyIsolationTests
             var (accountA, userA) = AddOwner(db, "a");
             var (accountB, userB) = AddOwner(db, "b");
             db.AccountPlans.Add(new AccountPlan { AccountId = accountA.Id, Code = "PILOT" });
-            db.AccountEntitlements.Add(new AccountEntitlement { AccountId = accountA.Id,
-                Code = "UNIT_LIMIT", LimitValue = 1 });
+            db.AccountEntitlements.Add(new AccountEntitlement
+            {
+                AccountId = accountA.Id,
+                Code = "UNIT_LIMIT",
+                LimitValue = 1
+            });
             await db.SaveChangesAsync();
 
             using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(host =>
@@ -82,7 +86,9 @@ public sealed class PropertyIsolationTests
             Assert.Equal("Ankara", propertyA.Address);
             using var overQuota = await clientA.PostAsJsonAsync(Properties, new
             {
-                name = "İkinci tek birim", address = "Ankara", propertyKind = "SINGLE_UNIT",
+                name = "İkinci tek birim",
+                address = "Ankara",
+                propertyKind = "SINGLE_UNIT",
                 defaultUnitUsageType = "RESIDENTIAL"
             });
             Assert.Equal(HttpStatusCode.Conflict, overQuota.StatusCode);
@@ -250,8 +256,14 @@ public sealed class PropertyIsolationTests
         var rates = (await clientA.GetFromJsonAsync<LeaseRateResponse[]>(activePath + "/rates", Json))!;
         Assert.Equal(new[] { 20000m, 25000m }, rates.Select(item => item.MonthlyAmount));
         var renewalDate = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1).AddMonths(2);
-        var renewal = new { active.Version, newEndDate = new DateOnly(2028, 12, 31),
-            effectiveFrom = renewalDate, monthlyAmount = 27000m, reason = "Ek protokol" };
+        var renewal = new
+        {
+            active.Version,
+            newEndDate = new DateOnly(2028, 12, 31),
+            effectiveFrom = renewalDate,
+            monthlyAmount = 27000m,
+            reason = "Ek protokol"
+        };
         using var foreignRenew = await clientB.PostAsJsonAsync(activePath + "/renewals", renewal);
         Assert.Equal(HttpStatusCode.NotFound, foreignRenew.StatusCode);
         var renewals = await Task.WhenAll(

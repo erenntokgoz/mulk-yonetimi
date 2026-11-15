@@ -267,8 +267,12 @@ app.MapPost("/api/v1/auth/register", async (RegisterRequest input, HttpContext c
     db.Accounts.Add(account);
     db.AccountMembers.Add(new AccountMember { AccountId = account.Id, UserId = user.Id, Role = "OWNER", Status = "ACTIVE" });
     db.AccountPlans.Add(new AccountPlan { AccountId = account.Id, Code = "PILOT" });
-    db.AccountEntitlements.Add(new AccountEntitlement { AccountId = account.Id, Code = "UNIT_LIMIT",
-        LimitValue = defaultUnitLimit });
+    db.AccountEntitlements.Add(new AccountEntitlement
+    {
+        AccountId = account.Id,
+        Code = "UNIT_LIMIT",
+        LimitValue = defaultUnitLimit
+    });
     await db.SaveChangesAsync(cancellationToken);
 
     var token = await users.GenerateEmailConfirmationTokenAsync(user);
