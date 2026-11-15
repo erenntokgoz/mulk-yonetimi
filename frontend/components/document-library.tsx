@@ -231,8 +231,7 @@ export function DocumentLibrary() {
         <p className="mt-1 text-sm text-muted-foreground">Mülk kayıtlarına bağlı dosyalar</p>
       </div>
       <p role="note" className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
-        Belgeler özel R2 depolamada tutulur. Zararlı dosya tarama servisi henüz bağlı değil; taranamayan dosya
-        etkin belge olmaz. Hassas belge yüklemeyin.
+        Belgeler özel R2 depolamada tutulur. Zararlı dosya taramasından geçmeyen dosya etkin belge olmaz.
       </p>
       {error && (
         <div
