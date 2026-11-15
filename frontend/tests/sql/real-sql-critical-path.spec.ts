@@ -29,13 +29,13 @@ async function createActiveLease(page: import("@playwright/test").Page, suffix: 
   const endDate = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate());
   const property = await postJson(page, "/api/bff/properties", { name: `SQL Mülk ${suffix}`, address: `Test ${suffix}`, propertyKind: "MULTI_UNIT" });
   const unit = await postJson(page, `/api/bff/properties/${property.id}/units`, { label: `Daire ${suffix}`, usageType: "RESIDENTIAL", doorNumber: null, areaM2: null });
-  const tenant = await postJson(page, "/api/bff/tenants", { firstName: `Test${suffix}`, lastName: "Kiracı", email: null, phone: null });
+  const tenant = await postJson(page, "/api/bff/tenants", { kind: "PERSON", firstName: `Test${suffix}`, lastName: "Kiracı", email: null, phone: null });
   const lease = await postJson(page, "/api/bff/leases", { unitId: unit.id, tenantId: tenant.id, startDate: date(today), plannedEndDate: date(endDate), dueDay: 1, monthlyAmount: 12000, depositAmount: 0, note: null });
   const activation = await page.request.post(`/api/bff/leases/${lease.id}/activate`, {
     headers: { Origin: frontendOrigin }, data: { version: lease.version }
   });
-  expect(activation.status()).toBe(204);
-  return { tenant, endDate };
+  expect(activation.status()).toBe(200);
+  return { tenant, endDate, unitLabel: `Daire ${suffix}`, tenantLabel: `Test${suffix} Kiracı` };
 }
 
 test("verified owner completes property, unit, tenant, and lease onboarding through SQL-backed routes at mobile width", async ({ page }) => {
@@ -106,11 +106,12 @@ test("owner renews an active lease and sees its history through SQL-backed route
   await page.setViewportSize({ width: 375, height: 812 });
   await signIn(page);
   const suffix = crypto.randomUUID().slice(0, 8);
-  const { endDate } = await createActiveLease(page, suffix);
+  const { endDate, unitLabel, tenantLabel } = await createActiveLease(page, suffix);
   const renewedEndDate = new Date(endDate.getFullYear() + 1, endDate.getMonth(), endDate.getDate());
   const nextMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
   await page.goto("/sozlesmeler");
-  await page.getByRole("button", { name: "Yenile" }).click();
+  await page.getByRole("heading", { name: `${unitLabel} · ${tenantLabel}` })
+    .locator("xpath=../../..").getByRole("button", { name: "Yenile" }).click();
   await page.getByLabel("Yeni bitiş tarihi").fill(date(renewedEndDate));
   await page.getByLabel("Yeni bedelin başlangıcı").fill(date(nextMonth));
   await page.getByLabel("Aylık kira (₺)").fill("13500");
