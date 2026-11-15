@@ -33,7 +33,7 @@ public sealed class R2AcceptanceTests
             Assert.Equal("application/pdf", metadata.ContentType);
             Assert.Equal(payload[..8], await storage.ReadSignatureAsync(key, CancellationToken.None));
 
-            using (var result = await http.GetAsync(storage.CreateDownloadUrl(key, "acceptance.pdf")))
+            using (var result = await http.GetAsync(storage.CreateDownloadUrl(key, "acceptance.pdf", "application/pdf")))
             {
                 Assert.Equal(HttpStatusCode.OK, result.StatusCode);
                 Assert.Equal(payload, await result.Content.ReadAsByteArrayAsync());

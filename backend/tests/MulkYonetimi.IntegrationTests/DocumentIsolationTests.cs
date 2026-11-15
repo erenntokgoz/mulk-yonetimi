@@ -245,7 +245,7 @@ public sealed class DocumentIsolationTests
     {
         public int PromoteCalls { get; private set; }
         public string CreateUploadUrl(string key, string contentType) => "https://storage.example.test/upload";
-        public string CreateDownloadUrl(string key, string fileName) => "https://storage.example.test/download";
+        public string CreateDownloadUrl(string key, string fileName, string contentType) => "https://storage.example.test/download";
         public Task<StoredObjectMetadata> GetMetadataAsync(string key, CancellationToken ct) =>
             Task.FromResult(new StoredObjectMetadata(5, "application/pdf"));
         public Task<byte[]> ReadSignatureAsync(string key, CancellationToken ct) =>

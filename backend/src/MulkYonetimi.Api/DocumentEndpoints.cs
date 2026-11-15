@@ -187,7 +187,7 @@ internal static class DocumentEndpoints
         if (!storageOptions.IsConfigured) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         try
         {
-            var url = storage.CreateDownloadUrl(document.ObjectKey!, document.OriginalName);
+            var url = storage.CreateDownloadUrl(document.ObjectKey!, document.OriginalName, document.ContentType);
             AddAudit(db, principal, accountId, id, "DOCUMENT", "DOWNLOAD_URL_ISSUED");
             await db.SaveChangesAsync(ct);
             return Results.Ok(new DocumentDownloadResponse(url,
