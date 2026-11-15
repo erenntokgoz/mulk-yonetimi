@@ -3,73 +3,83 @@
 import { FormEvent, Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/password-input";
 import { AuthShell } from "@/components/auth-shell";
+import { AuthDone, ErrorNote, Field, PasswordRules, SubmitButton } from "@/components/auth-ui";
+import styles from "@/components/auth-shell.module.css";
 
 function ResetForm() {
   const search = useSearchParams();
   const hasLinkDetails = Boolean(search.get("userId") && search.get("token"));
-  const [state, setState] = useState<"idle" | "pending" | "done" | "error" | "limited">("idle");
+  const [state, setState] = useState<"idle" | "pending" | "done" | "error" | "limited" | "mismatch">("idle");
+  const [password, setPassword] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    if (form.get("password") !== form.get("password2")) {
+      setState("mismatch");
+      return;
+    }
     setState("pending");
-    const password = new FormData(event.currentTarget).get("password");
     try {
       const response = await fetch("/api/bff/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: search.get("userId"), token: search.get("token"), password }),
+        body: JSON.stringify({ userId: search.get("userId"), token: search.get("token"), password: form.get("password") }),
       });
       setState(response.status === 204 ? "done" : response.status === 429 ? "limited" : "error");
     } catch {
       setState("error");
     }
   }
+  if (state === "done")
+    return (
+      <AuthShell>
+        <AuthDone icon="check" title="Parolanız değişti." href="/giris" action="Giriş yap" primary>
+          Artık yeni parolanızla giriş yapabilirsiniz.
+        </AuthDone>
+      </AuthShell>
+    );
   return (
     <AuthShell>
-      <main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 px-4 py-10">
-        <h1 className="text-2xl font-semibold">Parola sıfırla</h1>
-        {!hasLinkDetails && (
-          <p className="text-sm text-muted-foreground">Parola sıfırlama bağlantısı eksik veya geçersiz.</p>
-        )}
-        {state === "done" ? (
-          <p role="status">Parola güncellendi. Giriş yapabilirsiniz.</p>
-        ) : (
-          <form onSubmit={submit} className="grid gap-4">
-            <label className="grid gap-2 text-sm font-medium">
-              Yeni parola
-              <PasswordInput name="password" autoComplete="new-password" required minLength={6} />
-            </label>
-            {state === "error" && (
-              <p role="alert" className="text-sm text-destructive">
-                Bağlantı geçersiz veya parola kabul edilmedi.
-              </p>
-            )}
-            {state === "limited" && (
-              <p role="alert" className="text-sm text-destructive">
-                Çok fazla deneme. Bir dakika sonra tekrar deneyin.
-              </p>
-            )}
-            <Button
-              type="submit"
-              size="lg"
-              disabled={state === "pending" || !hasLinkDetails}
-              className="disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground"
-            >
-              Parolayı güncelle
-            </Button>
-          </form>
-        )}
-        {!hasLinkDetails && (
-          <Link href="/parolami-unuttum" className="text-sm underline">
+      <h1 className={styles.title}>Yeni parolanızı belirleyin.</h1>
+      <form onSubmit={submit} className={styles.form}>
+        {!hasLinkDetails && <ErrorNote>Parola sıfırlama bağlantısı eksik veya geçersiz.</ErrorNote>}
+        <Field id="yeni-parola" label="Yeni parola">
+          <PasswordInput
+            id="yeni-parola"
+            name="password"
+            autoComplete="new-password"
+            required
+            minLength={6}
+            aria-describedby="yeni-kurallar"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+          <PasswordRules id="yeni-kurallar" value={password} />
+        </Field>
+        <Field id="yeni-parola-tekrar" label="Yeni parola tekrar">
+          <PasswordInput id="yeni-parola-tekrar" name="password2" autoComplete="new-password" required minLength={6} />
+        </Field>
+        {state === "mismatch" && <ErrorNote>İki parola birbirini tutmuyor.</ErrorNote>}
+        {state === "error" && <ErrorNote>Bağlantı geçersiz veya parola kabul edilmedi.</ErrorNote>}
+        {state === "limited" && <ErrorNote>Çok fazla deneme. Bir dakika sonra tekrar deneyin.</ErrorNote>}
+        <SubmitButton busy={state === "pending"} disabled={!hasLinkDetails} inert>
+          Parolayı güncelle
+        </SubmitButton>
+      </form>
+      {!hasLinkDetails && (
+        <p className={styles.foot}>
+          <Link href="/parolami-unuttum" className={styles.link}>
             Yeni sıfırlama bağlantısı isteyin
           </Link>
-        )}
-        <Link href="/giris" className="text-sm underline">
-          Giriş
+        </p>
+      )}
+      <p className={styles.foot}>
+        <Link href="/giris" className={styles.link}>
+          Girişe dön
         </Link>
-      </main>
+      </p>
     </AuthShell>
   );
 }
