@@ -10,6 +10,69 @@ namespace MulkYonetimi.Api.Tests;
 public sealed class PropertyContractTests
 {
     [Theory]
+    [InlineData("2026-01-01", "2026-01-05", "2026-01-10", "2026-01-20", false)]
+    [InlineData("2026-01-01", "2026-01-10", "2026-01-10", "2026-01-20", true)]
+    [InlineData("2026-01-21", null, "2026-01-10", "2026-01-20", false)]
+    [InlineData("2026-01-21", null, "2026-01-10", null, true)]
+    public void Lease_date_ranges_overlap_only_when_the_closed_periods_intersect(
+        string firstStart, string? firstEnd, string secondStart, string? secondEnd, bool expected)
+    {
+        Assert.Equal(expected, LeaseEndpoints.DateRangesOverlap(
+            DateOnly.Parse(firstStart), firstEnd is null ? null : DateOnly.Parse(firstEnd),
+            DateOnly.Parse(secondStart), secondEnd is null ? null : DateOnly.Parse(secondEnd)));
+    }
+
+    [Fact]
+    public void Payment_void_diff_summary_keeps_original_financial_values_without_reference_or_personal_data()
+    {
+        var payment = new MulkYonetimi.Infrastructure.Payment
+        {
+            Id = Guid.NewGuid(),
+            AccountId = Guid.NewGuid(),
+            TenantId = Guid.NewGuid(),
+            PaidOn = new DateOnly(2026, 10, 5),
+            Amount = 1234.50m,
+            Method = MulkYonetimi.Infrastructure.PaymentMethod.TRANSFER,
+            Reference = "PRIVATE-REFERENCE",
+            IdempotencyKey = "payment-key"
+        };
+
+        var summary = AuditDiffSummary.PaymentVoided(payment);
+
+        Assert.Contains("amount=1234.50", summary);
+        Assert.Contains("paidOn=2026-10-05", summary);
+        Assert.Contains("method=TRANSFER", summary);
+        Assert.Contains("status=RECORDED->VOIDED", summary);
+        Assert.DoesNotContain("PRIVATE-REFERENCE", summary);
+        Assert.DoesNotContain(payment.TenantId.ToString(), summary);
+    }
+
+    [Fact]
+    public void Expense_void_diff_summary_omits_free_text_and_rent_correction_captures_old_and_new_amount()
+    {
+        var expense = new MulkYonetimi.Infrastructure.Expense
+        {
+            Id = Guid.NewGuid(),
+            AccountId = Guid.NewGuid(),
+            PropertyId = Guid.NewGuid(),
+            Category = MulkYonetimi.Infrastructure.ExpenseCategory.MAINTENANCE,
+            Amount = 85m,
+            ExpenseOn = new DateOnly(2026, 9, 1),
+            IdempotencyKey = "expense-key",
+            Note = "PRIVATE-NOTE"
+        };
+
+        var voidSummary = AuditDiffSummary.ExpenseVoided(expense);
+        var correctionSummary = AuditDiffSummary.RentChargeCorrected(1200m, 1100.5m);
+
+        Assert.Contains("amount=85.00", voidSummary);
+        Assert.Contains("expenseOn=2026-09-01", voidSummary);
+        Assert.Contains("category=MAINTENANCE", voidSummary);
+        Assert.DoesNotContain("PRIVATE-NOTE", voidSummary);
+        Assert.Equal("amount=1200.00->1100.50", correctionSummary);
+    }
+
+    [Theory]
     [InlineData("=1+1", "\"'=1+1\"")]
     [InlineData(" \t@SUM(A1)", "\"' \t@SUM(A1)\"")]
     [InlineData("a,\"b", "\"a,\"\"b\"")]
@@ -109,6 +172,8 @@ public sealed class PropertyContractTests
         HasResponse("/api/v1/tenants/{id}", "patch", "409");
         HasResponse("/api/v1/tenants/{id}/archive", "post", "204");
         HasResponse("/api/v1/leases", "post", "201");
+        HasResponse("/api/v1/admin/accounts/pending", "get", "200");
+        HasResponse("/api/v1/admin/accounts/pending", "get", "403");
         HasResponse("/api/v1/leases/{id}/activate", "post", "409");
         HasResponse("/api/v1/leases/{id}/terminate", "post", "200");
         HasResponse("/api/v1/leases/{id}/rates", "get", "200");

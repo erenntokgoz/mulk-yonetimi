@@ -21,6 +21,9 @@ if (!builder.Environment.IsDevelopment() &&
     (string.IsNullOrWhiteSpace(builder.Configuration["AllowedHosts"]) ||
      builder.Configuration["AllowedHosts"] == "*"))
     throw new InvalidOperationException("AllowedHosts must name the API host in production.");
+var rateLimitSigningKey = builder.Configuration["Network:RateLimitSigningKey"];
+if (!builder.Environment.IsDevelopment() && rateLimitSigningKey is not { Length: >= 32 })
+    throw new InvalidOperationException("Network:RateLimitSigningKey must be configured in production.");
 if (!string.IsNullOrWhiteSpace(keysPath))
     builder.Services.AddDataProtection().SetApplicationName("MulkYonetimi")
         .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
@@ -130,7 +133,7 @@ builder.Services.AddRateLimiter(options =>
         return ValueTask.CompletedTask;
     };
     options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        RateLimitClientIdentity.Resolve(context, rateLimitSigningKey),
         _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = 25,

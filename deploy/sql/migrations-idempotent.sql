@@ -1203,3 +1203,24 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261115150442_AuditDiffSummary'
+)
+BEGIN
+    ALTER TABLE [AuditEvents] ADD [DiffSummary] nvarchar(1000) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261115150442_AuditDiffSummary'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261115150442_AuditDiffSummary', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

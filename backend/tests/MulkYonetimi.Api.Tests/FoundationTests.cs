@@ -1,17 +1,76 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace MulkYonetimi.Api.Tests;
 
 public sealed class FoundationTests
 {
+    [Fact]
+    public void Rate_limit_uses_only_a_valid_signed_forwarded_address()
+    {
+        const string key = "a-stable-secret-key-at-least-32-chars";
+        const string clientAddress = "203.0.113.17";
+        var context = new DefaultHttpContext();
+        context.Connection.RemoteIpAddress = IPAddress.Parse("10.0.0.7");
+        context.Request.Headers["X-Mulk-Client-IP"] = clientAddress;
+        context.Request.Headers["X-Mulk-Client-IP-Signature"] = Convert.ToHexString(
+            HMACSHA256.HashData(Encoding.UTF8.GetBytes(key), Encoding.UTF8.GetBytes(clientAddress)));
+
+        Assert.Equal(clientAddress, RateLimitClientIdentity.Resolve(context, key));
+
+        context.Request.Headers["X-Mulk-Client-IP-Signature"] = new string('0', 64);
+        Assert.Equal("10.0.0.7", RateLimitClientIdentity.Resolve(context, key));
+    }
+
+    [Fact]
+    public async Task Auth_rate_limit_buckets_ignore_unsigned_spoofed_addresses()
+    {
+        const string key = "a-stable-secret-key-at-least-32-chars";
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Development");
+            builder.UseSetting("Auth:FrontendOrigin", "https://app.example.test");
+            builder.UseSetting("Network:RateLimitSigningKey", key);
+        });
+        using var client = factory.CreateClient();
+
+        async Task<HttpResponseMessage> LoginAsync(string? address = null, string? signature = null)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login")
+            {
+                Content = JsonContent.Create(new { email = "", password = "" })
+            };
+            request.Headers.Add("Origin", "https://app.example.test");
+            if (address is not null) request.Headers.Add("X-Mulk-Client-IP", address);
+            if (signature is not null) request.Headers.Add("X-Mulk-Client-IP-Signature", signature);
+            return await client.SendAsync(request);
+        }
+
+        for (var attempt = 0; attempt < 25; attempt++)
+        {
+            using var response = await LoginAsync();
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+        using var spoofed = await LoginAsync("203.0.113.99", new string('0', 64));
+        Assert.Equal(HttpStatusCode.TooManyRequests, spoofed.StatusCode);
+        using var separate = await LoginAsync("203.0.113.100", SignAddress("203.0.113.100", key));
+        Assert.Equal(HttpStatusCode.BadRequest, separate.StatusCode);
+    }
+
+    private static string SignAddress(string address, string key) => Convert.ToHexString(
+        HMACSHA256.HashData(Encoding.UTF8.GetBytes(key), Encoding.UTF8.GetBytes(address))).ToLowerInvariant();
+
     [Fact]
     public void Forwarded_headers_trust_only_explicit_proxy_addresses()
     {

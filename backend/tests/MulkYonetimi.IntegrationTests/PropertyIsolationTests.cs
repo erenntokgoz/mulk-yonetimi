@@ -178,7 +178,7 @@ public sealed class PropertyIsolationTests
             await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
             db.ChangeTracker.Clear();
             await VerifyUnitsAsync(clientA, clientB, propertyA, secondPropertyA, propertyB);
-            await VerifyLeasesAsync(clientA, clientB, secondPropertyA.Id, options);
+            await VerifyLeasesAsync(clientA, clientB, secondPropertyA.Id, options, db);
             var auditedReasons = await db.AuditEvents.AsNoTracking().Where(item => item.AccountId == accountA.Id &&
                 (item.Action == "VOIDED" || item.Action == "CORRECTED" || item.Action == "RATE_ADDED"))
                 .ToArrayAsync();
@@ -197,7 +197,7 @@ public sealed class PropertyIsolationTests
     }
 
     private static async Task VerifyLeasesAsync(HttpClient clientA, HttpClient clientB, Guid propertyId,
-        DbContextOptions<ApplicationDbContext> options)
+        DbContextOptions<ApplicationDbContext> options, ApplicationDbContext db)
     {
         const string leases = "/api/v1/leases";
         var unit = Assert.Single((await clientA.GetFromJsonAsync<UnitPage>($"{Properties}/{propertyId}/units", Json))!.Items);
@@ -284,7 +284,7 @@ public sealed class PropertyIsolationTests
             await using var context = new ApplicationDbContext(options);
             await new RentChargeJob(context).GenerateAsync(february, CancellationToken.None);
         }));
-        await VerifyPaymentsAsync(clientA, clientB, active);
+            await VerifyPaymentsAsync(clientA, clientB, active, db);
         await VerifyOperatingLedgerAsync(clientA, clientB, active, propertyId);
         var currentLease = (await clientA.GetFromJsonAsync<LeaseResponse>(activePath, Json))!;
         using var terminated = await clientA.PostAsJsonAsync(activePath + "/terminate",
@@ -296,6 +296,56 @@ public sealed class PropertyIsolationTests
         var historical = Assert.Single((await clientA.GetFromJsonAsync<UnitPage>(
             $"{Properties}/{propertyId}/units?includeArchived=true", Json))!.Items);
         Assert.Equal(DateTimeKind.Utc, historical.ArchivedAtUtc!.Value.Kind);
+        var businessToday = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,
+            TimeZoneInfo.FindSystemTimeZoneById("Europe/Istanbul")));
+        using var newUnitResponse = await clientA.PostAsJsonAsync($"{Properties}/{propertyId}/units",
+            new { label = "Aralık sonrası birim", usageType = "RESIDENTIAL" });
+        Assert.Equal(HttpStatusCode.Created, newUnitResponse.StatusCode);
+        var newUnit = (await newUnitResponse.Content.ReadFromJsonAsync<UnitResponse>(Json))!;
+        var terminatedId = Guid.NewGuid();
+        var terminatedStart = businessToday.AddDays(-20);
+        var terminatedEnd = businessToday.AddDays(-10);
+        db.Leases.Add(new Lease
+        {
+            Id = terminatedId,
+            AccountId = await db.Units.Where(item => item.Id == newUnit.Id).Select(item => item.AccountId).SingleAsync(),
+            UnitId = newUnit.Id,
+            TenantId = person.Id,
+            Status = LeaseStatus.TERMINATED,
+            StartDate = terminatedStart,
+            PlannedEndDate = terminatedEnd,
+            TerminationDate = terminatedEnd,
+            DueDay = 1,
+            DepositAmount = 0,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        db.RentRatePeriods.Add(new RentRatePeriod
+        {
+            AccountId = await db.Units.Where(item => item.Id == newUnit.Id).Select(item => item.AccountId).SingleAsync(),
+            LeaseId = terminatedId,
+            EffectiveFrom = terminatedStart,
+            MonthlyAmount = 10000m
+        });
+        await db.SaveChangesAsync();
+        var beforeTerminated = businessToday.AddDays(-40);
+        using var beforeTerminatedDraft = await clientA.PostAsJsonAsync(leases, new
+        {
+            unitId = newUnit.Id,
+            tenantId = person.Id,
+            startDate = beforeTerminated,
+            plannedEndDate = beforeTerminated.AddDays(10),
+            dueDay = 1,
+            monthlyAmount = 9000m
+        });
+        Assert.Equal(HttpStatusCode.Created, beforeTerminatedDraft.StatusCode);
+        var priorDraft = (await beforeTerminatedDraft.Content.ReadFromJsonAsync<LeaseResponse>(Json))!;
+        using var priorActivation = await clientA.PostAsJsonAsync($"{leases}/{priorDraft.Id}/activate",
+            new { priorDraft.Version });
+        Assert.Equal(HttpStatusCode.OK, priorActivation.StatusCode);
+        var priorActive = (await priorActivation.Content.ReadFromJsonAsync<LeaseResponse>(Json))!;
+        using var priorTermination = await clientA.PostAsJsonAsync($"{leases}/{priorDraft.Id}/terminate",
+            new { priorActive.Version, terminationDate = businessToday, reason = "Test contract cleanup" });
+        Assert.Equal(HttpStatusCode.OK, priorTermination.StatusCode);
         Assert.Equal(8000m, (await clientA.GetFromJsonAsync<CashFlowResponse>(
             "/api/v1/reports/cashflow?fromDate=2026-02-01&toDate=2026-02-28&unitId=" + unit.Id, Json))!.NetOperatingCashFlow);
         var remaining = active.Id == draft.Id ? other : draft;
@@ -404,7 +454,8 @@ public sealed class PropertyIsolationTests
         Assert.Equal(2, (await owner.GetFromJsonAsync<ExpensePage>(expenses + "?includeVoided=true", Json))!.Items.Length);
     }
 
-    private static async Task VerifyPaymentsAsync(HttpClient clientA, HttpClient clientB, LeaseResponse lease)
+    private static async Task VerifyPaymentsAsync(HttpClient clientA, HttpClient clientB, LeaseResponse lease,
+        ApplicationDbContext db)
     {
         const string payments = "/api/v1/payments";
         const string charges = "/api/v1/rent-charges";
@@ -474,6 +525,12 @@ public sealed class PropertyIsolationTests
         Assert.Equal("VOIDED", result.Status);
         Assert.False(Assert.Single(result.Allocations).IsEffective);
         Assert.Equal(12000m, (await clientA.GetFromJsonAsync<RentChargePage>(charges, Json))!.Items[0].Balance);
+        var voidAudit = await db.AuditEvents.AsNoTracking().SingleAsync(item => item.EntityId == payment.Id &&
+            item.EntityType == "PAYMENT" && item.Action == "VOIDED");
+        Assert.Equal("Hatalı kayıt", voidAudit.Reason);
+        Assert.Contains("amount=12000.00", voidAudit.DiffSummary);
+        Assert.Contains("method=TRANSFER", voidAudit.DiffSummary);
+        Assert.DoesNotContain(payment.TenantId.ToString(), voidAudit.DiffSummary);
     }
 
     private static async Task<HttpResponseMessage> PostWithKeyAsync(HttpClient client, string path, object body, string key)

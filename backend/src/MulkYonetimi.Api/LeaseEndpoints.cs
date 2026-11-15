@@ -109,7 +109,9 @@ internal static class LeaseEndpoints
         if (await CheckReferencesAsync(db, accountId, lease.UnitId, lease.TenantId, ct) is { } failure) return failure;
         var conflicting = await db.Leases.AnyAsync(other => other.AccountId == accountId && other.UnitId == lease.UnitId &&
             (other.Status == LeaseStatus.ACTIVE ||
-            (other.Status == LeaseStatus.TERMINATED && other.TerminationDate >= lease.StartDate)), ct);
+            (other.Status == LeaseStatus.TERMINATED && other.TerminationDate != null &&
+                (lease.PlannedEndDate == null || other.StartDate <= lease.PlannedEndDate) &&
+                lease.StartDate <= other.TerminationDate)), ct);
         if (conflicting) return Conflict("Bu birimde sözleşme tarihleri çakışıyor.");
 
         lease.Status = LeaseStatus.ACTIVE;
@@ -282,6 +284,10 @@ internal static class LeaseEndpoints
     }
 
     private static IResult Conflict(string title) => Results.Problem(statusCode: 409, title: title);
+
+    internal static bool DateRangesOverlap(DateOnly firstStart, DateOnly? firstEnd,
+        DateOnly secondStart, DateOnly? secondEnd) =>
+        (firstEnd is null || secondStart <= firstEnd) && (secondEnd is null || firstStart <= secondEnd);
 
     private static async Task<IResult> SaveAsync(ApplicationDbContext db,
         Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction, Lease lease, CancellationToken ct)

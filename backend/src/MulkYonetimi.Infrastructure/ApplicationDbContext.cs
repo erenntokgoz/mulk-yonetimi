@@ -201,6 +201,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             audit.Property(item => item.Action).HasMaxLength(32);
             audit.Property(item => item.CorrelationId).HasMaxLength(64);
             audit.Property(item => item.Reason).HasMaxLength(500);
+            audit.Property(item => item.DiffSummary).HasMaxLength(1000);
             audit.HasOne<Account>().WithMany().HasForeignKey(item => item.AccountId)
                 .OnDelete(DeleteBehavior.Restrict);
             audit.HasIndex(item => new { item.AccountId, item.OccurredAtUtc });

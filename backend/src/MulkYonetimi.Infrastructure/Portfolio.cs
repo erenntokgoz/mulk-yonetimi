@@ -55,4 +55,5 @@ public sealed class AuditEvent
     public DateTime OccurredAtUtc { get; set; }
     public string? CorrelationId { get; set; }
     public string? Reason { get; set; }
+    public string? DiffSummary { get; set; }
 }

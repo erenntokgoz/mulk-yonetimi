@@ -1,4 +1,5 @@
 using MulkYonetimi.Api;
+using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -7,6 +8,20 @@ namespace MulkYonetimi.Api.Tests;
 
 public sealed class DocumentValidationTests
 {
+    [Fact]
+    public void Document_quotas_have_conservative_defaults_and_reject_nonpositive_overrides()
+    {
+        var defaults = DocumentStorageOptions.FromConfiguration(new ConfigurationBuilder().Build());
+        Assert.Equal(1000, defaults.MaximumDocumentCountPerAccount);
+        Assert.Equal(1024L * 1024 * 1024, defaults.MaximumStorageBytesPerAccount);
+
+        var invalid = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Storage:MaximumDocumentCountPerAccount"] = "0"
+        }).Build();
+        Assert.Throws<InvalidOperationException>(() => { DocumentStorageOptions.FromConfiguration(invalid); });
+    }
+
     [Theory]
     [InlineData("stream: OK\0", DocumentScanVerdict.Clean)]
     [InlineData("stream: Eicar-Test-Signature FOUND\0", DocumentScanVerdict.ThreatDetected)]

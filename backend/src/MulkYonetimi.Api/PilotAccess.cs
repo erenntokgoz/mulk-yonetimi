@@ -26,18 +26,33 @@ internal static class PilotAccess
 
     public static void MapPilotEndpoints(this WebApplication app)
     {
-        app.MapPortfolioGroup("/api/v1/admin/accounts")
+        var group = app.MapPortfolioGroup("/api/v1/admin/accounts");
+        group.MapGet("/pending", ListPendingAsync).WithName("ListPendingPilotAccounts")
+            .Produces<PilotPendingAccountResponse[]>().Produces(StatusCodes.Status403Forbidden);
+        group
             .MapPost("/{id:guid}/activate", ActivateAsync).WithName("ActivatePilotAccount")
             .Produces(204).ProducesProblem(403).ProducesProblem(404).ProducesProblem(409);
+    }
+
+    private static async Task<IResult> ListPendingAsync(HttpContext context, ClaimsPrincipal principal,
+        IConfiguration configuration, ApplicationDbContext db, CancellationToken ct)
+    {
+        if (!IsOperator(context, principal, configuration)) return Results.Forbid();
+        var rows = await (from account in db.Accounts.AsNoTracking()
+                          join member in db.AccountMembers.AsNoTracking() on account.Id equals member.AccountId
+                          join user in db.Users.AsNoTracking() on member.UserId equals user.Id
+                          where account.Status == "PENDING" && member.Role == "OWNER" && member.Status == "ACTIVE"
+                          orderby account.CreatedAtUtc, account.Id
+                          select new PilotPendingAccountResponse(account.Id, account.Name, account.CreatedAtUtc,
+                              user.EmailConfirmed))
+            .ToArrayAsync(ct);
+        return Results.Ok(rows);
     }
 
     private static async Task<IResult> ActivateAsync(Guid id, HttpContext context, ClaimsPrincipal principal,
         IConfiguration configuration, ApplicationDbContext db, CancellationToken ct)
     {
-        if (!Guid.TryParse(configuration["Pilot:AdminUserId"], out var adminId) ||
-            !Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var actorId) || actorId != adminId ||
-            !ValidAdminKey(context.Request.Headers["X-Pilot-Admin-Key"].ToString(), configuration["Pilot:AdminKey"]))
-            return Results.Forbid();
+        if (!IsOperator(context, principal, configuration)) return Results.Forbid();
         if (!await db.Accounts.AnyAsync(item => item.Id == id, ct)) return Results.NotFound();
         await using var transaction = await RentRules.LockAccountAsync(db, id, ct);
         var account = await db.Accounts.SingleAsync(item => item.Id == id, ct);
@@ -59,4 +74,11 @@ internal static class PilotAccess
     internal static bool ValidAdminKey(string supplied, string? configured) =>
         configured is { Length: >= 32 } && supplied.Length == configured.Length &&
         CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(supplied), Encoding.UTF8.GetBytes(configured));
+
+    private static bool IsOperator(HttpContext context, ClaimsPrincipal principal, IConfiguration configuration) =>
+        Guid.TryParse(configuration["Pilot:AdminUserId"], out var adminId) &&
+        Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var actorId) && actorId == adminId &&
+        ValidAdminKey(context.Request.Headers["X-Pilot-Admin-Key"].ToString(), configuration["Pilot:AdminKey"]);
 }
+
+public sealed record PilotPendingAccountResponse(Guid Id, string Name, DateTime CreatedAtUtc, bool OwnerEmailConfirmed);

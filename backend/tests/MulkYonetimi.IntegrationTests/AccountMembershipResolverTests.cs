@@ -141,6 +141,15 @@ public sealed class AccountMembershipResolverTests
                 Assert.Equal(HttpStatusCode.NoContent, operatorLogin.StatusCode);
                 using var deniedApproval = await loginClient.PostAsync($"/api/v1/admin/accounts/{newAccountId}/activate", null);
                 Assert.Equal(HttpStatusCode.Forbidden, deniedApproval.StatusCode);
+                using var deniedPendingList = await loginClient.GetAsync("/api/v1/admin/accounts/pending");
+                Assert.Equal(HttpStatusCode.Forbidden, deniedPendingList.StatusCode);
+                using var pendingRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/admin/accounts/pending");
+                pendingRequest.Headers.Add("X-Pilot-Admin-Key", "pilot-test-key-with-at-least-32-characters");
+                using var pendingList = await loginClient.SendAsync(pendingRequest);
+                Assert.Equal(HttpStatusCode.OK, pendingList.StatusCode);
+                var pendingAccount = Assert.Single((await pendingList.Content.ReadFromJsonAsync<PilotPendingAccountResponse[]>())!);
+                Assert.Equal(newAccountId, pendingAccount.Id);
+                Assert.True(pendingAccount.OwnerEmailConfirmed);
                 using var approve = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/admin/accounts/{newAccountId}/activate");
                 approve.Headers.Add("X-Pilot-Admin-Key", "pilot-test-key-with-at-least-32-characters");
                 using var approved = await loginClient.SendAsync(approve);
