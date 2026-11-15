@@ -18,6 +18,10 @@ function date(value: Date) {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 }
 
+function displayDate(value: Date) {
+  return `${String(value.getDate()).padStart(2, "0")}.${String(value.getMonth() + 1).padStart(2, "0")}.${value.getFullYear()}`;
+}
+
 async function postJson(page: import("@playwright/test").Page, path: string, data: object) {
   const response = await page.request.post(path, { headers: { Origin: frontendOrigin }, data });
   expect(response.ok(), `POST ${path} returned ${response.status()}: ${await response.text()}`).toBe(true);
@@ -76,8 +80,8 @@ test("verified owner completes property, unit, tenant, and lease onboarding thro
   await page.getByLabel("Aylık kira (₺)").fill("12000");
   await page.getByRole("button", { name: "Taslağı kaydet" }).click();
   await expect(page.getByText("Taslak", { exact: true })).toBeVisible();
-  page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Etkinleştir" }).click();
+  await page.getByRole("dialog", { name: "Sözleşme etkinleştirilsin mi?" }).getByRole("button", { name: "Etkinleştir" }).click();
   await expect(page.getByText("Etkin", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
@@ -136,6 +140,6 @@ test("owner renews an active lease and sees its history through SQL-backed route
   await page.getByLabel("Aylık kira (₺)").fill("13500");
   await page.getByLabel("Gerekçe").fill("SQL E2E dönem yenilemesi");
   await page.getByRole("button", { name: "Yenilemeyi kaydet" }).click();
-  await expect(page.getByText(new RegExp(`${date(endDate)} → ${date(renewedEndDate)} · ${date(nextMonth)}`))).toBeVisible();
+  await expect(page.getByText(`${displayDate(endDate)} → ${displayDate(renewedEndDate)} · ${displayDate(nextMonth)}`)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
