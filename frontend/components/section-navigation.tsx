@@ -78,7 +78,7 @@ export function SectionNavigation({ onNavigate }: { onNavigate?: () => void }) {
                 aria-current={active ? "page" : undefined}
                 title={section.title}
                 onClick={onNavigate}
-                className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "bg-primary text-primary-foreground shadow-[0_0_18px_rgb(37_99_235/28%)]" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
+                className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring `}
               >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span className="nav-label">{section.title}</span>

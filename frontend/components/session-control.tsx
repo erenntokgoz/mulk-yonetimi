@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { LogIn, LogOut } from "lucide-react";
 import { setSessionState, useSessionState } from "@/lib/session-client";
 
 export function SessionControl() {
@@ -11,15 +11,12 @@ export function SessionControl() {
   const [busy, setBusy] = useState(false);
   const router = useRouter();
   // Sabit boyutlu alan: yükleme -> Giriş/Çıkış geçişi düzeni kaydırmaz.
-  if (signedIn === null)
-    return <span aria-hidden="true" className="ml-auto inline-block h-11 w-24 sm:h-10" />;
+  if (signedIn === null) return <span aria-hidden="true" className="block h-11" />;
   if (!signedIn)
     return (
-      <Link
-        href="/giris"
-        className="ml-auto inline-flex h-11 w-24 items-center justify-center rounded-md px-3 text-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-10"
-      >
-        Giriş
+      <Link href="/giris" className="me-out" title="Giriş" aria-label="Giriş">
+        <LogIn aria-hidden="true" />
+        <span className="sidebar-label">Giriş</span>
       </Link>
     );
   async function logout() {
@@ -36,14 +33,16 @@ export function SessionControl() {
     }
   }
   return (
-    <Button
+    <button
       type="button"
-      variant="ghost"
-      className="ml-auto h-11 min-w-24 sm:h-10"
+      className="me-out"
+      aria-label="Çıkış yap"
+      title="Çıkış yap"
       disabled={busy}
       onClick={() => void logout()}
     >
-      {busy ? "Çıkış yapılıyor…" : "Çıkış yap"}
-    </Button>
+      <LogOut aria-hidden="true" />
+      <span className="sidebar-label">{busy ? "Çıkış yapılıyor…" : "Çıkış yap"}</span>
+    </button>
   );
 }

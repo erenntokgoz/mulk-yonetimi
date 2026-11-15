@@ -5,6 +5,7 @@ import { MOBILE_MENU_EVENT, takeReturnFocus } from "@/components/shell-shortcuts
 import { Menu } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { SectionNavigation } from "@/components/section-navigation";
+import { SessionControl } from "@/components/session-control";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
@@ -47,6 +48,9 @@ export function MobileMenu() {
         </SheetTitle>
         <SheetDescription className="sr-only">Uygulama sayfalarında gezinin.</SheetDescription>
         <SectionNavigation onNavigate={() => setOpen(false)} />
+        <div className="sidebar-footer">
+          <SessionControl />
+        </div>
       </SheetContent>
     </Sheet>
   );
