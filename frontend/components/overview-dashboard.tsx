@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
+import { SetupWizard } from "@/components/setup-wizard";
 import { ListSkeleton } from "@/components/ui/skeleton";
 type Summary = components["schemas"]["DashboardSummary"];
 // Tutarlar tr-TR yerel biçimiyle gösterilir (binlik nokta, ondalık virgül); API ondalık metin de dönebilir.
@@ -39,10 +40,8 @@ export function OverviewDashboard() {
         <h1 id="overview-title" className="text-3xl font-semibold tracking-tight sm:text-4xl">
           Genel bakış
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Portföy durumu ve cari ayın alacak, gecikme ve gider özeti
-        </p>
       </div>
+      <SetupWizard />
       {error && (
         <div
           role="alert"
@@ -101,9 +100,6 @@ export function OverviewDashboard() {
               <CardContent className="grid gap-3 p-5">
                 <h2 className="text-lg font-semibold">Cari ay nakit akışı</h2>
                 <p className="text-2xl font-semibold">{money(data.cashFlow.netOperatingCashFlow)}</p>
-                <p className="text-sm text-muted-foreground">
-                  Nakit akışı net kâr değildir. Depozito hareketleri bu tutara dahil edilmez.
-                </p>
               </CardContent>
             </Card>
           </>

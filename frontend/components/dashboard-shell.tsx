@@ -7,6 +7,7 @@ import { ShellShortcuts } from "@/components/shell-shortcuts";
 import { SidebarToggle } from "@/components/sidebar-toggle";
 import { SessionControl } from "@/components/session-control";
 import { ThemeControl } from "@/components/theme-control";
+import { SetupButton } from "@/components/setup-button";
 import { RouteSurface } from "@/components/route-surface";
 
 export function DashboardShell({
@@ -35,7 +36,7 @@ export function DashboardShell({
           >
             <BrandMark size={30} />
             <span className="sidebar-label">
-              Mülküm<span className="brand-caption">Portföy ve finans</span>
+              Mülküm
             </span>
           </Link>
         </div>
@@ -61,7 +62,10 @@ export function DashboardShell({
           <span className="ml-auto lg:hidden">
             <ThemeControl />
           </span>
-          <SessionControl />
+          <div className="flex items-center gap-1 lg:ml-auto">
+            <SetupButton />
+            <SessionControl />
+          </div>
         </header>
         <main
           id="main"

@@ -4,7 +4,7 @@ import { findSection, sections } from "@/lib/navigation";
 
 export function generateStaticParams() {
   return sections
-    .filter((section) => section.path !== "/panel" && section.path !== "/kurulum")
+    .filter((section) => section.path !== "/panel")
     .map((section) => ({ section: section.path.slice(1) }));
 }
 

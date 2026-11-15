@@ -228,11 +228,7 @@ export function DocumentLibrary() {
         <h1 id="documents-title" className="text-2xl font-semibold tracking-tight">
           Belgeler
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Mülk kayıtlarına bağlı dosyalar</p>
       </div>
-      <p role="note" className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
-        Belgeler özel R2 depolamada tutulur. Zararlı dosya taramasından geçmeyen dosya etkin belge olmaz.
-      </p>
       {error && (
         <div
           role="alert"
@@ -297,9 +293,6 @@ export function DocumentLibrary() {
                         onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                         className="min-h-10 w-full rounded border bg-background px-3 py-2"
                       />
-                      <span className="text-xs text-muted-foreground">
-                        PDF, JPEG veya PNG · en çok 25 MiB
-                      </span>
                     </label>
                     <Button type="submit" disabled={busy || !file || !propertyId}>
                       {busy ? "Yükleniyor…" : "Dosyayı yükle"}

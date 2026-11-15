@@ -132,7 +132,6 @@ test("rent charges and payments load from the API and idempotent actions can be 
   await page.goto("/kira-tahsilatlar");
   await expect(page.getByRole("heading", { name: "Alacaklar" })).toBeVisible();
   await expect(page.getByRole("heading", { name: /Ada Yılmaz · 2026-01/ })).toBeVisible();
-  await expect(page.getByText("Kullanıcı tarafından kaydedildi. Banka doğrulaması yapılmadı.")).toBeVisible();
   await page.request.post("http://127.0.0.1:5089/finance-fail-once");
   await page.getByLabel("Tutar (₺)").fill("12500.00");
   await page.getByRole("button", { name: "Tahsilatı kaydet" }).click();

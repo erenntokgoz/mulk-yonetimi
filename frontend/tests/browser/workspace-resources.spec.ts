@@ -25,7 +25,6 @@ test("settings loads profile and preferences and saves each through the BFF", as
   await expect(page.getByRole("heading", { level: 1, name: "Ayarlar" })).toBeVisible();
   await expect(page.getByLabel("E-posta adresi")).toHaveValue(profile.email);
   await expect(page.getByLabel("E-posta bildirimleri")).toBeDisabled();
-  await expect(page.getByText("E-posta doğrulanmadan e-posta bildirimleri açılamaz.")).toBeVisible();
   await page.getByLabel("Görünen ad").fill("Yeni ad");
   await page.getByRole("button", { name: "Profili kaydet" }).click();
   await expect(page.getByRole("status")).toContainText("Profil kaydedildi");
@@ -114,7 +113,6 @@ test("documents upload through a signed intent, complete, download, and soft del
 
   await page.goto("/belgeler");
   await expect(page.getByRole("heading", { level: 1, name: "Belgeler" })).toBeVisible();
-  await expect(page.getByText(/Zararlı dosya taramasından geçmeyen dosya etkin belge olmaz/)).toBeVisible();
   await page.getByRole("combobox", { name: "Mülk" }).selectOption("property-1");
   await page.getByLabel("Dosya").setInputFiles({ name: "test.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") });
   await page.getByRole("button", { name: "Dosyayı yükle" }).click();
@@ -141,7 +139,6 @@ test("documents disclose missing R2 configuration and never claim a failed uploa
     else await route.fulfill({ json: { items: [], page: 1, pageSize: 25, hasMore: false } });
   });
   await page.goto("/belgeler");
-  await expect(page.getByText(/Zararlı dosya taramasından geçmeyen dosya etkin belge olmaz/)).toBeVisible();
   await page.getByRole("combobox", { name: "Mülk" }).selectOption("property-1");
   await page.getByLabel("Dosya").setInputFiles({ name: "test.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") });
   await page.getByRole("button", { name: "Dosyayı yükle" }).click();

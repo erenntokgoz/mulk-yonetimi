@@ -206,7 +206,6 @@ export function ExpenseDirectory() {
         <h1 id="expense-title" className="text-2xl font-semibold tracking-tight">
           Giderler
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Mülk ve bağımsız bölüm gider kayıtları</p>
       </div>
       {error && (
         <div
@@ -374,7 +373,7 @@ export function ExpenseDirectory() {
                 </ul>
               ) : (
                 <p className="py-8 text-center text-sm text-muted-foreground">
-                  Bu tarih aralığında gider kaydı yok.
+                  Gider kaydı yok.
                 </p>
               )}
               {moreExpenses && <Button type="button" variant="outline" disabled={loadingMore}

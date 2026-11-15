@@ -94,7 +94,6 @@ export function ReportDashboard() {
         <h1 id="reports-title" className="text-2xl font-semibold tracking-tight">
           Raporlar
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Seçilen aralıktaki nakit giriş ve çıkışları</p>
       </div>
       {error && (
         <div
@@ -164,10 +163,6 @@ export function ReportDashboard() {
           </div>
           {moreProperties && <Button type="button" variant="outline" disabled={loadingMore}
             onClick={() => void loadMoreProperties()}>Diğer mülkleri yükle</Button>}
-          <p className="text-sm text-muted-foreground">
-            Nakit akışı net kâr değildir. Depozito hareketleri ve ödenmemiş giderler nakit akışına dahil
-            edilmez.
-          </p>
           {flow && !error && (
             <div className="flex flex-wrap gap-2">
               <Button asChild variant="outline" size="lg"><a href={`/api/bff/reports/cashflow.csv?${exportQuery}`} download="cashflow.csv">Nakit akışı CSV</a></Button>
@@ -197,7 +192,7 @@ export function ReportDashboard() {
       )}
       {flow && (
         <p className="text-xs text-muted-foreground">
-          {flow.fromDate} – {flow.toDate} · Değerler API raporundan alınır.
+          {flow.fromDate} – {flow.toDate}
         </p>
       )}
     </section>
