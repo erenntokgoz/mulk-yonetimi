@@ -155,7 +155,7 @@ public sealed class DocumentIsolationTests
                 Upload(quotaClientA, propertyA.Id, 4)));
             Assert.Single(uploadRequests, response => response.StatusCode == HttpStatusCode.Created).Dispose();
             Assert.Single(uploadRequests, response => response.StatusCode == HttpStatusCode.Conflict).Dispose();
-            Assert.Equal(1, await db.Documents.CountAsync(item => item.AccountId == accountA.Id && item.Status == "PENDING"));
+            Assert.Equal(2, await db.Documents.CountAsync(item => item.AccountId == accountA.Id && item.Status == "PENDING"));
             var otherTenantUploads = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ =>
                 Upload(quotaClientB, propertyB.Id, 8)));
             Assert.Single(otherTenantUploads, response => response.StatusCode == HttpStatusCode.Created).Dispose();

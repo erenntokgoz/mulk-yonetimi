@@ -15,7 +15,7 @@ for (const [state, label] of [
     await expect(page.getByRole("region", { name: "Sistem durumu" }).getByRole("status")).toHaveText(label);
     if (state !== "Disconnected") {
       await expect(page.getByText("Veritabanı", { exact: true })).toBeVisible();
-      await expect(page.locator("dd")).toHaveText(label);
+      await expect(page.locator("dd > span")).toHaveText(label);
     } else {
       await expect(page.getByText(/Hizmet durumu alınamadı/)).toBeVisible();
     }

@@ -64,17 +64,17 @@ async function SystemHealth() {
             report.checks.length ? (
               <dl className="divide-y divide-border text-sm">
                 {report.checks.map((check, index) => (
-                  <div key={`${check.name}-${index}`} className="grid gap-1 py-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <dt>{checkLabels[check.name] ?? "Diğer hizmet"}</dt>
-                      <dd className="font-medium">{statusLabels[check.status]}</dd>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Yanıt süresi: {Math.round(check.durationMs)} ms
-                    </p>
-                    {check.description && (
-                      <p className="text-xs text-muted-foreground">{check.description}</p>
-                    )}
+                  <div key={`${check.name}-${index}`} className="flex items-start justify-between gap-4 py-4">
+                    <dt>{checkLabels[check.name] ?? "Diğer hizmet"}</dt>
+                    <dd className="text-right font-medium">
+                      <span>{statusLabels[check.status]}</span>
+                      <p className="text-xs font-normal text-muted-foreground">
+                        Yanıt süresi: {Math.round(check.durationMs)} ms
+                      </p>
+                      {check.description && (
+                        <p className="text-xs font-normal text-muted-foreground">{check.description}</p>
+                      )}
+                    </dd>
                   </div>
                 ))}
               </dl>

@@ -1,5 +1,7 @@
 import "server-only";
-import { getBackendBaseUrl } from "./health";
+import { createHmac } from "node:crypto";
+import { isIP } from "node:net";
+import { getBackendBaseUrl } from "./health.ts";
 
 export async function proxyAuth(request: Request, path: string, mutation: boolean): Promise<Response> {
   const frontendOrigin = process.env.FRONTEND_ORIGIN;
@@ -42,6 +44,14 @@ export async function proxyAuth(request: Request, path: string, mutation: boolea
   if (contentType) headers.set("Content-Type", contentType);
   const idempotencyKey = request.headers.get("idempotency-key");
   if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
+  const rateLimitSigningKey = process.env.BACKEND_RATE_LIMIT_SIGNING_KEY;
+  const forwardedIp = process.env.VERCEL === "1"
+    ? request.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim()
+    : undefined;
+  if (forwardedIp && isIP(forwardedIp) && rateLimitSigningKey && Buffer.byteLength(rateLimitSigningKey, "utf8") >= 32) {
+    headers.set("X-Mulk-Client-IP", forwardedIp);
+    headers.set("X-Mulk-Client-IP-Signature", createHmac("sha256", rateLimitSigningKey).update(forwardedIp).digest("hex"));
+  }
 
   let upstream: Response;
   try {

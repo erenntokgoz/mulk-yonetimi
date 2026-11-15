@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 const fixture = "http://127.0.0.1:5089";
 
@@ -41,4 +42,19 @@ test("renews an active lease and shows its recorded history", async ({ page }) =
   await expect(form).toHaveScreenshot("lease-renewal-form-mobile.png");
   await page.getByRole("button", { name: "Yenilemeyi kaydet" }).click();
   await expect(page.getByText(/2026-12-31 → 2027-12-31 · 2027-01-01/)).toBeVisible();
+});
+
+test("rent collection and lease renewal interfaces pass WCAG A/AA checks on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  const { tenant } = await createActiveLease(page);
+  await page.goto("/kira-tahsilatlar");
+  await page.getByLabel("Tutar (₺)").fill("12000");
+  let results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  expect(results.violations, JSON.stringify(results.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) })), null, 2)).toEqual([]);
+  expect(tenant.id).toBeTruthy();
+
+  await page.goto("/sozlesmeler");
+  await page.getByRole("button", { name: "Yenile" }).click();
+  results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  expect(results.violations, JSON.stringify(results.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) })), null, 2)).toEqual([]);
 });

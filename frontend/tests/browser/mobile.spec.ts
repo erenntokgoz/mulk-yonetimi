@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 const fixture = "http://127.0.0.1:5089";
 const viewports = [{ width: 375, height: 812 }, { width: 390, height: 844 }];
@@ -111,3 +112,21 @@ for (const viewport of viewports) {
     }
   });
 }
+
+test("shell, portfolio cards, and mobile navigation have no WCAG A/AA violations", async ({ page, request }) => {
+  await request.post(`${fixture}/reset-data`);
+  await page.context().addCookies([{ name: "mulk.session", value: "fixture", url: "http://127.0.0.1:3109" }]);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/panel");
+  let results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  expect(results.violations, JSON.stringify(results.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) })), null, 2)).toEqual([]);
+
+  await page.goto("/portfoy");
+  results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  expect(results.violations, JSON.stringify(results.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) })), null, 2)).toEqual([]);
+
+  await page.goto("/panel");
+  await page.getByRole("button", { name: "Menüyü aç" }).click();
+  results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  expect(results.violations, JSON.stringify(results.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) })), null, 2)).toEqual([]);
+});

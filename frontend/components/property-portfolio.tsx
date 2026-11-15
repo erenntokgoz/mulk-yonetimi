@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { Building2, LayoutGrid, List, MapPin, Plus } from "lucide-react";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { propertyCreateError, unitCreateError } from "@/lib/api/portfolio-errors";
 
 type Property = components["schemas"]["PropertyResponse"];
 type PropertyPage = components["schemas"]["PropertyPage"];
@@ -100,11 +101,10 @@ export function PropertyPortfolio() {
         headers,
         body: JSON.stringify(payload),
       });
-      if (response.status === 409) {
+      if (response.status === 409 && await propertyCreateError(response) !== "Birim kotası doldu. Mevcut kayıtları görüntüleyebilirsiniz.") {
         setConflict(true);
-        throw new Error("Mülk başka bir işlemde değişti. Güncel sürümü yükleyip tekrar deneyin.");
       }
-      if (!response.ok) throw new Error("Mülk kaydedilemedi. Bilgileri kontrol edip tekrar deneyin.");
+      if (!response.ok) throw new Error(await propertyCreateError(response));
       setOpen(false);
       setEditing(null);
       await load();
@@ -168,12 +168,7 @@ export function PropertyPortfolio() {
           areaM2: data.get("areaM2") ? Number(data.get("areaM2")) : null,
         }),
       });
-      if (!response.ok)
-        throw new Error(
-          response.status === 409
-            ? "Bu mülke birim eklenemedi."
-            : "Birim kaydedilemedi. Bilgileri kontrol edin.",
-        );
+      if (!response.ok) throw new Error(await unitCreateError(response));
       await showUnits(unitProperty);
       await load();
     } catch (cause) {
