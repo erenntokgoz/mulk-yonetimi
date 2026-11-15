@@ -3,6 +3,8 @@
 Karar: [ADR 003](adr/003-yayin-topolojisi.md). Bu sunucuda başka servisler çalışıyor; yalnız burada adı geçen dosya,
 container ve portlara dokun.
 
+Yayın öncesi staging, kurtarma tatbikatı, go/no-go ve geri dönüş kapısı için [pilot yayın kontrolünü](release-readiness.md) tamamlayın.
+
 ## 1. Azure SQL (portal)
 
 1. portal.azure.com → **SQL databases → Create**.
@@ -76,6 +78,8 @@ SMTP: `mail.kasam360.com.tr:465` örtük TLS (Mailu içinde 587 kapalı). `Email
 Her ortam için ayrı private R2 bucket ve o bucket ile sınırlı erişim anahtarı gerekir. Bucket CORS politikasında yalnız ilgili frontend origin'i için `PUT`/`GET` ve `Content-Type` imzalı başlığını açın; üretim anahtarını frontend ortamına koymayın. `Storage__R2*` değerleri yalnız `deploy/api.env` içindedir.
 
 ClamAV resmi container'ı imza veritabanı ile gelir ve 3310 TCP hizmeti sağlar; [resmi container belgesi](https://github.com/Cisco-Talos/clamav-documentation/blob/main/src/manual/Installing/Docker.md) 4 GB RAM önerir. Paylaşılan sunucuda kapasite ölçülmeden profili açmayın. Ayrı staging ortamında önce `docker compose -f deploy/compose.api.yaml --profile scanner up -d clamav` çalıştırın; yalnız `127.0.0.1:3310` dinlenmelidir. Güncel imza ve sağlıklı scanner doğrulandıktan sonra `Scanner__Host=127.0.0.1` koyup API'yi yeniden başlatın. Tarayıcı yoksa/erişilemiyorsa `complete` 503, tehdit bulunursa 422 döner; dosya ACTIVE olmaz. R2/ClamAV canlı kabul testi ve gerçek CORS testi geçmeden belge özelliğini açık ilan etmeyin.
+
+Gerçek R2 kabul testi ayrı staging bucket ile çalıştırılır. Dört `Storage__R2*` değişkenini yalnız test sürecine aktarın; `MULK_R2_ALLOWED_ORIGIN` staging frontend origin'i, `MULK_R2_DENIED_ORIGIN` farklı bir origin olsun. `dotnet test backend/tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.csproj --filter FullyQualifiedName~R2AcceptanceTests` komutu imzalı PUT/GET, private unsigned GET, yanlış Content-Type, metadata, imza ve CORS'u denetler; test nesnesini sonunda siler. Dört credential eksikse test açıkça **SKIP** olur; R2 kabulü geçilmiş sayılmaz. CORS origin değişkenleri eksikse CORS kısmı ölçülmez ve ayrıca açık kapı kalır. İmzalı URL ve credential çıktıya yazdırılmaz.
 
 ## Geri dönüş
 
