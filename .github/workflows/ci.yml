@@ -154,17 +154,9 @@ jobs:
           Notifications__WorkerEnabled: 'false'
           RentCharges__WorkerEnabled: 'false'
       - name: Run browser flow against the SQL-backed API
-        id: sql-browser-tests
         run: pnpm test:browser:sql
         working-directory: frontend
         env:
           MULK_SQL_E2E_API_URL: http://127.0.0.1:5080
           MULK_SQL_E2E_EMAIL: ${{ env.MULK_SQL_E2E_EMAIL }}
           MULK_SQL_E2E_PASSWORD: ${{ env.MULK_SQL_E2E_PASSWORD }}
-      - name: Upload SQL browser artifacts on failure
-        if: failure() && steps.sql-browser-tests.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: sql-browser-test-results-${{ github.run_id }}
-          path: frontend/test-results/
-          if-no-files-found: ignore
