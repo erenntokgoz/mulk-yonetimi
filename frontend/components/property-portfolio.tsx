@@ -221,11 +221,9 @@ export function PropertyPortfolio() {
     <section className="grid gap-5" aria-labelledby="portfolio-title">
       <div className="page-heading flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="eyebrow">MÜLK YÖNETİMİ</p>
           <h1 id="portfolio-title" className="text-2xl font-semibold tracking-tight">
             Portföy
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">Mülk kayıtları ve bağımsız bölümler</p>
         </div>
         <Button
           type="button"
@@ -329,9 +327,6 @@ export function PropertyPortfolio() {
                   <option value="RESIDENTIAL">Konut</option>
                   <option value="COMMERCIAL">Ticari</option>
                 </select>
-                <span className="text-xs font-normal text-muted-foreground">
-                  Yalnız tek birimli mülklerde kullanılır.
-                </span>
               </label>
               <div className="flex gap-2 sm:col-span-2">
                 <Button type="submit" disabled={pending}>
@@ -443,9 +438,6 @@ export function PropertyPortfolio() {
           <CardContent className="portfolio-empty">
             <Building2 size={28} aria-hidden="true" />
             <h2 className="font-medium">{includeArchived ? "Arşivlenmiş mülk yok" : "Henüz mülk kaydı yok"}</h2>
-            {!includeArchived && <p className="mt-2 text-sm text-muted-foreground">
-              Portföyünüze eklemek için “Mülk ekle” seçeneğini kullanın.
-            </p>}
           </CardContent>
         </Card>
       ) : (

@@ -3,8 +3,9 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { AuthShell } from "@/components/auth-shell";
+import { AuthDone, ErrorNote } from "@/components/auth-ui";
+import styles from "@/components/auth-shell.module.css";
 
 function ConfirmForm() {
   const search = useSearchParams();
@@ -23,45 +24,40 @@ function ConfirmForm() {
       setState("error");
     }
   }
+  if (state === "done")
+    return (
+      <AuthShell>
+        <AuthDone icon="check" title="E-posta doğrulandı." href="/giris" action="Giriş yap" primary>
+          Hesabınız onaylandıktan sonra giriş yapabilirsiniz.
+        </AuthDone>
+      </AuthShell>
+    );
   return (
     <AuthShell>
-      <main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 px-4 py-10">
-        <h1 className="text-2xl font-semibold">E-posta doğrulama</h1>
-        {!hasLinkDetails && (
-          <p className="text-sm text-muted-foreground">Doğrulama bağlantısı eksik veya geçersiz.</p>
-        )}
-        {state === "done" ? (
-          <p role="status">E-posta doğrulandı. Giriş yapabilirsiniz.</p>
-        ) : (
-          <>
-            <Button
-              type="button"
-              size="lg"
-              onClick={confirm}
-              disabled={state === "pending" || !hasLinkDetails}
-              className="disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground"
-            >
-              E-postayı doğrula
-            </Button>
-            {state === "error" && (
-              <p role="alert" className="text-sm text-destructive">
-                Bağlantı geçersiz veya kullanılmış.
-              </p>
-            )}
-          </>
-        )}
-        {state === "limited" && (
-          <p role="alert" className="text-sm text-destructive">
-            Çok fazla deneme. Bir dakika sonra tekrar deneyin.
-          </p>
-        )}
-        <Link href="/giris" className="text-sm underline">
-          Giriş
+      <h1 className={styles.title}>E-posta doğrulama</h1>
+      <div className={styles.form}>
+        {!hasLinkDetails && <ErrorNote>Doğrulama bağlantısı eksik veya geçersiz.</ErrorNote>}
+        <button
+          type="button"
+          onClick={confirm}
+          disabled={state === "pending" || !hasLinkDetails}
+          className={`${styles.btn} ${styles.primary} ${styles.inert}`}
+        >
+          E-postayı doğrula
+        </button>
+        {state === "error" && <ErrorNote>Bağlantı geçersiz veya kullanılmış.</ErrorNote>}
+        {state === "limited" && <ErrorNote>Çok fazla deneme. Bir dakika sonra tekrar deneyin.</ErrorNote>}
+      </div>
+      <p className={styles.foot}>
+        <Link href="/giris" className={styles.link}>
+          Girişe dön
         </Link>
-        <Link href="/dogrulama-yeniden-gonder" className="text-sm underline">
+      </p>
+      <p className={styles.foot}>
+        <Link href="/dogrulama-yeniden-gonder" className={styles.link}>
           Yeni doğrulama bağlantısı gönder
         </Link>
-      </main>
+      </p>
     </AuthShell>
   );
 }

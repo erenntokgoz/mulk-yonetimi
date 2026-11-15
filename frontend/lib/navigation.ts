@@ -1,6 +1,5 @@
 export const sections = [
   { path: "/panel", title: "Genel bakış", group: "GENEL", unavailable: "" },
-  { path: "/kurulum", title: "İlk kurulum", group: "GENEL", unavailable: "" },
   {
     path: "/portfoy",
     title: "Portföy",

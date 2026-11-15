@@ -2,10 +2,19 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { AuthShell } from "@/components/auth-shell";
+import { AuthDone, ErrorNote, Field, SubmitButton } from "@/components/auth-ui";
+import styles from "@/components/auth-shell.module.css";
 
-export function EmailActionForm({ title, endpoint }: { title: string; endpoint: string }) {
+export function EmailActionForm({
+  title,
+  endpoint,
+  sentText,
+}: {
+  title: string;
+  endpoint: string;
+  sentText: string;
+}) {
   const [state, setState] = useState<"idle" | "pending" | "sent" | "error" | "limited">("idle");
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -22,44 +31,30 @@ export function EmailActionForm({ title, endpoint }: { title: string; endpoint: 
       setState("error");
     }
   }
+  if (state === "sent")
+    return (
+      <AuthShell>
+        <AuthDone icon="mail" title="E-postanızı kontrol edin." href="/giris" action="Girişe dön">
+          {sentText}
+        </AuthDone>
+      </AuthShell>
+    );
   return (
     <AuthShell>
-      <main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 px-4 py-10">
-        <h1 className="text-2xl font-semibold">{title}</h1>
-        {state === "sent" ? (
-          <p role="status">Bu adres için işlem gerekiyorsa bağlantı e-postayla gönderildi.</p>
-        ) : (
-          <form onSubmit={submit} className="grid gap-4">
-            <label className="grid gap-2 text-sm font-medium">
-              E-posta
-              <input
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                maxLength={256}
-                className="h-11 rounded-md border px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </label>
-            {state === "error" && (
-              <p role="alert" className="text-sm text-destructive">
-                İşlem tamamlanamadı. Daha sonra tekrar deneyin.
-              </p>
-            )}
-            {state === "limited" && (
-              <p role="alert" className="text-sm text-destructive">
-                Çok fazla deneme. Bir dakika sonra tekrar deneyin.
-              </p>
-            )}
-            <Button type="submit" size="lg" disabled={state === "pending"}>
-              Bağlantı gönder
-            </Button>
-          </form>
-        )}
-        <Link href="/giris" className="text-sm underline">
-          Giriş
+      <h1 className={styles.title}>{title}</h1>
+      <form onSubmit={submit} className={styles.form}>
+        <Field id="eposta" label="E-posta">
+          <input id="eposta" name="email" type="email" autoComplete="email" inputMode="email" required maxLength={256} className={styles.input} />
+        </Field>
+        {state === "error" && <ErrorNote>İşlem tamamlanamadı. Daha sonra tekrar deneyin.</ErrorNote>}
+        {state === "limited" && <ErrorNote>Çok fazla deneme. Bir dakika sonra tekrar deneyin.</ErrorNote>}
+        <SubmitButton busy={state === "pending"}>Bağlantı gönder</SubmitButton>
+      </form>
+      <p className={styles.foot}>
+        <Link href="/giris" className={styles.link}>
+          Girişe dön
         </Link>
-      </main>
+      </p>
     </AuthShell>
   );
 }

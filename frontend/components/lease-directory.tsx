@@ -348,7 +348,6 @@ export function LeaseDirectory() {
           <h1 id="leases-title" className="text-2xl font-semibold tracking-tight">
             Sözleşmeler
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">Taslak, etkin ve sonlandırılmış sözleşmeler</p>
         </div>
         <Button
           type="button"
@@ -538,9 +537,6 @@ export function LeaseDirectory() {
         <Card>
           <CardContent className="py-12 text-center">
             <h2 className="font-medium">Sözleşme kaydı yok</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Sözleşme oluşturmak için etkin birim ve kiracı kayıtları gerekir.
-            </p>
           </CardContent>
         </Card>
       ) : (

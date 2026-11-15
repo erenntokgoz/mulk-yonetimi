@@ -178,11 +178,7 @@ export function RentCollection() {
         <h1 id="rent-collection-title" className="text-2xl font-semibold tracking-tight">
           Kira ve tahsilatlar
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Alacak, tahsilat ve dağıtım kayıtları</p>
       </div>
-      <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
-        Kullanıcı tarafından kaydedildi. Banka doğrulaması yapılmadı.
-      </p>
       {error && (
         <div role="alert" className="rounded-lg border border-destructive/50 bg-card p-4 text-sm">
           <p>{error}</p>
@@ -204,9 +200,6 @@ export function RentCollection() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Alacaklar</h2>
-              <p className="text-sm text-muted-foreground">
-                Tutar ve bakiyeler API kayıtlarından gösterilir.
-              </p>
             </div>
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -379,9 +372,6 @@ export function RentCollection() {
         <CardContent className="grid gap-4 p-5">
           <div>
             <h2 className="text-lg font-semibold">Tahsilatlar</h2>
-            <p className="text-sm text-muted-foreground">
-              Yeni tahsilat ekleyin ve dağıtılmamış tutarları izleyin.
-            </p>
           </div>
           <form
             className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-5"

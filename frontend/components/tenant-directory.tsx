@@ -119,7 +119,6 @@ export function TenantDirectory() {
           <h1 id="tenants-title" className="text-2xl font-semibold tracking-tight">
             Kiracılar
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">Kiracı kayıtları</p>
         </div>
         <Button
           type="button"
@@ -201,9 +200,6 @@ export function TenantDirectory() {
                   <option value="COMPANY">Şirket</option>
                 </select>
               </label>
-              <p className="self-end pb-3 text-xs text-muted-foreground">
-                Türü değiştirmek için ilgili alanları doldurun; boş isteğe bağlı alanlar temizlenir.
-              </p>
               <label className="grid gap-2 text-sm font-medium">
                 Ad
                 <input
@@ -285,9 +281,6 @@ export function TenantDirectory() {
         <Card>
           <CardContent className="py-12 text-center">
             <h2 className="font-medium">Kiracı kaydı bulunamadı</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Arama ölçütlerini değiştirebilir veya kiracı ekleyebilirsiniz.
-            </p>
           </CardContent>
         </Card>
       ) : (

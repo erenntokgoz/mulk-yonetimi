@@ -105,7 +105,6 @@ export function NotificationDirectory() {
           <h1 id="notifications-title" className="text-2xl font-semibold tracking-tight">
             Bildirimler
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">Vade, gecikme ve sözleşme hatırlatmaları</p>
         </div>
         {!loadFailed && (
           <Button

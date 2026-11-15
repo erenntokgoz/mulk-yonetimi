@@ -9,12 +9,15 @@ async function fill(page: import("@playwright/test").Page) {
   await page.getByLabel("Parola").fill("abcdef");
 }
 
-test("shows the password rules hint linked to the field", async ({ page }) => {
+test("shows the live password rules linked to the field", async ({ page }) => {
   await page.goto("/kayit");
-  const hint = page.getByText("En az 6 karakter; büyük harf, küçük harf, rakam ve sembol içermeli.");
-  await expect(hint).toBeVisible();
-  const id = await hint.getAttribute("id");
+  const rules = page.getByRole("list").filter({ hasText: "En az 6 karakter" });
+  await expect(rules).toBeVisible();
+  const id = await rules.getAttribute("id");
   await expect(page.getByLabel("Parola")).toHaveAttribute("aria-describedby", new RegExp(id!));
+  await expect(rules.locator('[data-ok="true"]')).toHaveCount(0);
+  await page.getByLabel("Parola").fill("Abc12!");
+  await expect(rules.locator('[data-ok="true"]')).toHaveCount(5);
 });
 
 test("lists the failed password rules on 400", async ({ page }) => {

@@ -7,15 +7,16 @@ test("recovery forms send requests and show generic receipt", async ({ page }) =
   await page.goto("/parolami-unuttum");
   await page.getByLabel("E-posta").fill("owner@example.test");
   await page.getByRole("button", { name: "Bağlantı gönder" }).click();
-  await expect(page.getByRole("status")).toContainText("bağlantı e-postayla gönderildi");
+  await expect(page.getByRole("status")).toContainText("sıfırlama bağlantısı gelir");
   await page.goto("/dogrulama-yeniden-gonder");
   await page.getByLabel("E-posta").fill("owner@example.test");
   await page.getByRole("button", { name: "Bağlantı gönder" }).click();
-  await expect(page.getByRole("status")).toContainText("bağlantı e-postayla gönderildi");
+  await expect(page.getByRole("status")).toContainText("doğrulama bağlantısı gelir");
   await page.goto("/parola-sifirla?userId=00000000-0000-0000-0000-000000000001&token=fixture");
-  await page.getByLabel("Yeni parola").fill("New-Password-123!");
+  await page.getByLabel("Yeni parola", { exact: true }).fill("New-Password-123!");
+  await page.getByLabel("Yeni parola tekrar").fill("New-Password-123!");
   await page.getByRole("button", { name: "Parolayı güncelle" }).click();
-  await expect(page.getByRole("status")).toContainText("Parola güncellendi");
+  await expect(page.getByRole("status")).toContainText("Parolanız değişti");
 });
 
 test("registration and email confirmation forms use the BFF", async ({ page }) => {
@@ -24,7 +25,7 @@ test("registration and email confirmation forms use the BFF", async ({ page }) =
   await page.getByLabel("E-posta").fill("new@example.test");
   await page.getByLabel("Parola").fill("Valid-Password-123!");
   await page.getByRole("button", { name: "Hesap oluştur" }).click();
-  await expect(page.getByRole("status")).toContainText("doğrulama bağlantısını");
+  await expect(page.getByRole("status")).toContainText("adresine bir bağlantı gönderdik");
   await page.goto("/dogrula?userId=00000000-0000-0000-0000-000000000001&token=fixture");
   await page.getByRole("button", { name: "E-postayı doğrula" }).click();
   await expect(page.getByRole("status")).toContainText("E-posta doğrulandı");

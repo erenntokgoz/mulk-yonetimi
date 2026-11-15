@@ -15,10 +15,10 @@ const dashboardRoutes = [
 ] as const;
 
 const authRoutes = [
-  ["/giris", "Giriş"],
-  ["/kayit", "Hesap oluştur"],
-  ["/parolami-unuttum", "Parolamı unuttum"],
-  ["/parola-sifirla", "Parola sıfırla"],
+  ["/giris", "Hesabınıza girin."],
+  ["/kayit", "Hesabınızı oluşturun."],
+  ["/parolami-unuttum", "Parolanızı sıfırlayın."],
+  ["/parola-sifirla", "Yeni parolanızı belirleyin."],
   ["/dogrula", "E-posta doğrulama"],
   ["/dogrulama-yeniden-gonder", "Doğrulama e-postası"],
 ] as const;

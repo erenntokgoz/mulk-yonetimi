@@ -3,10 +3,11 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/password-input";
 import { AuthShell } from "@/components/auth-shell";
+import { ErrorNote, Field, GoogleButton, SubmitButton } from "@/components/auth-ui";
 import { setSessionState } from "@/lib/session-client";
+import styles from "@/components/auth-shell.module.css";
 
 function safeNextPath(next: string | null) {
   // Only same-origin paths; rejects "//host" and "/\host" open redirects.
@@ -55,49 +56,32 @@ export default function LoginPage() {
 
   return (
     <AuthShell>
-      <main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 px-4 py-10">
-        <div>
-          <h1 className="text-2xl font-semibold">Giriş</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Mülküm hesabınızla devam edin.</p>
+      <h1 className={styles.title}>Hesabınıza girin.</h1>
+      <form onSubmit={submit} className={styles.form}>
+        <Field id="giris-email" label="E-posta">
+          <input id="giris-email" name="email" type="email" autoComplete="username" inputMode="email" required maxLength={256} className={styles.input} />
+        </Field>
+        <div className={styles.field}>
+          <div className={styles.lblrow}>
+            <label className={styles.label} htmlFor="giris-parola">
+              Parola
+            </label>
+            <Link href="/parolami-unuttum" className={styles.link}>
+              Parolamı unuttum
+            </Link>
+          </div>
+          <PasswordInput id="giris-parola" name="password" autoComplete="current-password" required />
         </div>
-        <form onSubmit={submit} className="grid gap-4">
-          <label className="grid gap-2 text-sm font-medium">
-            E-posta
-            <input
-              name="email"
-              type="email"
-              autoComplete="username"
-              required
-              maxLength={256}
-              className="h-11 rounded-md border bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </label>
-          <label className="grid gap-2 text-sm font-medium">
-            Parola
-            <PasswordInput name="password" autoComplete="current-password" required />
-          </label>
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
-          <Button type="submit" size="lg" disabled={busy}>
-            {busy ? "Giriş yapılıyor…" : "Giriş yap"}
-          </Button>
-        </form>
-        <Link
-          href="/kayit"
-          className="text-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Hesap oluştur
+        {error && <ErrorNote>{error}</ErrorNote>}
+        <SubmitButton busy={busy}>{busy ? "Giriş yapılıyor…" : "Giriş yap"}</SubmitButton>
+        <GoogleButton />
+      </form>
+      <p className={styles.foot}>
+        Hesabınız yok mu?{" "}
+        <Link className={styles.link} href="/kayit">
+          Hesap oluşturun
         </Link>
-        <Link
-          href="/parolami-unuttum"
-          className="text-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Parolamı unuttum
-        </Link>
-      </main>
+      </p>
     </AuthShell>
   );
 }

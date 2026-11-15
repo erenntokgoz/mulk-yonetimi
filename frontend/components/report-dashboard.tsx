@@ -39,7 +39,8 @@ export function ReportDashboard() {
         setProperties(p.items.filter((x) => !x.archivedAtUtc));
         setMoreProperties(p.hasMore);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Mülk listesi alınamadı."));
+      // Rapor isteği daha önce kendi hatasını yazdıysa (ör. oturum yok) mülk listesi hatası onu ezmez; sıra değişse de sonuç aynı kalır.
+      .catch((e) => setError((current) => current || (e instanceof Error ? e.message : "Mülk listesi alınamadı.")));
   }, []);
   async function loadMoreProperties() {
     setLoadingMore(true);
@@ -94,7 +95,6 @@ export function ReportDashboard() {
         <h1 id="reports-title" className="text-2xl font-semibold tracking-tight">
           Raporlar
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Seçilen aralıktaki nakit giriş ve çıkışları</p>
       </div>
       {error && (
         <div
@@ -164,10 +164,6 @@ export function ReportDashboard() {
           </div>
           {moreProperties && <Button type="button" variant="outline" disabled={loadingMore}
             onClick={() => void loadMoreProperties()}>Diğer mülkleri yükle</Button>}
-          <p className="text-sm text-muted-foreground">
-            Nakit akışı net kâr değildir. Depozito hareketleri ve ödenmemiş giderler nakit akışına dahil
-            edilmez.
-          </p>
           {flow && !error && (
             <div className="flex flex-wrap gap-2">
               <Button asChild variant="outline" size="lg"><a href={`/api/bff/reports/cashflow.csv?${exportQuery}`} download="cashflow.csv">Nakit akışı CSV</a></Button>
@@ -197,7 +193,7 @@ export function ReportDashboard() {
       )}
       {flow && (
         <p className="text-xs text-muted-foreground">
-          {flow.fromDate} – {flow.toDate} · Değerler API raporundan alınır.
+          {flow.fromDate} – {flow.toDate}
         </p>
       )}
     </section>
