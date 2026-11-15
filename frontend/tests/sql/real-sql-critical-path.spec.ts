@@ -73,7 +73,9 @@ test("verified owner completes property, unit, tenant, and lease onboarding thro
 
   await page.goto("/sozlesmeler");
   await page.getByRole("button", { name: "Sözleşme oluştur" }).click();
-  await page.getByLabel("Birim").selectOption({ label: `Daire ${suffix}` });
+  const unitOption = `${propertyName} · Daire ${suffix}`;
+  await expect(page.getByRole("option", { name: unitOption })).toBeAttached();
+  await page.getByLabel("Birim").selectOption({ label: unitOption });
   await page.getByLabel("Kiracı").selectOption({ label: tenantName });
   await page.getByLabel("Başlangıç tarihi").fill(date(today));
   await page.getByLabel("Planlanan bitiş tarihi").fill(date(endDate));
