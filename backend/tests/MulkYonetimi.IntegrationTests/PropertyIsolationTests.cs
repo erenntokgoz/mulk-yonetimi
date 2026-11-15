@@ -284,7 +284,7 @@ public sealed class PropertyIsolationTests
             await using var context = new ApplicationDbContext(options);
             await new RentChargeJob(context).GenerateAsync(february, CancellationToken.None);
         }));
-            await VerifyPaymentsAsync(clientA, clientB, active, db);
+        await VerifyPaymentsAsync(clientA, clientB, active, db);
         await VerifyOperatingLedgerAsync(clientA, clientB, active, propertyId);
         var currentLease = (await clientA.GetFromJsonAsync<LeaseResponse>(activePath, Json))!;
         using var terminated = await clientA.PostAsJsonAsync(activePath + "/terminate",
