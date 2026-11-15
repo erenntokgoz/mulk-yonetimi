@@ -257,6 +257,8 @@ input[type='search']::-ms-clear {
 
 /* ---- Mobil (≤639px): dokunma hedefi, form, kart düzeni ---- */
 @media (max-width: 639px) {
+  .property-grid { grid-template-columns: 1fr; }
+  .property-actions { flex-wrap: wrap; }
   .view-switch { display: none; }
   .glass-table { display: none; }
   .workspace-main h1 { font-size: 24px; }
