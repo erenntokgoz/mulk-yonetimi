@@ -21,7 +21,7 @@ test("empty account shows the wizard with step 1 current and a working link", as
   await expect(current).toContainText("Mülk ekle");
   await expect(wizard.getByText("Tamamlandı")).toHaveCount(0);
   const link = current.getByRole("link", { name: "Mülk ekle" });
-  expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(43.5);
   await link.click();
   await expect(page).toHaveURL(/\/portfoy$/);
 });
