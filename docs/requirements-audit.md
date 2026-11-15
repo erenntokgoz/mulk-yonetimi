@@ -1,5 +1,7 @@
 # Gereksinim denetimi · 15 Kasım 2026
 
+Güncel durum ve kalan kabul kapıları: [16 Kasım teslim notu](teslim-notu-2026-11-16.md). Aşağıdaki tablolar ilk denetimin tarihsel kaydıdır.
+
 Kapsam: `develop` dalı. Kaynaklar: MVP Backlog v1.1 (59 satır), PRD v1.1 (FR/BR/QA/yayın kapıları), Technical Design v1.1 (sert kurallar), `AGENTS.md`, `docs/adr/*.md`.
 
 Yöntem: statik kod ve test incelemesi. Bu denetimde test, lint, typecheck veya build çalıştırılmadı. "Test adı" sütunundaki testlerin geçtiği ayrıca doğrulanmadı. Canlı doğrulanan tek şey kayıt, e-posta doğrulama ve girişin 2026-11-15'te çalışmasıdır (kullanıcı bildirimi). Belge akışı canlıda kapalıdır (R2 ve zararlı yazılım tarayıcısı yapılandırılmadı).
