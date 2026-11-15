@@ -3,6 +3,22 @@
 name: mulk-yonetimi
 
 services:
+  clamav:
+    image: clamav/clamav:1.5
+    profiles: ["scanner"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3310:3310"
+    environment:
+      # Paylaşılan hostta imza yenilemesi belleği ikiye katlamasın; yenileme sırasında tarama bekler, TestDatabases açık kalır.
+      CLAMD_CONF_ConcurrentDatabaseReload: "no"
+    volumes:
+      - clamav-signatures:/var/lib/clamav
+    # Üst sınır: tarayıcı bellek aşarsa yalnız o kapanır, belge tamamlama fail-closed kalır.
+    mem_limit: 2g
+    security_opt:
+      - no-new-privileges:true
+
   api:
     build: ../backend
     image: mulk-yonetimi-api:latest
@@ -30,5 +46,7 @@ services:
         max-file: "3"
 
 volumes:
+  clamav-signatures:
+    name: mulk-yonetimi-clamav-signatures
   dataprotection-keys:
     name: mulk-yonetimi-dataprotection-keys

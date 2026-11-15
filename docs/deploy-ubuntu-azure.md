@@ -3,6 +3,8 @@
 Karar: [ADR 003](adr/003-yayin-topolojisi.md). Bu sunucuda başka servisler çalışıyor; yalnız burada adı geçen dosya,
 container ve portlara dokun.
 
+Yayın öncesi staging, kurtarma tatbikatı, go/no-go ve geri dönüş kapısı için [pilot yayın kontrolünü](release-readiness.md) tamamlayın.
+
 ## 1. Azure SQL (portal)
 
 1. portal.azure.com → **SQL databases → Create**.
@@ -54,6 +56,16 @@ certbot --nginx -d mulkapi.duckdns.org
 
 `nginx -t` hata verirse reload yapma; mevcut siteler etkilenir.
 
+`certbot` sonrasında `mulkapi.duckdns.org` için HTTPS `server` bloğunda şu başlıkların da bulunduğunu doğrulayın. HSTS'yi HTTP yönlendirme bloğunda bırakmak yeterli değildir; `includeSubDomains`/`preload` kullanmayın.
+
+```nginx
+server_tokens off;
+add_header X-Content-Type-Options "nosniff" always;
+add_header Strict-Transport-Security "max-age=31536000" always;
+```
+
+`deploy/nginx/mulkapi.conf` yalnız API domain'i için `server_tokens off`, `nosniff` ve HSTS örneği taşır. TLS bloğunda değişiklik sonrası `nginx -t && systemctl reload nginx` çalıştırın.
+
 ## Güncelleme
 
 ```bash
@@ -67,9 +79,50 @@ Yeni migration varsa önce bölüm 2'deki komut çalıştırılır; `deploy/sql/
 Ortam değişkenleri: `BACKEND_BASE_URL=https://mulkapi.duckdns.org`, `FRONTEND_ORIGIN=https://<vercel-alan-adi>`.
 `deploy/api.env` içindeki `Auth__FrontendOrigin` aynı değerle eşleşmeli. Bölge `fra1`.
 
+Auth hız sınırının ortak Vercel çıkış IP'sinde tüm kullanıcıları birleştirmemesi için bağımsız, kriptografik rastgele en az 32 karakterlik bir anahtar üretip yalnız parola yöneticisi üzerinden iki tarafa aktarın: Vercel'de `BACKEND_RATE_LIMIT_SIGNING_KEY`, API sunucusundaki `deploy/api.env` içinde `Network__RateLimitSigningKey`. Anahtarı istemci bundle'ına (`NEXT_PUBLIC_*`), terminal komutuna, ticket'a veya Git'e koymayın; `Pilot__AdminKey` ile tekrar kullanmayın. Her iki değer ayarlanınca Vercel'i redeploy ve API container'ını yeniden oluşturun. API production'da anahtar yoksa başlamaz. Ayrıntı ADR 011'de.
+
 ## E-posta (Mailu)
 
 SMTP: `mail.kasam360.com.tr:465` örtük TLS (Mailu içinde 587 kapalı). `Email__SmtpPort=465`, gönderen `mulkum@360labs.com.tr`. Container host ağını kullandığı için Mailu'ya ulaşır. Posta spam'e düşerse 360labs.com.tr için SPF/DKIM kaydı gerekir.
+
+## Özel R2 ve zararlı yazılım taraması
+
+### Pilot hesap onayı
+
+Yeni kayıt, e-posta doğrulandıktan sonra da `PENDING` kalır. Canlı kullanıcı davet etmeden önce zaten var olan, e-postası doğrulanmış ve etkin hesabı bulunan operatörün `AspNetUsers.Id` UUID'sini `Pilot__AdminUserId` olarak; en az 32 rastgele karakterlik, yalnızca parola yöneticisinde tutulan anahtarı `Pilot__AdminKey` olarak `deploy/api.env` içine koyun. Bu değerleri Vercel'e veya repoya eklemeyin. `deploy/api.env.example` içindeki alanları sunucuda doldurun ve API container'ını yeniden oluşturun.
+
+Operatör HTTPS üzerinden aşağıdaki aracı çalıştırır. E-posta, parola ve anahtar gizli prompt ile alınır; oturum çerezi bellekte tutulur. Araç yalnız bekleyen hesapları listeler, e-posta doğrulanmamışsa aktivasyon yapmaz. Onay audit kaydı oluşturur.
+
+```bash
+python3 deploy/activate-pilot-account.py https://mulkapi.duckdns.org https://mulkum-beta.vercel.app
+```
+
+Anahtar sızarsa `Pilot__AdminKey` değerini değiştirip API'yi yeniden başlatın. Yanlış kullanıcı `Pilot__AdminUserId` ile eşleşirse aktivasyon başarısız olur; yönetici listesi/uygulama içi bir bypass yoktur.
+
+Belge kotası `Storage__MaximumDocumentCountPerAccount` ve `Storage__MaximumStorageBytesPerAccount` ile hesap başına ayarlanır. İlk varsayılanlar 1000 belge ve 1 GiB'tır; bunlar ürün planı taahhüdü değil, ADR 006'da kayıtlı mühendislik başlangıç değerleridir. Aktif ve bekleyen belge rezervasyon sayılır; silinmiş kayıt kota kullanmaz.
+
+Her ortam için ayrı private R2 bucket ve yalnız o bucket'a kapsamlı `Object Read & Write` S3 API token kullanın. R2 S3 kurulumu için [Cloudflare'ın resmi yönergesini](https://developers.cloudflare.com/r2/get-started/s3/), token kapsamı için [R2 token belgelerini](https://developers.cloudflare.com/r2/api/tokens/) izleyin. Bucket'ı private bırakın; public access veya public custom domain açmayın. Account ID, bucket adı, Access Key ID ve Secret Access Key yalnız API hostundaki `deploy/api.env` içine konur; secret token üretiminde yalnız bir kez gösterilir, başka yere kopyalamayın.
+
+Bu uygulamada browser doğrudan imzalı `PUT` ile `Content-Type` gönderir ve imzalı `GET` ile indirir. `HEAD` metadata kontrolünü API tarafı yapar, tarayıcı CORS gereksinimi değildir. Cloudflare Dashboard → **Storage & databases → R2 → bucket → Settings → CORS Policy** altında exact production origin kuralı kullanın; wildcard eklemeyin:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://mulkum-beta.vercel.app"],
+    "AllowedMethods": ["GET", "PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Üretim origin'i farklıysa `Auth__FrontendOrigin` ile aynı origin'i ve uygulamanın gerçek public origin'ini kullanın. Preview için origin gerekiyorsa yalnız tam preview hostunu staging bucket politikasına ekleyin; tüm `vercel.app` alanını açmayın.
+
+ClamAV resmi container'ı imza veritabanı ile gelir ve 3310 TCP hizmeti sağlar; [resmi container belgesi](https://github.com/Cisco-Talos/clamav-documentation/blob/main/src/manual/Installing/Docker.md) 4 GB RAM önerir. Paylaşılan sunucuda kapasite ölçülmeden profili açmayın. Ayrı staging ortamında önce `docker compose -f deploy/compose.api.yaml --profile scanner up -d clamav` çalıştırın; yalnız `127.0.0.1:3310` dinlenmelidir. Güncel imza ve sağlıklı scanner doğrulandıktan sonra `Scanner__Host=127.0.0.1` koyup API'yi yeniden başlatın. Tarayıcı yoksa/erişilemiyorsa `complete` 503, tehdit bulunursa 422 döner; dosya ACTIVE olmaz. R2/ClamAV canlı kabul testi ve gerçek CORS testi geçmeden belge özelliğini açık ilan etmeyin.
+
+ClamAV resmi container'ı imza veritabanı ile gelir ve 3310 TCP hizmeti sağlar; [resmi container belgesi](https://github.com/Cisco-Talos/clamav-documentation/blob/main/src/manual/Installing/Docker.md) 4 GB RAM önerir. Paylaşılan sunucuda kapasite ölçülmeden profili açmayın. Ayrı staging ortamında önce `docker compose -f deploy/compose.api.yaml --profile scanner up -d clamav` çalıştırın; yalnız `127.0.0.1:3310` dinlenmelidir. Güncel imza ve sağlıklı scanner doğrulandıktan sonra `Scanner__Host=127.0.0.1` koyup API'yi yeniden başlatın. Tarayıcı yoksa/erişilemiyorsa `complete` 503, tehdit bulunursa 422 döner; dosya ACTIVE olmaz. R2/ClamAV canlı kabul testi ve gerçek CORS testi geçmeden belge özelliğini açık ilan etmeyin.
+
+Gerçek R2 kabul testi ayrı staging bucket ile çalıştırılır. Dört `Storage__R2*` değişkenini yalnız test sürecine aktarın; `MULK_R2_ALLOWED_ORIGIN` staging frontend origin'i, `MULK_R2_DENIED_ORIGIN` farklı bir origin olsun. `dotnet test backend/tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.csproj --filter FullyQualifiedName~R2AcceptanceTests` komutu imzalı PUT/GET, private unsigned GET, yanlış Content-Type, metadata, imza ve CORS'u denetler; test nesnesini sonunda siler. Dört credential eksikse test açıkça **SKIP** olur; R2 kabulü geçilmiş sayılmaz. CORS origin değişkenleri eksikse CORS kısmı ölçülmez ve ayrıca açık kapı kalır. İmzalı URL ve credential çıktıya yazdırılmaz.
 
 ## Geri dönüş
 

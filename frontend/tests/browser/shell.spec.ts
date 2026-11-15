@@ -62,7 +62,7 @@ for (const width of [768, 375]) {
       await expect(dialog).toBeHidden();
       await hamburger.click();
       await expect(dialog).toBeVisible();
-      await page.mouse.click(width - 5, 450);
+      await page.locator("[data-scrim]").click({ position: { x: width - 5, y: 450 } });
       await expect(dialog).toBeHidden();
     });
 

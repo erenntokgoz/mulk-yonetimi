@@ -30,7 +30,16 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:browser
+      - name: Run browser tests
+        id: browser-tests
+        run: pnpm test:browser
+      - name: Upload browser artifacts on failure
+        if: failure() && steps.browser-tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-test-results-${{ github.run_id }}
+          path: frontend/test-results/
+          if-no-files-found: ignore
 
   backend:
     runs-on: ubuntu-latest
@@ -49,6 +58,22 @@ jobs:
       - name: Run remaining backend tests
         run: dotnet test MulkYonetimi.slnx --no-build --configuration Release --filter 'FullyQualifiedName!~MulkYonetimi.Api.Tests.PropertyContractTests'
       - run: dotnet format MulkYonetimi.slnx --verify-no-changes --no-restore
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.15.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Check generated OpenAPI client
+        run: |
+          ASPNETCORE_ENVIRONMENT=Development Email__WorkerEnabled=false Notifications__WorkerEnabled=false RentCharges__WorkerEnabled=false \
+            dotnet src/MulkYonetimi.Api/bin/Release/net10.0/MulkYonetimi.Api.dll --urls http://127.0.0.1:5080 > "$RUNNER_TEMP/openapi-server.log" 2>&1 &
+          curl --fail --retry 20 --retry-delay 1 --retry-connrefused http://127.0.0.1:5080/openapi/v1.json -o "$RUNNER_TEMP/openapi.json"
+          cd ../frontend
+          pnpm install --frozen-lockfile
+          pnpm api:types
+          git diff --exit-code -- lib/api/generated.ts
       - name: Prepare API and migration artifacts
         if: github.event_name == 'push'
         run: |
@@ -82,8 +107,56 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
+      - name: Prepare ephemeral browser E2E credentials
+        run: |
+          printf 'MULK_SQL_E2E_ENABLED=true\n' >> "$GITHUB_ENV"
+          printf 'MULK_SQL_E2E_DATABASE=MulkBrowserE2E_%s\n' "$GITHUB_RUN_ID" >> "$GITHUB_ENV"
+          printf 'MULK_SQL_E2E_EMAIL=browser-%s@example.test\n' "$GITHUB_RUN_ID" >> "$GITHUB_ENV"
+          printf 'MULK_SQL_E2E_PASSWORD=%sAa9!\n' "$(openssl rand -hex 24)" >> "$GITHUB_ENV"
       - run: dotnet restore tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.csproj --locked-mode
       - run: dotnet test tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.csproj --no-restore --configuration Release
         env:
           MULK_SQL_TEST_ADMIN_CONNECTION: Server=127.0.0.1,14333;Database=master;User Id=sa;Password=${{ secrets.MULK_SQL_TEST_PASSWORD }};Encrypt=True;TrustServerCertificate=True;Connect Timeout=10
       - run: dotnet format tests/MulkYonetimi.IntegrationTests/MulkYonetimi.IntegrationTests.csproj --verify-no-changes --no-restore
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.15.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: pnpm build
+        working-directory: frontend
+        env:
+          BACKEND_BASE_URL: http://127.0.0.1:5080
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Start API against the isolated SQL E2E database
+        run: |
+          dotnet src/MulkYonetimi.Api/bin/Release/net10.0/MulkYonetimi.Api.dll --urls http://127.0.0.1:5080 > "$RUNNER_TEMP/sql-e2e-api.log" 2>&1 &
+          api_pid=$!
+          printf '%s\n' "$api_pid" > "$RUNNER_TEMP/sql-e2e-api.pid"
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:5080/openapi/v1.json > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          kill "$api_pid" 2>/dev/null || true
+          exit 1
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ConnectionStrings__DefaultConnection: Server=127.0.0.1,14333;Database=${{ env.MULK_SQL_E2E_DATABASE }};User Id=sa;Password=${{ secrets.MULK_SQL_TEST_PASSWORD }};Encrypt=True;TrustServerCertificate=True;Connect Timeout=10
+          Auth__FrontendOrigin: http://127.0.0.1:3120
+          Email__WorkerEnabled: 'false'
+          Notifications__WorkerEnabled: 'false'
+          RentCharges__WorkerEnabled: 'false'
+      - name: Run browser flow against the SQL-backed API
+        run: pnpm test:browser:sql
+        working-directory: frontend
+        env:
+          MULK_SQL_E2E_API_URL: http://127.0.0.1:5080
+          MULK_SQL_E2E_EMAIL: ${{ env.MULK_SQL_E2E_EMAIL }}
+          MULK_SQL_E2E_PASSWORD: ${{ env.MULK_SQL_E2E_PASSWORD }}

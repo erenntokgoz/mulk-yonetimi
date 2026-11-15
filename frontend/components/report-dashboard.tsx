@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
@@ -19,20 +20,40 @@ export function ReportDashboard() {
     toDate: date(new Date()),
   });
   const [properties, setProperties] = useState<Property[]>([]);
+  const [propertyPage, setPropertyPage] = useState(1);
+  const [moreProperties, setMoreProperties] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [propertyId, setPropertyId] = useState("");
   const [unitId, setUnitId] = useState("");
   const [flow, setFlow] = useState<CashFlow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const exportQuery = new URLSearchParams({ fromDate: range.fromDate, toDate: range.toDate });
+  if (propertyId) exportQuery.set("propertyId", propertyId);
+  if (unitId) exportQuery.set("unitId", unitId);
   useEffect(() => {
     void fetch("/api/bff/properties?page=1&pageSize=100", { cache: "no-store" })
       .then(async (r) => {
         if (!r.ok) throw new Error("Mülk listesi alınamadı.");
-        const p = (await r.json()) as { items: Property[] };
+        const p = (await r.json()) as { items: Property[]; hasMore: boolean };
         setProperties(p.items.filter((x) => !x.archivedAtUtc));
+        setMoreProperties(p.hasMore);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Mülk listesi alınamadı."));
   }, []);
+  async function loadMoreProperties() {
+    setLoadingMore(true);
+    try {
+      const next = propertyPage + 1;
+      const response = await fetch(`/api/bff/properties?page=${next}&pageSize=100`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Diğer mülkler alınamadı.");
+      const result = (await response.json()) as { items: Property[]; hasMore: boolean };
+      setProperties((current) => [...current, ...result.items.filter((item) => !item.archivedAtUtc)]);
+      setPropertyPage(next); setMoreProperties(result.hasMore);
+      setError("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Diğer mülkler alınamadı."); }
+    finally { setLoadingMore(false); }
+  }
   useEffect(() => {
     let active = true;
     const q = new URLSearchParams({ fromDate: range.fromDate, toDate: range.toDate });
@@ -141,10 +162,18 @@ export function ReportDashboard() {
               />
             </label>
           </div>
+          {moreProperties && <Button type="button" variant="outline" disabled={loadingMore}
+            onClick={() => void loadMoreProperties()}>Diğer mülkleri yükle</Button>}
           <p className="text-sm text-muted-foreground">
             Nakit akışı net kâr değildir. Depozito hareketleri ve ödenmemiş giderler nakit akışına dahil
             edilmez.
           </p>
+          {flow && !error && (
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" size="lg"><a href={`/api/bff/reports/cashflow.csv?${exportQuery}`} download="cashflow.csv">Nakit akışı CSV</a></Button>
+              <Button asChild variant="outline" size="lg"><a href={`/api/bff/reports/payments.csv?${exportQuery}`} download="payments.csv">Tahsilatlar CSV</a></Button>
+            </div>
+          )}
         </CardContent>
       </Card>
       {loading && <ListSkeleton label="Rapor yükleniyor…" />}

@@ -40,8 +40,15 @@ function tenantName(tenant: Tenant) {
 
 export function RentCollection() {
   const [charges, setCharges] = useState<Charge[]>([]);
+  const [chargePage, setChargePage] = useState(1);
+  const [moreCharges, setMoreCharges] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [paymentPage, setPaymentPage] = useState(1);
+  const [morePayments, setMorePayments] = useState(false);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [tenantPage, setTenantPage] = useState(1);
+  const [moreTenants, setMoreTenants] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -73,16 +80,42 @@ export function RentCollection() {
         chargeResponse.json(),
         paymentResponse.json(),
         tenantResponse.json(),
-      ])) as [ChargePage, PaymentPage, { items: Tenant[] }];
+      ])) as [ChargePage, PaymentPage, { items: Tenant[]; hasMore: boolean }];
       setCharges(chargePage.items);
+      setChargePage(1); setMoreCharges(chargePage.hasMore);
       setPayments(paymentPage.items);
+      setPaymentPage(1); setMorePayments(paymentPage.hasMore);
       setTenants(tenantPage.items);
+      setTenantPage(1); setMoreTenants(tenantPage.hasMore);
       setError("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Kira ve tahsilat verileri alınamadı.");
     } finally {
       setLoading(false);
     }
+  }
+  async function loadMore(kind: "charges" | "payments" | "tenants") {
+    setLoadingMore(true);
+    try {
+      const next = (kind === "charges" ? chargePage : kind === "payments" ? paymentPage : tenantPage) + 1;
+      const path = kind === "charges" ? "rent-charges" : kind;
+      const query = kind === "tenants" ? "&includeArchived=true" : "";
+      const response = await fetch(`/api/bff/${path}?page=${next}&pageSize=100${query}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Diğer kayıtlar alınamadı.");
+      const result = (await response.json()) as { items: unknown[]; hasMore: boolean };
+      if (kind === "charges") {
+        setCharges((current) => [...current, ...(result.items as Charge[])]);
+        setChargePage(next); setMoreCharges(result.hasMore);
+      } else if (kind === "payments") {
+        setPayments((current) => [...current, ...(result.items as Payment[])]);
+        setPaymentPage(next); setMorePayments(result.hasMore);
+      } else {
+        setTenants((current) => [...current, ...(result.items as Tenant[])]);
+        setTenantPage(next); setMoreTenants(result.hasMore);
+      }
+      setError("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Diğer kayıtlar alınamadı."); }
+    finally { setLoadingMore(false); }
   }
   useEffect(() => {
     void Promise.resolve().then(load);
@@ -338,6 +371,8 @@ export function RentCollection() {
           ) : (
             <p className="py-8 text-center text-sm text-muted-foreground">Gösterilecek alacak kaydı yok.</p>
           )}
+          {moreCharges && <Button type="button" variant="outline" disabled={loadingMore}
+            onClick={() => void loadMore("charges")}>Diğer alacakları yükle</Button>}
         </CardContent>
       </Card>
       <Card>
@@ -418,6 +453,8 @@ export function RentCollection() {
               Tahsilatı kaydet
             </Button>
           </form>
+          {moreTenants && <Button type="button" variant="outline" disabled={loadingMore}
+            onClick={() => void loadMore("tenants")}>Diğer kiracıları yükle</Button>}
           {loading ? (
             <ListSkeleton label="Tahsilatlar yükleniyor…" />
           ) : payments.length ? (
@@ -464,6 +501,8 @@ export function RentCollection() {
           ) : (
             <p className="py-8 text-center text-sm text-muted-foreground">Tahsilat kaydı yok.</p>
           )}
+          {morePayments && <Button type="button" variant="outline" disabled={loadingMore}
+            onClick={() => void loadMore("payments")}>Diğer tahsilatları yükle</Button>}
         </CardContent>
       </Card>
     </section>

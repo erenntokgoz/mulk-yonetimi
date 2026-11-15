@@ -29,6 +29,15 @@ internal static class RentLedgerMapping
             rate.Property(item => item.MonthlyAmount).HasPrecision(19, 2);
             rate.Property(item => item.Reason).HasMaxLength(500);
         });
+        builder.Entity<LeaseRenewal>(renewal =>
+        {
+            renewal.HasKey(item => item.Id);
+            renewal.HasIndex(item => new { item.AccountId, item.LeaseId, item.EffectiveFrom }).IsUnique();
+            renewal.HasOne<Lease>().WithMany().HasForeignKey(item => new { item.AccountId, item.LeaseId })
+                .HasPrincipalKey(item => new { item.AccountId, item.Id }).OnDelete(DeleteBehavior.Restrict);
+            renewal.Property(item => item.MonthlyAmount).HasPrecision(19, 2);
+            renewal.Property(item => item.Reason).HasMaxLength(500);
+        });
         builder.Entity<RentCharge>(charge =>
         {
             charge.HasAlternateKey(item => new { item.AccountId, item.Id });

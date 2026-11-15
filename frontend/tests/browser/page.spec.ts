@@ -15,7 +15,7 @@ for (const [state, label] of [
     await expect(page.getByRole("region", { name: "Sistem durumu" }).getByRole("status")).toHaveText(label);
     if (state !== "Disconnected") {
       await expect(page.getByText("Veritabanı", { exact: true })).toBeVisible();
-      await expect(page.locator("dd")).toHaveText(label);
+      await expect(page.locator("dd > span")).toHaveText(label);
     } else {
       await expect(page.getByText(/Hizmet durumu alınamadı/)).toBeVisible();
     }
@@ -147,7 +147,7 @@ test("documents, notifications, and settings show API sign-in states without pla
     await expect(page.getByTestId("unavailable-state")).toHaveCount(0);
   }
   await page.goto("/bilinmeyen");
-  await expect(page.getByRole("heading", { level: 1, name: "404" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Sayfa bulunamadı" })).toBeVisible();
 });
 
 test("rent charges and payments load from the API and idempotent actions can be retried", async ({ page }) => {

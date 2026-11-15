@@ -26,6 +26,19 @@ public sealed class AccountMember
     public required string Status { get; set; }
 }
 
+public sealed class AccountPlan
+{
+    public Guid AccountId { get; set; }
+    public required string Code { get; set; }
+}
+
+public sealed class AccountEntitlement
+{
+    public Guid AccountId { get; set; }
+    public required string Code { get; set; }
+    public int? LimitValue { get; set; }
+}
+
 public sealed class OutboxMessage
 {
     public Guid Id { get; set; }
@@ -52,12 +65,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 {
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<AccountMember> AccountMembers => Set<AccountMember>();
+    public DbSet<AccountPlan> AccountPlans => Set<AccountPlan>();
+    public DbSet<AccountEntitlement> AccountEntitlements => Set<AccountEntitlement>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<Property> Properties => Set<Property>();
     public DbSet<Unit> Units => Set<Unit>();
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<Lease> Leases => Set<Lease>();
     public DbSet<RentRatePeriod> RentRatePeriods => Set<RentRatePeriod>();
+    public DbSet<LeaseRenewal> LeaseRenewals => Set<LeaseRenewal>();
     public DbSet<RentCharge> RentCharges => Set<RentCharge>();
     public DbSet<RentChargeCorrection> RentChargeCorrections => Set<RentChargeCorrection>();
     public DbSet<Payment> Payments => Set<Payment>();
@@ -103,6 +119,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             member.HasOne<ApplicationUser>().WithMany().HasForeignKey(item => item.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
+        builder.Entity<AccountPlan>(plan =>
+        {
+            plan.HasKey(item => item.AccountId);
+            plan.Property(item => item.Code).HasMaxLength(32);
+            plan.HasOne<Account>().WithMany().HasForeignKey(item => item.AccountId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<AccountEntitlement>(entitlement =>
+        {
+            entitlement.HasKey(item => new { item.AccountId, item.Code });
+            entitlement.Property(item => item.Code).HasMaxLength(32);
+            entitlement.HasOne<Account>().WithMany().HasForeignKey(item => item.AccountId).OnDelete(DeleteBehavior.Restrict);
+        });
 
         builder.Entity<OutboxMessage>(message =>
         {
@@ -143,6 +171,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             unit.Property(item => item.DoorNumber).HasMaxLength(32);
             unit.Property(item => item.AreaM2).HasPrecision(9, 2);
             unit.Property(item => item.UsageType).HasConversion<string>().HasMaxLength(16);
+            unit.HasIndex(item => new { item.AccountId, item.PropertyId, item.ArchivedAtUtc });
             unit.HasOne<Property>().WithMany()
                 .HasForeignKey(item => new { item.AccountId, item.PropertyId })
                 .HasPrincipalKey(item => new { item.AccountId, item.Id })
@@ -170,6 +199,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         {
             audit.Property(item => item.EntityType).HasMaxLength(32);
             audit.Property(item => item.Action).HasMaxLength(32);
+            audit.Property(item => item.CorrelationId).HasMaxLength(64);
+            audit.Property(item => item.Reason).HasMaxLength(500);
+            audit.Property(item => item.DiffSummary).HasMaxLength(1000);
             audit.HasOne<Account>().WithMany().HasForeignKey(item => item.AccountId)
                 .OnDelete(DeleteBehavior.Restrict);
             audit.HasIndex(item => new { item.AccountId, item.OccurredAtUtc });
