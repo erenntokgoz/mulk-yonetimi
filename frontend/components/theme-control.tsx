@@ -2,7 +2,6 @@
 
 import { useSyncExternalStore } from "react";
 import { Moon, Sun } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 const subscribe = (callback: () => void) => {
   document.addEventListener("mulk-theme-change", callback);
@@ -16,6 +15,8 @@ export function ThemeControl() {
   function toggle() {
     const next = !document.documentElement.classList.contains("dark");
     document.documentElement.classList.toggle("dark", next);
+    if (next) delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = "light";
     try {
       localStorage.setItem("mulk-theme", next ? "dark" : "light");
     } catch {
@@ -25,16 +26,14 @@ export function ThemeControl() {
   }
 
   return (
-    <Button
+    <button
       type="button"
-      variant="ghost"
-      size="icon"
-      className="h-11 w-11 sm:h-10 sm:w-10"
+      className="ib theme-btn"
       aria-label={dark ? "Açık temaya geç" : "Koyu temaya geç"}
       title={dark ? "Açık temaya geç" : "Koyu temaya geç"}
       onClick={toggle}
     >
       {dark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-    </Button>
+    </button>
   );
 }

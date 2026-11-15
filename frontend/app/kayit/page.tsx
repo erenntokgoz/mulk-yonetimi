@@ -2,9 +2,10 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/password-input";
 import { AuthShell } from "@/components/auth-shell";
+import { AuthDone, ErrorNote, Field, GoogleButton, PasswordRules, SubmitButton } from "@/components/auth-ui";
+import styles from "@/components/auth-shell.module.css";
 
 const passwordMessages: Record<string, string> = {
   PasswordTooShort: "Parola en az 6 karakter olmalı.",
@@ -19,6 +20,8 @@ export default function RegisterPage() {
     "idle" | "pending" | "sent" | "error" | "limited" | "unavailable" | "invalid"
   >("idle");
   const [messages, setMessages] = useState<string[]>([]);
+  const [password, setPassword] = useState("");
+  const [sentTo, setSentTo] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setState("pending");
@@ -46,6 +49,7 @@ export default function RegisterPage() {
         setState(found.length ? "invalid" : "error");
         return;
       }
+      setSentTo(String(form.get("email") ?? ""));
       setState(
         response.status === 202
           ? "sent"
@@ -59,73 +63,58 @@ export default function RegisterPage() {
       setState("error");
     }
   }
+  if (state === "sent")
+    return (
+      <AuthShell>
+        <AuthDone icon="mail" title="E-postanızı doğrulayın." href="/giris" action="Girişe dön">
+          <b>{sentTo}</b> adresine bir bağlantı gönderdik. Bağlantıya tıkladığınızda hesabınız onay sırasına girer.
+        </AuthDone>
+      </AuthShell>
+    );
   return (
     <AuthShell>
-      <main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 px-4 py-10">
-        <h1 className="text-2xl font-semibold">Hesap oluştur</h1>
-        {state === "sent" ? (
-          <p role="status">E-posta adresinize gönderilen doğrulama bağlantısını açın.</p>
-        ) : (
-          <form onSubmit={submit} className="grid gap-4">
-            <label className="grid gap-2 text-sm font-medium">
-              Hesap adı
-              <input name="accountName" required maxLength={200} className="h-11 rounded-md border px-3" />
-            </label>
-            <label className="grid gap-2 text-sm font-medium">
-              E-posta
-              <input
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                maxLength={256}
-                className="h-11 rounded-md border px-3"
-              />
-            </label>
-            <label className="grid gap-2 text-sm font-medium">
-              Parola
-              <PasswordInput
-                name="password"
-                autoComplete="new-password"
-                required
-                minLength={6}
-                aria-describedby="password-hint"
-              />
-              <span id="password-hint" className="text-xs font-normal text-muted-foreground">
-                En az 6 karakter; büyük harf, küçük harf, rakam ve sembol içermeli.
-              </span>
-            </label>
-            {state === "error" && (
-              <p role="alert" className="text-sm text-destructive">
-                Kayıt tamamlanamadı. Bilgileri ve e-posta hizmetini kontrol edip tekrar deneyin.
-              </p>
-            )}
-            {state === "invalid" && (
-              <ul role="alert" className="list-disc pl-5 text-sm text-destructive">
-                {messages.map((m) => (
-                  <li key={m}>{m}</li>
-                ))}
-              </ul>
-            )}
-            {state === "unavailable" && (
-              <p role="alert" className="text-sm text-destructive">
-                E-posta gönderimi şu anda kullanılamıyor. Daha sonra tekrar deneyin.
-              </p>
-            )}
-            {state === "limited" && (
-              <p role="alert" className="text-sm text-destructive">
-                Çok fazla deneme. Bir dakika sonra tekrar deneyin.
-              </p>
-            )}
-            <Button type="submit" size="lg" disabled={state === "pending"}>
-              {state === "pending" ? "Kaydediliyor…" : "Hesap oluştur"}
-            </Button>
-          </form>
+      <h1 className={styles.title}>Hesabınızı oluşturun.</h1>
+      <form onSubmit={submit} className={styles.form}>
+        <Field id="kayit-hesap" label="Hesap adı">
+          <input id="kayit-hesap" name="accountName" autoComplete="organization" required maxLength={200} className={styles.input} />
+        </Field>
+        <Field id="kayit-email" label="E-posta">
+          <input id="kayit-email" name="email" type="email" autoComplete="email" inputMode="email" required maxLength={256} className={styles.input} />
+        </Field>
+        <Field id="kayit-parola" label="Parola">
+          <PasswordInput
+            id="kayit-parola"
+            name="password"
+            autoComplete="new-password"
+            required
+            minLength={6}
+            aria-describedby="kayit-kurallar"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+          <PasswordRules id="kayit-kurallar" value={password} />
+        </Field>
+        {state === "error" && <ErrorNote>Kayıt tamamlanamadı. Bilgileri ve e-posta hizmetini kontrol edip tekrar deneyin.</ErrorNote>}
+        {state === "invalid" && (
+          <ErrorNote>
+            <ul>
+              {messages.map((m) => (
+                <li key={m}>{m}</li>
+              ))}
+            </ul>
+          </ErrorNote>
         )}
-        <Link href="/giris" className="text-sm underline">
-          Giriş
+        {state === "unavailable" && <ErrorNote>E-posta gönderimi şu anda kullanılamıyor. Daha sonra tekrar deneyin.</ErrorNote>}
+        {state === "limited" && <ErrorNote>Çok fazla deneme. Bir dakika sonra tekrar deneyin.</ErrorNote>}
+        <SubmitButton busy={state === "pending"}>{state === "pending" ? "Kaydediliyor…" : "Hesap oluştur"}</SubmitButton>
+        <GoogleButton />
+      </form>
+      <p className={styles.foot}>
+        Hesabınız var mı?{" "}
+        <Link className={styles.link} href="/giris">
+          Giriş yapın
         </Link>
-      </main>
+      </p>
     </AuthShell>
   );
 }

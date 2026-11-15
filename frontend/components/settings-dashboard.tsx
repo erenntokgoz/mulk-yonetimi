@@ -130,7 +130,6 @@ export function SettingsDashboard() {
         <h1 id="settings-title" className="text-2xl font-semibold tracking-tight">
           Ayarlar
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Profil bilgileri ve bildirim tercihleri</p>
       </div>
       {error && (
         <div
@@ -212,11 +211,6 @@ export function SettingsDashboard() {
                   />
                   <span>
                     E-posta bildirimleri
-                    {!profile.emailConfirmed && (
-                      <span className="mt-1 block text-muted-foreground">
-                        E-posta doğrulanmadan e-posta bildirimleri açılamaz.
-                      </span>
-                    )}
                   </span>
                 </label>
                 {preferenceFields.map(([key, label]) => (

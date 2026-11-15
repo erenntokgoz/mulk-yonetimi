@@ -6,8 +6,8 @@ test.describe("tanıtım sayfası (oturumsuz)", () => {
   test("oturum olmadan açılır ve giriş/kayıt bağlantıları doğru yere gider", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Mülk, kiracı ve kira takibi");
-    await expect(page.getByTestId("hero-scene")).toBeAttached();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Kiralarınızı tek yerden takip edin.");
+    await expect(page.locator("canvas")).toBeAttached();
     const login = page.getByRole("link", { name: "Giriş yap" }).first();
     const register = page.getByRole("link", { name: "Hesap oluştur" }).first();
     await expect(login).toHaveAttribute("href", "/giris");

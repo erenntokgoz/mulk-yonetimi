@@ -162,7 +162,6 @@ export function DepositDirectory() {
         <h1 id="deposit-title" className="text-2xl font-semibold tracking-tight">
           Depozitolar
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Sözleşme teminatları ve iade hareketleri</p>
       </div>
       {(error || dataError) && (
         <div role="alert" className="rounded-lg border border-destructive/50 bg-card p-4 text-sm">

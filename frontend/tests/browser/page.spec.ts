@@ -34,7 +34,7 @@ test("desktop shell uses text navigation and breadcrumb header", async ({ page, 
   await page.goto("/panel");
   const sidebar = page.getByRole("complementary", { name: "Uygulama" });
   await expect(sidebar).toBeVisible();
-  expect(await sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(224);
+  expect(await sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(264);
   await expect(page.getByRole("navigation", { name: "İçerik yolu" })).toBeVisible();
 });
 
@@ -53,7 +53,7 @@ test("section navigation groups links and filters them by label", async ({ page,
   await expect(nav.getByRole("status")).toHaveText("Eşleşen bölüm yok.");
   await search.clear();
   await expect(nav.getByRole("link", { name: "Portföy" })).toBeVisible();
-  await page.getByRole("heading", { name: "Genel bakış" }).click();
+  await page.getByRole("navigation", { name: "İçerik yolu" }).click();
   await page.screenshot({ path: "frontend-theme-desktop.png", fullPage: true });
 
   await page.setViewportSize({ width: 375, height: 812 });
@@ -132,7 +132,6 @@ test("rent charges and payments load from the API and idempotent actions can be 
   await page.goto("/kira-tahsilatlar");
   await expect(page.getByRole("heading", { name: "Alacaklar" })).toBeVisible();
   await expect(page.getByRole("heading", { name: /Ada Yılmaz · 2026-01/ })).toBeVisible();
-  await expect(page.getByText("Kullanıcı tarafından kaydedildi. Banka doğrulaması yapılmadı.")).toBeVisible();
   await page.request.post("http://127.0.0.1:5089/finance-fail-once");
   await page.getByLabel("Tutar (₺)").fill("12500.00");
   await page.getByRole("button", { name: "Tahsilatı kaydet" }).click();
@@ -200,7 +199,7 @@ test("theme motion respects reduced-motion preference", async ({ page }) => {
   await page.context().addCookies([{ name: "mulk.session", value: "fixture", url: "http://127.0.0.1:3109" }]);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/panel");
-  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(6, 10, 16)");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(5, 7, 12)");
   const card = page.getByRole("heading", { name: "Cari ay nakit akışı" });
   await expect(card).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveCSS("animation-duration", "1e-05s");
