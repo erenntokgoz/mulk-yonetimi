@@ -102,17 +102,23 @@ test("owner records a receipt and exports the payment list through SQL-backed ro
   const report = page.getByRole("link", { name: "Tahsilatlar CSV" });
   const expectedHref = `/api/bff/reports/payments.csv?fromDate=${fromDate}&toDate=${toDate}`;
   await expect(report).toHaveAttribute("href", expectedHref);
+  // download özniteliği olan bağlantının isteği tarayıcının indirme yöneticisinden geçer ve sayfada response olayı üretmez.
   const downloadPromise = page.waitForEvent("download");
-  const responsePromise = page.waitForResponse(candidate => candidate.url().includes(expectedHref));
   await report.click();
-  const [download, response] = await Promise.all([downloadPromise, responsePromise]);
+  const download = await downloadPromise;
+  expect(download.url()).toBe(`${frontendOrigin}${expectedHref}`);
   expect(download.suggestedFilename()).toBe("payments.csv");
+  expect(await download.failure()).toBeNull();
+  const stream = await download.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  const downloadedCsv = Buffer.concat(chunks).toString("utf8");
+  expect(downloadedCsv).toContain(tenant.id);
+  expect(downloadedCsv).toContain("12000.00");
+  const response = await page.request.get(expectedHref);
   expect(response.status()).toBe(200);
   expect(response.headers()["content-type"]).toContain("text/csv");
   expect(response.headers()["content-disposition"]).toContain("payments.csv");
-  const csv = await response.text();
-  expect(csv).toContain(tenant.id);
-  expect(csv).toContain("12000.00");
 });
 
 test("owner renews an active lease and sees its history through SQL-backed routes at mobile width", async ({ page }) => {
