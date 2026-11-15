@@ -94,9 +94,22 @@ test("owner records a receipt and exports the payment list through SQL-backed ro
   await expect(page.getByText(/12\.000,00 ₺ · Dağıtılan 0,00 ₺ · Bekleyen 12\.000,00 ₺/)).toBeVisible();
 
   await page.goto("/raporlar");
-  await expect(page.getByRole("link", { name: "Tahsilatlar CSV" })).toBeVisible();
-  const response = await page.request.get(`/api/bff/reports/payments.csv?fromDate=2026-01-01&toDate=2027-12-31&tenantId=${tenant.id}`);
+  const today = new Date();
+  const fromDate = `${today.getFullYear()}-01-01`;
+  const toDate = date(today);
+  await page.getByLabel("Başlangıç tarihi").fill(fromDate);
+  await page.getByLabel("Bitiş tarihi").fill(toDate);
+  const report = page.getByRole("link", { name: "Tahsilatlar CSV" });
+  const expectedHref = `/api/bff/reports/payments.csv?fromDate=${fromDate}&toDate=${toDate}`;
+  await expect(report).toHaveAttribute("href", expectedHref);
+  const downloadPromise = page.waitForEvent("download");
+  const responsePromise = page.waitForResponse(candidate => candidate.url().includes(expectedHref));
+  await report.click();
+  const [download, response] = await Promise.all([downloadPromise, responsePromise]);
+  expect(download.suggestedFilename()).toBe("payments.csv");
   expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("text/csv");
+  expect(response.headers()["content-disposition"]).toContain("payments.csv");
   const csv = await response.text();
   expect(csv).toContain(tenant.id);
   expect(csv).toContain("12000.00");

@@ -12,7 +12,8 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --conditions=react-server --test tests/*.test.ts",
+    "test": "node --conditions=react-server --test tests/*.test.ts && pnpm test:components",
+    "test:components": "vitest run --config vitest.config.ts",
     "test:browser": "playwright test",
     "test:browser:sql": "playwright test --config=playwright.sql.config.ts",
     "build": "next build",
@@ -33,16 +34,21 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "^1.64.1",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^24.19.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.3.0",
     "autoprefixer": "10.4.20",
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.3",
+    "jsdom": "^31.0.1",
     "openapi-typescript": "7.13.0",
     "postcss": "8.4.49",
     "tailwindcss": "3.4.17",
     "tailwindcss-animate": "1.0.7",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "vitest": "^5.1.0"
   }
 }
