@@ -1,5 +1,5 @@
 "use client";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
@@ -27,6 +27,7 @@ export function PropertyPortfolio() {
   const [moreUnits, setMoreUnits] = useState(false);
   const [unitLoading, setUnitLoading] = useState(false);
   const [pending, setPending] = useState(false);
+  const [includeArchived, setIncludeArchived] = useState(false);
   const [view, setView] = useState<"table" | "cards">("table");
   // Dar ekranlarda tablo yerine kart düzeni kullanılır.
   useEffect(() => {
@@ -34,10 +35,11 @@ export function PropertyPortfolio() {
       if (window.matchMedia("(max-width: 639px)").matches) setView("cards");
     });
   }, []);
-  async function load() {
+  const load = useCallback(async (showArchived = includeArchived) => {
     setLoading(true);
     try {
-      const response = await fetch("/api/bff/properties?page=1&pageSize=100", { cache: "no-store" });
+      const archivedQuery = showArchived ? "&includeArchived=true" : "";
+      const response = await fetch(`/api/bff/properties?page=1&pageSize=100${archivedQuery}`, { cache: "no-store" });
       if (!response.ok)
         throw new Error(
           response.status === 401 ? "Mülklerinizi görmek için giriş yapın." : "Mülk kayıtları alınamadı.",
@@ -52,12 +54,13 @@ export function PropertyPortfolio() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [includeArchived]);
   async function loadMoreProperties() {
     setLoading(true);
     try {
       const next = propertyPage + 1;
-      const response = await fetch(`/api/bff/properties?page=${next}&pageSize=100`, { cache: "no-store" });
+      const archivedQuery = includeArchived ? "&includeArchived=true" : "";
+      const response = await fetch(`/api/bff/properties?page=${next}&pageSize=100${archivedQuery}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Diğer mülkler alınamadı.");
       const result = (await response.json()) as PropertyPage;
       setItems((current) => [...current, ...result.items]);
@@ -69,8 +72,8 @@ export function PropertyPortfolio() {
     } finally { setLoading(false); }
   }
   useEffect(() => {
-    void Promise.resolve().then(load);
-  }, []);
+    void Promise.resolve().then(() => load());
+  }, [load]);
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
@@ -116,7 +119,8 @@ export function PropertyPortfolio() {
     setUnitLoading(true);
     setError("");
     try {
-      const response = await fetch(`/api/bff/properties/${property.id}/units?page=1&pageSize=100`, {
+      const archivedQuery = property.archivedAtUtc ? "&includeArchived=true" : "";
+      const response = await fetch(`/api/bff/properties/${property.id}/units?page=1&pageSize=100${archivedQuery}`, {
         cache: "no-store",
       });
       if (!response.ok) throw new Error("Birimler alınamadı.");
@@ -135,7 +139,8 @@ export function PropertyPortfolio() {
     setUnitLoading(true);
     try {
       const next = unitPage + 1;
-      const response = await fetch(`/api/bff/properties/${unitProperty.id}/units?page=${next}&pageSize=100`,
+      const archivedQuery = unitProperty.archivedAtUtc ? "&includeArchived=true" : "";
+      const response = await fetch(`/api/bff/properties/${unitProperty.id}/units?page=${next}&pageSize=100${archivedQuery}`,
         { cache: "no-store" });
       if (!response.ok) throw new Error("Diğer birimler alınamadı.");
       const result = (await response.json()) as UnitPage;
@@ -241,6 +246,15 @@ export function PropertyPortfolio() {
       </div>
       <div className="portfolio-toolbar">
         <span className="portfolio-tab">Gösterilen mülkler {!loading && !error && <span>{items.length}</span>}</span>
+        <label className="flex min-h-11 items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={includeArchived}
+            onChange={(event) => setIncludeArchived(event.target.checked)}
+            className="h-4 w-4"
+          />
+          Arşivli mülkleri göster
+        </label>
         <div className="view-switch" role="group" aria-label="Portföy görünümü">
           <button
             type="button"
@@ -364,10 +378,11 @@ export function PropertyPortfolio() {
                       {unit.doorNumber ? ` · Kapı ${unit.doorNumber}` : ""}
                       {unit.areaM2 ? ` · ${unit.areaM2} m²` : ""}
                     </span>
-                    <Button type="button" variant="outline" className="ml-3" disabled={pending}
+                    {unit.archivedAtUtc && <span className="ml-2 type-badge">Arşivlendi</span>}
+                    {!unit.archivedAtUtc && !unitProperty.archivedAtUtc && <Button type="button" variant="outline" className="ml-3" disabled={pending}
                       onClick={() => void archiveUnit(unit)}>
                       Arşivle
-                    </Button>
+                    </Button>}
                   </li>
                 ))}
               </ul>
@@ -432,10 +447,10 @@ export function PropertyPortfolio() {
         <Card>
           <CardContent className="portfolio-empty">
             <Building2 size={28} aria-hidden="true" />
-            <h2 className="font-medium">Henüz mülk kaydı yok</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <h2 className="font-medium">{includeArchived ? "Arşivlenmiş mülk yok" : "Henüz mülk kaydı yok"}</h2>
+            {!includeArchived && <p className="mt-2 text-sm text-muted-foreground">
               Portföyünüze eklemek için “Mülk ekle” seçeneğini kullanın.
-            </p>
+            </p>}
           </CardContent>
         </Card>
       ) : (
@@ -463,6 +478,7 @@ export function PropertyPortfolio() {
                           </span>
                           <span>
                             <h2>{property.name}</h2>
+                            {property.archivedAtUtc && <span className="type-badge">Arşivlendi</span>}
                             <span className="mobile-address">{property.address}</span>
                           </span>
                         </span>
@@ -491,6 +507,7 @@ export function PropertyPortfolio() {
                       {property.propertyKind === "SINGLE_UNIT" ? "Tek birimli" : "Çok birimli"}
                     </span>
                     <h2 className="font-semibold">{property.name}</h2>
+                    {property.archivedAtUtc && <span className="type-badge">Arşivlendi</span>}
                     <p className="property-address">
                       <MapPin size={14} aria-hidden="true" />
                       {property.address}
@@ -514,28 +531,30 @@ export function PropertyPortfolio() {
         <Button type="button" variant="outline" disabled={pending} onClick={() => void showUnits(property)}>
           Birimler
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={pending}
-          aria-label="Mülkü düzenle"
-          onClick={() => {
-            setEditing(property);
-            setOpen(true);
-            setError("");
-          }}
-        >
-          Düzenle
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={pending}
-          aria-label="Mülkü arşivle"
-          onClick={() => void archive(property)}
-        >
-          Arşivle
-        </Button>
+        {!property.archivedAtUtc && <>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            aria-label="Mülkü düzenle"
+            onClick={() => {
+              setEditing(property);
+              setOpen(true);
+              setError("");
+            }}
+          >
+            Düzenle
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            aria-label="Mülkü arşivle"
+            onClick={() => void archive(property)}
+          >
+            Arşivle
+          </Button>
+        </>}
       </div>
     );
   }

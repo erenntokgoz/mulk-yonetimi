@@ -98,8 +98,9 @@ createServer(async (request, response) => {
     if (!request.headers.cookie?.includes("mulk.session=fixture")) { response.writeHead(401).end(); return; }
     if (request.method === "GET" && request.url.startsWith("/api/v1/properties?")) {
       if (propertyListDelay) await new Promise((resolve) => setTimeout(resolve, propertyListDelay));
+      const includeArchived = new URL(request.url, "http://localhost").searchParams.get("includeArchived") === "true";
       response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify({ items: properties.filter((entry) => !entry.archivedAtUtc), page: 1, pageSize: 25, hasMore: false }));
+      response.end(JSON.stringify({ items: properties.filter((entry) => includeArchived || !entry.archivedAtUtc), page: 1, pageSize: 25, hasMore: false }));
       return;
     }
     if (request.method === "POST" && request.url === "/api/v1/properties") {
@@ -123,7 +124,8 @@ createServer(async (request, response) => {
     const unitRoute = request.url.match(/^\/api\/v1\/properties\/([^/]+)\/units(?:\?.*)?$/);
     if (unitRoute && request.method === "GET") {
       response.writeHead(200, { "Content-Type": "application/json" });
-      const items = units.get(unitRoute[1]) ?? [];
+      const includeArchived = new URL(request.url, "http://localhost").searchParams.get("includeArchived") === "true";
+      const items = (units.get(unitRoute[1]) ?? []).filter((item) => includeArchived || !item.archivedAtUtc);
       response.end(JSON.stringify({ items, page: 1, pageSize: 25, hasMore: false })); return;
     }
     if (unitRoute && request.method === "POST") {
