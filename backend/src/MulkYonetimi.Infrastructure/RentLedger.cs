@@ -29,6 +29,19 @@ public sealed class RentRatePeriod
     public string? Reason { get; set; }
 }
 
+public sealed class LeaseRenewal
+{
+    public Guid Id { get; set; }
+    public Guid AccountId { get; set; }
+    public Guid LeaseId { get; set; }
+    public DateOnly PreviousEndDate { get; set; }
+    public DateOnly NewEndDate { get; set; }
+    public DateOnly EffectiveFrom { get; set; }
+    public decimal MonthlyAmount { get; set; }
+    public required string Reason { get; set; }
+    public DateTime OccurredAtUtc { get; set; }
+}
+
 public sealed class RentCharge
 {
     public Guid Id { get; set; }

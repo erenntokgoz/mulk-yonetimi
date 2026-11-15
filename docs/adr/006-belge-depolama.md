@@ -16,3 +16,9 @@
 ## Açık güvenlik kararı
 
 PRD ve teknik tasarım yüklemeden önce zararlı dosya taraması ister, fakat depoda AV sağlayıcısı, çalışma ortamı veya tarayıcı seçimi yoktur. İmzalı metadata kontrolü virüs taramasının yerini tutmaz. Mevcut varsayılan tarama adaptörü `Unavailable` döndürür ve API belgeyi etkinleştirmez. AV sağlayıcısı seçilip doğrulanana kadar bu özellik üretime hazır sayılmaz. Gerçek R2 bucket/credential ve bucket CORS ayarı da sağlayıcı kabul testi için gereklidir.
+
+## Kota uygulaması (2026-11-15)
+
+Teknik Tasarım 7.1 upload sayısı, toplam kota ve dosya boyutu sınırı ister; PRD/Technical Design sayısal değer tanımlamaz. Bu nedenle ilk çalışır varsayılanlar mühendislik sınırıdır, paket/ürün taahhüdü değildir: hesap başına 1000 belge ve toplam 1 GiB; dosya başına mevcut 10 MiB varsayılanı korunur (en çok 25 MiB yapılandırılabilir). `Storage__MaximumDocumentCountPerAccount` ve `Storage__MaximumStorageBytesPerAccount` pozitif değerlerle değiştirilebilir.
+
+Bir upload intent oluşturulurken bekleyen ve etkin belgeler sayılır; toplam boyuta `SizeBytes` dahil edilir. Hesap satırı kilidi altında kontrol ve `PENDING` rezervasyon aynı transaction'da kaydedilir; eşzamanlı istekler aynı boşluğu iki kez kullanamaz. `DELETED` kayıtlar kotadan çıkar; `PENDING` kayıtlar tamamlanana, silinene veya süresi dolup cleanup işçisi tarafından silinene kadar rezervasyonu tutar. Aşım HTTP 409 döndürür. Kota R2 nesne baytlarının uzlaştırma ölçümü değildir; etkinleşme öncesi doğrulanmış boyut metadata'sı beklenen upload boyutuyla eşleşmek zorundadır.

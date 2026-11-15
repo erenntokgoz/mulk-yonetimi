@@ -12,6 +12,8 @@ type NotificationPage = components["schemas"]["NotificationPage"];
 
 export function NotificationDirectory() {
   const [items, setItems] = useState<NotificationItem[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [markingAll, setMarkingAll] = useState(false);
@@ -20,12 +22,12 @@ export function NotificationDirectory() {
   const [status, setStatus] = useState("");
   const [loadFailed, setLoadFailed] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (requestedPage = 1) => {
     setLoading(true);
     setError("");
     setLoadFailed(false);
     try {
-      const query = new URLSearchParams({ page: "1", pageSize: "25", unreadOnly: String(unreadOnly) });
+      const query = new URLSearchParams({ page: String(requestedPage), pageSize: "25", unreadOnly: String(unreadOnly) });
       const response = await fetch(`/api/bff/notifications?${query}`, { cache: "no-store" });
       if (!response.ok) {
         throw new Error(
@@ -37,10 +39,11 @@ export function NotificationDirectory() {
         );
       }
       const page = (await response.json()) as NotificationPage;
-      setItems(page.items);
+      setItems((current) => requestedPage === 1 ? page.items : [...current, ...page.items]);
+      setCurrentPage(requestedPage);
+      setHasMore(page.hasMore);
     } catch (cause) {
-      setItems([]);
-      setLoadFailed(true);
+      if (requestedPage === 1) { setItems([]); setLoadFailed(true); }
       setError(cause instanceof Error ? cause.message : "Bildirimler alınamadı. Yeniden deneyin.");
     } finally {
       setLoading(false);
@@ -48,7 +51,7 @@ export function NotificationDirectory() {
   }, [unreadOnly]);
 
   useEffect(() => {
-    void Promise.resolve().then(load);
+    void Promise.resolve().then(() => load());
   }, [load]);
 
   async function markRead(item: NotificationItem) {
@@ -185,6 +188,8 @@ export function NotificationDirectory() {
                 {unreadOnly ? "Okunmamış bildirim yok." : "Görüntülenecek bildirim yok."}
               </p>
             )}
+            {hasMore && !loading && <Button type="button" variant="outline"
+              onClick={() => void load(currentPage + 1)}>Diğer bildirimleri yükle</Button>}
           </CardContent>
         </Card>
       )}

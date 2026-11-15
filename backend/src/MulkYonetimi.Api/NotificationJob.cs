@@ -132,10 +132,12 @@ public sealed class NotificationJob(ApplicationDbContext db, EmailOutboxQueue ou
 internal sealed class NotificationWorker(IServiceScopeFactory scopes, IConfiguration configuration,
     ILogger<NotificationWorker> logger) : BackgroundService
 {
+    internal static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!configuration.GetValue("Notifications:WorkerEnabled", true)) return;
-        using var timer = new PeriodicTimer(TimeSpan.FromHours(24));
+        using var timer = new PeriodicTimer(Interval);
         while (!stoppingToken.IsCancellationRequested)
         {
             try

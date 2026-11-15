@@ -112,9 +112,17 @@ internal static class DocumentEndpoints
             CreatedAtUtc = now,
             UploadExpiresAtUtc = expires
         };
+        await using var transaction = await RentRules.LockAccountAsync(db, accountId, ct);
+        var reserved = db.Documents.Where(item => item.AccountId == accountId && item.Status != "DELETED");
+        var count = await reserved.CountAsync(ct);
+        var storedBytes = await reserved.SumAsync(item => (long?)item.SizeBytes, ct) ?? 0L;
+        if (count >= storageOptions.MaximumDocumentCountPerAccount ||
+            input.SizeBytes > storageOptions.MaximumStorageBytesPerAccount - storedBytes)
+            return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "Belge kotası doldu.");
         db.Documents.Add(document);
         AddAudit(db, principal, accountId, id, "DOCUMENT", "UPLOAD_INTENDED");
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return Results.Created($"/api/v1/documents/{id}", new DocumentUploadIntentResponse(id, uploadUrl,
             expires, contentType, new Dictionary<string, string> { ["Content-Type"] = contentType }));
     }

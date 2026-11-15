@@ -27,6 +27,7 @@ public sealed class Unit
     public decimal? AreaM2 { get; set; }
     public UnitUsageType UsageType { get; set; }
     public bool IsDefault { get; set; }
+    public DateTime? ArchivedAtUtc { get; set; }
 }
 
 public sealed class Tenant
@@ -52,4 +53,7 @@ public sealed class AuditEvent
     public required string EntityType { get; set; }
     public required string Action { get; set; }
     public DateTime OccurredAtUtc { get; set; }
+    public string? CorrelationId { get; set; }
+    public string? Reason { get; set; }
+    public string? DiffSummary { get; set; }
 }

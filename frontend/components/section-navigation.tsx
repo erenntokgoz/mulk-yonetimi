@@ -7,6 +7,7 @@ import {
   BarChart3,
   Bell,
   Building2,
+  ClipboardList,
   FileText,
   FolderOpen,
   House,
@@ -21,6 +22,7 @@ import { sections } from "@/lib/navigation";
 
 const icons = {
   "/panel": House,
+  "/kurulum": ClipboardList,
   "/portfoy": Building2,
   "/kiracilar": Users,
   "/sozlesmeler": FileText,

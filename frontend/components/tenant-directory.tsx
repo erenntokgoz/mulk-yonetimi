@@ -15,6 +15,8 @@ const displayName = (tenant: Tenant) =>
 
 export function TenantDirectory() {
   const [items, setItems] = useState<Tenant[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -25,10 +27,10 @@ export function TenantDirectory() {
   const [pending, setPending] = useState(false);
   const [conflict, setConflict] = useState(false);
 
-  const load = useCallback(async (search: string, archived: boolean) => {
+  const load = useCallback(async (search: string, archived: boolean, requestedPage = 1) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: "1", pageSize: "100", includeArchived: String(archived) });
+      const params = new URLSearchParams({ page: String(requestedPage), pageSize: "100", includeArchived: String(archived) });
       if (search.trim()) params.set("q", search.trim());
       const response = await fetch(`/api/bff/tenants?${params}`, { cache: "no-store" });
       if (!response.ok)
@@ -36,7 +38,9 @@ export function TenantDirectory() {
           response.status === 401 ? "Kiracıları görmek için giriş yapın." : "Kiracı kayıtları alınamadı.",
         );
       const page = (await response.json()) as TenantPage;
-      setItems(page.items);
+      setItems((current) => requestedPage === 1 ? page.items : [...current, ...page.items]);
+      setCurrentPage(requestedPage);
+      setHasMore(page.hasMore);
       setError("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Kiracı kayıtları alınamadı.");
@@ -333,6 +337,8 @@ export function TenantDirectory() {
           ))}
         </div>
       )}
+      {hasMore && <Button type="button" variant="outline" disabled={loading}
+        onClick={() => void load(query, includeArchived, currentPage + 1)}>Diğer kiracıları yükle</Button>}
     </section>
   );
 }

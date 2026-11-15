@@ -1064,3 +1064,163 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114233641_UnitArchive'
+)
+BEGIN
+    ALTER TABLE [Units] ADD [ArchivedAtUtc] datetime2 NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114233641_UnitArchive'
+)
+BEGIN
+    CREATE INDEX [IX_Units_AccountId_PropertyId_ArchivedAtUtc] ON [Units] ([AccountId], [PropertyId], [ArchivedAtUtc]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114233641_UnitArchive'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261114233641_UnitArchive', N'10.0.14');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114233906_AuditCorrelation'
+)
+BEGIN
+    ALTER TABLE [AuditEvents] ADD [CorrelationId] nvarchar(64) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114233906_AuditCorrelation'
+)
+BEGIN
+    ALTER TABLE [AuditEvents] ADD [Reason] nvarchar(500) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114233906_AuditCorrelation'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261114233906_AuditCorrelation', N'10.0.14');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114234032_LeaseRenewal'
+)
+BEGIN
+    CREATE TABLE [LeaseRenewals] (
+        [Id] uniqueidentifier NOT NULL,
+        [AccountId] uniqueidentifier NOT NULL,
+        [LeaseId] uniqueidentifier NOT NULL,
+        [PreviousEndDate] date NOT NULL,
+        [NewEndDate] date NOT NULL,
+        [EffectiveFrom] date NOT NULL,
+        [MonthlyAmount] decimal(19,2) NOT NULL,
+        [Reason] nvarchar(500) NOT NULL,
+        [OccurredAtUtc] datetime2 NOT NULL,
+        CONSTRAINT [PK_LeaseRenewals] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_LeaseRenewals_Leases_AccountId_LeaseId] FOREIGN KEY ([AccountId], [LeaseId]) REFERENCES [Leases] ([AccountId], [Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114234032_LeaseRenewal'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_LeaseRenewals_AccountId_LeaseId_EffectiveFrom] ON [LeaseRenewals] ([AccountId], [LeaseId], [EffectiveFrom]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114234032_LeaseRenewal'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261114234032_LeaseRenewal', N'10.0.14');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114234749_PilotPlans'
+)
+BEGIN
+    CREATE TABLE [AccountEntitlements] (
+        [AccountId] uniqueidentifier NOT NULL,
+        [Code] nvarchar(32) NOT NULL,
+        [LimitValue] int NULL,
+        CONSTRAINT [PK_AccountEntitlements] PRIMARY KEY ([AccountId], [Code]),
+        CONSTRAINT [FK_AccountEntitlements_Accounts_AccountId] FOREIGN KEY ([AccountId]) REFERENCES [Accounts] ([Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114234749_PilotPlans'
+)
+BEGIN
+    CREATE TABLE [AccountPlans] (
+        [AccountId] uniqueidentifier NOT NULL,
+        [Code] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK_AccountPlans] PRIMARY KEY ([AccountId]),
+        CONSTRAINT [FK_AccountPlans_Accounts_AccountId] FOREIGN KEY ([AccountId]) REFERENCES [Accounts] ([Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114234749_PilotPlans'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261114234749_PilotPlans', N'10.0.14');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261115150442_AuditDiffSummary'
+)
+BEGIN
+    ALTER TABLE [AuditEvents] ADD [DiffSummary] nvarchar(1000) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261115150442_AuditDiffSummary'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261115150442_AuditDiffSummary', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

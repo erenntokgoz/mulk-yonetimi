@@ -1,10 +1,11 @@
 "use client";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { Building2, LayoutGrid, List, MapPin, Plus } from "lucide-react";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { propertyCreateError, unitCreateError } from "@/lib/api/portfolio-errors";
 
 type Property = components["schemas"]["PropertyResponse"];
 type PropertyPage = components["schemas"]["PropertyPage"];
@@ -14,6 +15,8 @@ const headers = { "Content-Type": "application/json" };
 
 export function PropertyPortfolio() {
   const [items, setItems] = useState<Property[]>([]);
+  const [propertyPage, setPropertyPage] = useState(1);
+  const [moreProperties, setMoreProperties] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
@@ -21,8 +24,11 @@ export function PropertyPortfolio() {
   const [conflict, setConflict] = useState(false);
   const [unitProperty, setUnitProperty] = useState<Property | null>(null);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [unitPage, setUnitPage] = useState(1);
+  const [moreUnits, setMoreUnits] = useState(false);
   const [unitLoading, setUnitLoading] = useState(false);
   const [pending, setPending] = useState(false);
+  const [includeArchived, setIncludeArchived] = useState(false);
   const [view, setView] = useState<"table" | "cards">("table");
   // Dar ekranlarda tablo yerine kart düzeni kullanılır.
   useEffect(() => {
@@ -30,26 +36,45 @@ export function PropertyPortfolio() {
       if (window.matchMedia("(max-width: 639px)").matches) setView("cards");
     });
   }, []);
-  async function load() {
+  const load = useCallback(async (showArchived = includeArchived) => {
     setLoading(true);
     try {
-      const response = await fetch("/api/bff/properties?page=1&pageSize=100", { cache: "no-store" });
+      const archivedQuery = showArchived ? "&includeArchived=true" : "";
+      const response = await fetch(`/api/bff/properties?page=1&pageSize=100${archivedQuery}`, { cache: "no-store" });
       if (!response.ok)
         throw new Error(
           response.status === 401 ? "Mülklerinizi görmek için giriş yapın." : "Mülk kayıtları alınamadı.",
         );
       const page = (await response.json()) as PropertyPage;
       setItems(page.items);
+      setPropertyPage(1);
+      setMoreProperties(page.hasMore);
       setError("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Mülk kayıtları alınamadı.");
     } finally {
       setLoading(false);
     }
+  }, [includeArchived]);
+  async function loadMoreProperties() {
+    setLoading(true);
+    try {
+      const next = propertyPage + 1;
+      const archivedQuery = includeArchived ? "&includeArchived=true" : "";
+      const response = await fetch(`/api/bff/properties?page=${next}&pageSize=100${archivedQuery}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Diğer mülkler alınamadı.");
+      const result = (await response.json()) as PropertyPage;
+      setItems((current) => [...current, ...result.items]);
+      setPropertyPage(next);
+      setMoreProperties(result.hasMore);
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Diğer mülkler alınamadı.");
+    } finally { setLoading(false); }
   }
   useEffect(() => {
-    void Promise.resolve().then(load);
-  }, []);
+    void Promise.resolve().then(() => load());
+  }, [load]);
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
@@ -76,11 +101,10 @@ export function PropertyPortfolio() {
         headers,
         body: JSON.stringify(payload),
       });
-      if (response.status === 409) {
+      if (response.status === 409 && await propertyCreateError(response) !== "Birim kotası doldu. Mevcut kayıtları görüntüleyebilirsiniz.") {
         setConflict(true);
-        throw new Error("Mülk başka bir işlemde değişti. Güncel sürümü yükleyip tekrar deneyin.");
       }
-      if (!response.ok) throw new Error("Mülk kaydedilemedi. Bilgileri kontrol edip tekrar deneyin.");
+      if (!response.ok) throw new Error(await propertyCreateError(response));
       setOpen(false);
       setEditing(null);
       await load();
@@ -95,17 +119,37 @@ export function PropertyPortfolio() {
     setUnitLoading(true);
     setError("");
     try {
-      const response = await fetch(`/api/bff/properties/${property.id}/units?page=1&pageSize=100`, {
+      const archivedQuery = property.archivedAtUtc ? "&includeArchived=true" : "";
+      const response = await fetch(`/api/bff/properties/${property.id}/units?page=1&pageSize=100${archivedQuery}`, {
         cache: "no-store",
       });
       if (!response.ok) throw new Error("Birimler alınamadı.");
       const page = (await response.json()) as UnitPage;
       setUnits(page.items);
+      setUnitPage(1);
+      setMoreUnits(page.hasMore);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Birimler alınamadı.");
     } finally {
       setUnitLoading(false);
     }
+  }
+  async function loadMoreUnits() {
+    if (!unitProperty) return;
+    setUnitLoading(true);
+    try {
+      const next = unitPage + 1;
+      const archivedQuery = unitProperty.archivedAtUtc ? "&includeArchived=true" : "";
+      const response = await fetch(`/api/bff/properties/${unitProperty.id}/units?page=${next}&pageSize=100${archivedQuery}`,
+        { cache: "no-store" });
+      if (!response.ok) throw new Error("Diğer birimler alınamadı.");
+      const result = (await response.json()) as UnitPage;
+      setUnits((current) => [...current, ...result.items]);
+      setUnitPage(next);
+      setMoreUnits(result.hasMore);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Diğer birimler alınamadı.");
+    } finally { setUnitLoading(false); }
   }
   async function createUnit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -124,16 +168,29 @@ export function PropertyPortfolio() {
           areaM2: data.get("areaM2") ? Number(data.get("areaM2")) : null,
         }),
       });
-      if (!response.ok)
-        throw new Error(
-          response.status === 409
-            ? "Bu mülke birim eklenemedi."
-            : "Birim kaydedilemedi. Bilgileri kontrol edin.",
-        );
+      if (!response.ok) throw new Error(await unitCreateError(response));
       await showUnits(unitProperty);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Birim kaydedilemedi.");
+    } finally {
+      setPending(false);
+    }
+  }
+  async function archiveUnit(unit: Unit) {
+    if (!unitProperty || !window.confirm(`“${unit.label}” birimi arşivlensin mi?`)) return;
+    setPending(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/bff/properties/${unitProperty.id}/units/${unit.id}/archive`, {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error(response.status === 409
+        ? "Etkin sözleşmesi olan birim arşivlenemez."
+        : "Birim arşivlenemedi.");
+      await showUnits(unitProperty);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Birim arşivlenemedi.");
     } finally {
       setPending(false);
     }
@@ -183,7 +240,16 @@ export function PropertyPortfolio() {
         </Button>
       </div>
       <div className="portfolio-toolbar">
-        <span className="portfolio-tab">Tüm mülkler {!loading && !error && <span>{items.length}</span>}</span>
+        <span className="portfolio-tab">Gösterilen mülkler {!loading && !error && <span>{items.length}</span>}</span>
+        <label className="flex min-h-11 items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={includeArchived}
+            onChange={(event) => setIncludeArchived(event.target.checked)}
+            className="h-4 w-4"
+          />
+          Arşivli mülkleri göster
+        </label>
         <div className="view-switch" role="group" aria-label="Portföy görünümü">
           <button
             type="button"
@@ -307,12 +373,19 @@ export function PropertyPortfolio() {
                       {unit.doorNumber ? ` · Kapı ${unit.doorNumber}` : ""}
                       {unit.areaM2 ? ` · ${unit.areaM2} m²` : ""}
                     </span>
+                    {unit.archivedAtUtc && <span className="ml-2 type-badge">Arşivlendi</span>}
+                    {!unit.archivedAtUtc && !unitProperty.archivedAtUtc && <Button type="button" variant="outline" className="ml-3" disabled={pending}
+                      onClick={() => void archiveUnit(unit)}>
+                      Arşivle
+                    </Button>}
                   </li>
                 ))}
               </ul>
             ) : (
               <p className="text-sm text-muted-foreground">Bu mülkte henüz birim yok.</p>
             )}
+            {moreUnits && <Button type="button" variant="outline" disabled={unitLoading}
+              onClick={() => void loadMoreUnits()}>Diğer birimleri yükle</Button>}
             {unitProperty.propertyKind === "MULTI_UNIT" && (
               <form onSubmit={createUnit} className="grid gap-3 border-t pt-4 sm:grid-cols-2">
                 <h3 className="font-medium sm:col-span-2">Birim ekle</h3>
@@ -369,10 +442,10 @@ export function PropertyPortfolio() {
         <Card>
           <CardContent className="portfolio-empty">
             <Building2 size={28} aria-hidden="true" />
-            <h2 className="font-medium">Henüz mülk kaydı yok</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <h2 className="font-medium">{includeArchived ? "Arşivlenmiş mülk yok" : "Henüz mülk kaydı yok"}</h2>
+            {!includeArchived && <p className="mt-2 text-sm text-muted-foreground">
               Portföyünüze eklemek için “Mülk ekle” seçeneğini kullanın.
-            </p>
+            </p>}
           </CardContent>
         </Card>
       ) : (
@@ -400,6 +473,7 @@ export function PropertyPortfolio() {
                           </span>
                           <span>
                             <h2>{property.name}</h2>
+                            {property.archivedAtUtc && <span className="type-badge">Arşivlendi</span>}
                             <span className="mobile-address">{property.address}</span>
                           </span>
                         </span>
@@ -428,6 +502,7 @@ export function PropertyPortfolio() {
                       {property.propertyKind === "SINGLE_UNIT" ? "Tek birimli" : "Çok birimli"}
                     </span>
                     <h2 className="font-semibold">{property.name}</h2>
+                    {property.archivedAtUtc && <span className="type-badge">Arşivlendi</span>}
                     <p className="property-address">
                       <MapPin size={14} aria-hidden="true" />
                       {property.address}
@@ -440,6 +515,8 @@ export function PropertyPortfolio() {
           )}
         </div>
       )}
+      {moreProperties && <Button type="button" variant="outline" disabled={loading}
+        onClick={() => void loadMoreProperties()}>Diğer mülkleri yükle</Button>}
     </section>
   );
 
@@ -449,28 +526,30 @@ export function PropertyPortfolio() {
         <Button type="button" variant="outline" disabled={pending} onClick={() => void showUnits(property)}>
           Birimler
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={pending}
-          aria-label="Mülkü düzenle"
-          onClick={() => {
-            setEditing(property);
-            setOpen(true);
-            setError("");
-          }}
-        >
-          Düzenle
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={pending}
-          aria-label="Mülkü arşivle"
-          onClick={() => void archive(property)}
-        >
-          Arşivle
-        </Button>
+        {!property.archivedAtUtc && <>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            aria-label="Mülkü düzenle"
+            onClick={() => {
+              setEditing(property);
+              setOpen(true);
+              setError("");
+            }}
+          >
+            Düzenle
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            aria-label="Mülkü arşivle"
+            onClick={() => void archive(property)}
+          >
+            Arşivle
+          </Button>
+        </>}
       </div>
     );
   }

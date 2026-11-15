@@ -25,8 +25,14 @@ function leaseName(lease: Lease) {
 
 export function DepositDirectory() {
   const [deposits, setDeposits] = useState<Deposit[]>([]);
+  const [depositPage, setDepositPage] = useState(1);
+  const [moreDeposits, setMoreDeposits] = useState(false);
   const [leases, setLeases] = useState<Lease[]>([]);
+  const [leasePage, setLeasePage] = useState(1);
+  const [moreLeases, setMoreLeases] = useState(false);
   const [movements, setMovements] = useState<Record<string, Movement[]>>({});
+  const [movementPages, setMovementPages] = useState<Record<string, { page: number; hasMore: boolean }>>({});
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [dataError, setDataError] = useState("");
@@ -44,13 +50,13 @@ export function DepositDirectory() {
           d.status === 401 ? "Depozitoları görmek için giriş yapın." : "Depozito verileri alınamadı.",
         );
       }
-      const dp = (await d.json()) as { items: Deposit[] };
+      const dp = (await d.json()) as { items: Deposit[]; hasMore: boolean };
       // Hareket istekleri sözleşme yanıtını beklemeden, depozito listesi gelir gelmez başlar.
       const movementsRequest = Promise.all(
         dp.items.map(async (x) => {
           const r = await get(`/api/bff/deposits/${x.id}/movements?page=1&pageSize=100`);
           if (!r.ok) throw new Error("Hareket kayıtları alınamadı.");
-          return [x.id, ((await r.json()) as { items: Movement[] }).items] as const;
+          return [x.id, (await r.json()) as { items: Movement[]; hasMore: boolean }] as const;
         }),
       );
       const l = await leasesRequest;
@@ -60,10 +66,15 @@ export function DepositDirectory() {
           l.status === 401 ? "Depozitoları görmek için giriş yapın." : "Depozito verileri alınamadı.",
         );
       }
-      const lp = (await l.json()) as { items: Lease[] };
+      const lp = (await l.json()) as { items: Lease[]; hasMore: boolean };
       setDeposits(dp.items);
+      setDepositPage(1); setMoreDeposits(dp.hasMore);
       setLeases(lp.items);
-      setMovements(Object.fromEntries(await movementsRequest));
+      setLeasePage(1); setMoreLeases(lp.hasMore);
+      const movementResults = await movementsRequest;
+      setMovements(Object.fromEntries(movementResults.map(([id, page]) => [id, page.items])));
+      setMovementPages(Object.fromEntries(movementResults.map(([id, page]) =>
+        [id, { page: 1, hasMore: page.hasMore }])));
       setError("");
       setDataError("");
     } catch (e) {
@@ -71,6 +82,42 @@ export function DepositDirectory() {
     } finally {
       setLoading(false);
     }
+  }
+  async function loadMore(kind: "leases" | "deposits" | "movements", id?: string) {
+    setLoadingMore(true);
+    try {
+      const next = kind === "leases" ? leasePage + 1 : kind === "deposits" ? depositPage + 1
+        : (movementPages[id ?? ""]?.page ?? 1) + 1;
+      const path = kind === "movements" ? `deposits/${id}/movements` : kind;
+      const query = kind === "leases" ? "&status=ACTIVE" : "";
+      const response = await fetch(`/api/bff/${path}?page=${next}&pageSize=100${query}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Diğer kayıtlar alınamadı.");
+      if (kind === "leases") {
+        const page = (await response.json()) as { items: Lease[]; hasMore: boolean };
+        setLeases((current) => [...current, ...page.items]); setLeasePage(next); setMoreLeases(page.hasMore);
+      } else if (kind === "movements" && id) {
+        const page = (await response.json()) as { items: Movement[]; hasMore: boolean };
+        setMovements((current) => ({ ...current, [id]: [...(current[id] ?? []), ...page.items] }));
+        setMovementPages((current) => ({ ...current, [id]: { page: next, hasMore: page.hasMore } }));
+      } else {
+        const page = (await response.json()) as { items: Deposit[]; hasMore: boolean };
+        const nextMovements = await Promise.all(page.items.map(async (deposit) => {
+          const result = await fetch(`/api/bff/deposits/${deposit.id}/movements?page=1&pageSize=100`,
+            { cache: "no-store" });
+          if (!result.ok) throw new Error("Hareket kayıtları alınamadı.");
+          return [deposit.id, (await result.json()) as { items: Movement[]; hasMore: boolean }] as const;
+        }));
+        setDeposits((current) => [...current, ...page.items]);
+        setDepositPage(next); setMoreDeposits(page.hasMore);
+        setMovements((current) => ({ ...current,
+          ...Object.fromEntries(nextMovements.map(([movementId, result]) => [movementId, result.items])) }));
+        setMovementPages((current) => ({ ...current,
+          ...Object.fromEntries(nextMovements.map(([movementId, result]) =>
+            [movementId, { page: 1, hasMore: result.hasMore }])) }));
+      }
+      setError("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Diğer kayıtlar alınamadı."); }
+    finally { setLoadingMore(false); }
   }
   useEffect(() => {
     void Promise.resolve().then(load);
@@ -202,6 +249,8 @@ export function DepositDirectory() {
                   </Button>
                 </form>
               )}
+              {moreLeases && <Button type="button" variant="outline" disabled={loadingMore}
+                onClick={() => void loadMore("leases")}>Diğer sözleşmeleri yükle</Button>}
             </CardContent>
           </Card>
           <Card>
@@ -285,12 +334,16 @@ export function DepositDirectory() {
                           </li>
                         ))}
                       </ul>
+                      {movementPages[d.id]?.hasMore && <Button type="button" variant="outline" disabled={loadingMore}
+                        onClick={() => void loadMore("movements", d.id)}>Diğer hareketleri yükle</Button>}
                     </article>
                   ))}
                 </div>
               ) : (
                 <p className="py-8 text-center text-sm text-muted-foreground">Depozito kaydı yok.</p>
               )}
+              {moreDeposits && <Button type="button" variant="outline" disabled={loadingMore}
+                onClick={() => void loadMore("deposits")}>Diğer depozitoları yükle</Button>}
             </CardContent>
           </Card>
         </>

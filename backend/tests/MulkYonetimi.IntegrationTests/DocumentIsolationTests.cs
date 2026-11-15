@@ -96,7 +96,8 @@ public sealed class DocumentIsolationTests
             Assert.Equal(HttpStatusCode.NoContent, repeatedDelete.StatusCode);
 
             var pending = AddPendingDocument(accountA.Id, propertyA.Id);
-            db.Documents.Add(pending);
+            var quotaAnchor = AddDocument(accountA.Id, propertyA.Id, "accounts/a/documents/quota-anchor/active");
+            db.Documents.AddRange(pending, quotaAnchor);
             await db.SaveChangesAsync();
             var fakeStorage = new FakeDocumentStorage();
             using var scanFactory = new WebApplicationFactory<Program>().WithWebHostBuilder(host =>
@@ -121,6 +122,45 @@ public sealed class DocumentIsolationTests
             Assert.Equal(0, fakeStorage.PromoteCalls);
             Assert.Equal("PENDING", (await db.Documents.AsNoTracking()
                 .SingleAsync(item => item.Id == pending.Id)).Status);
+
+            using var quotaFactory = new WebApplicationFactory<Program>().WithWebHostBuilder(host =>
+            {
+                host.UseSetting("ConnectionStrings:DefaultConnection", connection);
+                host.UseSetting("Auth:FrontendOrigin", Origin);
+                host.UseSetting("Email:WorkerEnabled", "false");
+                host.UseSetting("Notifications:WorkerEnabled", "false");
+                host.UseSetting("Storage:R2AccountId", "0123456789abcdef0123456789abcdef");
+                host.UseSetting("Storage:R2BucketName", "private-test-bucket");
+                host.UseSetting("Storage:R2AccessKeyId", "test-access-key");
+                host.UseSetting("Storage:R2SecretAccessKey", "test-secret-key");
+                host.UseSetting("Storage:MaximumDocumentCountPerAccount", "3");
+                host.UseSetting("Storage:MaximumStorageBytesPerAccount", "137");
+                host.ConfigureTestServices(services =>
+                {
+                    services.RemoveAll<IR2DocumentStorage>();
+                    services.AddSingleton<IR2DocumentStorage>(new FakeDocumentStorage());
+                });
+            });
+            using var quotaClientA = await SignInAsync(quotaFactory, userA);
+            using var quotaClientB = await SignInAsync(quotaFactory, userB);
+            Task<HttpResponseMessage> Upload(HttpClient client, Guid propertyId, int size) =>
+                client.PostAsJsonAsync("/api/v1/documents/upload-intents", new
+                {
+                    propertyId,
+                    originalName = "lease.pdf",
+                    contentType = "application/pdf",
+                    sizeBytes = size
+                });
+            var uploadRequests = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ =>
+                Upload(quotaClientA, propertyA.Id, 4)));
+            Assert.Single(uploadRequests, response => response.StatusCode == HttpStatusCode.Created).Dispose();
+            Assert.Single(uploadRequests, response => response.StatusCode == HttpStatusCode.Conflict).Dispose();
+            Assert.Equal(2, await db.Documents.CountAsync(item => item.AccountId == accountA.Id && item.Status == "PENDING"));
+            var otherTenantUploads = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ =>
+                Upload(quotaClientB, propertyB.Id, 8)));
+            Assert.Single(otherTenantUploads, response => response.StatusCode == HttpStatusCode.Created).Dispose();
+            Assert.Single(otherTenantUploads, response => response.StatusCode == HttpStatusCode.Conflict).Dispose();
+            Assert.Equal(1, await db.Documents.CountAsync(item => item.AccountId == accountB.Id && item.Status == "PENDING"));
         }
         finally
         {
@@ -209,6 +249,8 @@ public sealed class DocumentIsolationTests
         public Task<StoredObjectMetadata> GetMetadataAsync(string key, CancellationToken ct) =>
             Task.FromResult(new StoredObjectMetadata(5, "application/pdf"));
         public Task<byte[]> ReadSignatureAsync(string key, CancellationToken ct) =>
+            Task.FromResult(new byte[] { 0x25, 0x50, 0x44, 0x46, 0x2d });
+        public Task<byte[]> ReadObjectAsync(string key, CancellationToken ct) =>
             Task.FromResult(new byte[] { 0x25, 0x50, 0x44, 0x46, 0x2d });
         public Task PromoteAsync(string sourceKey, string destinationKey, string contentType, CancellationToken ct)
         {
