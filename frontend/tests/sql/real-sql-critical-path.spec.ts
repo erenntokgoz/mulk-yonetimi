@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const email = process.env.MULK_SQL_E2E_EMAIL;
 const password = process.env.MULK_SQL_E2E_PASSWORD;
+const frontendOrigin = "http://127.0.0.1:3120";
 
 async function signIn(page: import("@playwright/test").Page) {
   if (!email || !password) throw new Error("MULK_SQL_E2E_EMAIL and MULK_SQL_E2E_PASSWORD must identify the verified SQL test user.");
@@ -17,14 +18,23 @@ function date(value: Date) {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 }
 
+async function postJson(page: import("@playwright/test").Page, path: string, data: object) {
+  const response = await page.request.post(path, { headers: { Origin: frontendOrigin }, data });
+  expect(response.ok(), `POST ${path} returned ${response.status()}: ${await response.text()}`).toBe(true);
+  return response.json();
+}
+
 async function createActiveLease(page: import("@playwright/test").Page, suffix: string) {
   const today = new Date();
   const endDate = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate());
-  const property = await (await page.request.post("/api/bff/properties", { data: { name: `SQL Mülk ${suffix}`, address: `Test ${suffix}`, propertyKind: "MULTI_UNIT" } })).json();
-  const unit = await (await page.request.post(`/api/bff/properties/${property.id}/units`, { data: { label: `Daire ${suffix}`, usageType: "RESIDENTIAL", doorNumber: null, areaM2: null } })).json();
-  const tenant = await (await page.request.post("/api/bff/tenants", { data: { firstName: `Test${suffix}`, lastName: "Kiracı", email: null, phone: null } })).json();
-  const lease = await (await page.request.post("/api/bff/leases", { data: { unitId: unit.id, tenantId: tenant.id, startDate: date(today), plannedEndDate: date(endDate), dueDay: 1, monthlyAmount: 12000, depositAmount: 0, note: null } })).json();
-  expect((await page.request.post(`/api/bff/leases/${lease.id}/activate`, { data: { version: lease.version } })).status()).toBe(204);
+  const property = await postJson(page, "/api/bff/properties", { name: `SQL Mülk ${suffix}`, address: `Test ${suffix}`, propertyKind: "MULTI_UNIT" });
+  const unit = await postJson(page, `/api/bff/properties/${property.id}/units`, { label: `Daire ${suffix}`, usageType: "RESIDENTIAL", doorNumber: null, areaM2: null });
+  const tenant = await postJson(page, "/api/bff/tenants", { firstName: `Test${suffix}`, lastName: "Kiracı", email: null, phone: null });
+  const lease = await postJson(page, "/api/bff/leases", { unitId: unit.id, tenantId: tenant.id, startDate: date(today), plannedEndDate: date(endDate), dueDay: 1, monthlyAmount: 12000, depositAmount: 0, note: null });
+  const activation = await page.request.post(`/api/bff/leases/${lease.id}/activate`, {
+    headers: { Origin: frontendOrigin }, data: { version: lease.version }
+  });
+  expect(activation.status()).toBe(204);
   return { tenant, endDate };
 }
 
