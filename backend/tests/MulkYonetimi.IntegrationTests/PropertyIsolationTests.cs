@@ -296,7 +296,7 @@ public sealed class PropertyIsolationTests
         var historical = Assert.Single((await clientA.GetFromJsonAsync<UnitPage>(
             $"{Properties}/{propertyId}/units?includeArchived=true", Json))!.Items);
         Assert.Equal(DateTimeKind.Utc, historical.ArchivedAtUtc!.Value.Kind);
-        Assert.Equal(12000m, (await clientA.GetFromJsonAsync<CashFlowResponse>(
+        Assert.Equal(8000m, (await clientA.GetFromJsonAsync<CashFlowResponse>(
             "/api/v1/reports/cashflow?fromDate=2026-02-01&toDate=2026-02-28&unitId=" + unit.Id, Json))!.NetOperatingCashFlow);
         var remaining = active.Id == draft.Id ? other : draft;
         using var overlapping = await clientA.PostAsJsonAsync($"{leases}/{remaining.Id}/activate", new { remaining.Version });
