@@ -16,7 +16,7 @@ export default defineConfig({
   use: {
     baseURL: frontendUrl,
     ...devices["Desktop Chrome"],
-    trace: "retain-on-failure",
+    trace: "off",
     storageState: { cookies: [], origins: [] },
   },
   webServer: {
