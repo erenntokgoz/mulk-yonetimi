@@ -170,8 +170,8 @@ export function ReportDashboard() {
           </p>
           {flow && !error && (
             <div className="flex flex-wrap gap-2">
-              <Button asChild variant="outline"><a href={`/api/bff/reports/cashflow.csv?${exportQuery}`} download="cashflow.csv">Nakit akışı CSV</a></Button>
-              <Button asChild variant="outline"><a href={`/api/bff/reports/payments.csv?${exportQuery}`} download="payments.csv">Tahsilatlar CSV</a></Button>
+              <Button asChild variant="outline" size="lg"><a href={`/api/bff/reports/cashflow.csv?${exportQuery}`} download="cashflow.csv">Nakit akışı CSV</a></Button>
+              <Button asChild variant="outline" size="lg"><a href={`/api/bff/reports/payments.csv?${exportQuery}`} download="payments.csv">Tahsilatlar CSV</a></Button>
             </div>
           )}
         </CardContent>

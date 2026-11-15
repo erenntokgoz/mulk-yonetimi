@@ -147,7 +147,7 @@ test("documents, notifications, and settings show API sign-in states without pla
     await expect(page.getByTestId("unavailable-state")).toHaveCount(0);
   }
   await page.goto("/bilinmeyen");
-  await expect(page.getByRole("heading", { level: 1, name: "404" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Sayfa bulunamadı" })).toBeVisible();
 });
 
 test("rent charges and payments load from the API and idempotent actions can be retried", async ({ page }) => {
