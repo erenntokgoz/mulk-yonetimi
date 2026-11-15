@@ -81,6 +81,25 @@ Ortam değişkenleri: `BACKEND_BASE_URL=https://mulkapi.duckdns.org`, `FRONTEND_
 
 Auth hız sınırının ortak Vercel çıkış IP'sinde tüm kullanıcıları birleştirmemesi için bağımsız, kriptografik rastgele en az 32 karakterlik bir anahtar üretip yalnız parola yöneticisi üzerinden iki tarafa aktarın: Vercel'de `BACKEND_RATE_LIMIT_SIGNING_KEY`, API sunucusundaki `deploy/api.env` içinde `Network__RateLimitSigningKey`. Anahtarı istemci bundle'ına (`NEXT_PUBLIC_*`), terminal komutuna, ticket'a veya Git'e koymayın; `Pilot__AdminKey` ile tekrar kullanmayın. Her iki değer ayarlanınca Vercel'i redeploy ve API container'ını yeniden oluşturun. API production'da anahtar yoksa başlamaz. Ayrıntı ADR 011'de.
 
+## Google ile giriş
+
+[ADR 012](adr/012-google-signin.md) bağlantı ve pilot onayı kararını açıklar. Google OAuth uygulamasında Web application client oluşturun. Kullanılacak adresi **Authorized redirect URIs** listesine aynen ekleyin:
+
+- Üretim: `https://mulkum-beta.vercel.app/api/bff/auth/google/callback`
+- Yerel: `http://localhost:3000/api/bff/auth/google/callback`
+
+BFF yalnız bu iki kökene izin verir; Vercel Preview URL'leri bu akışı başlatmaz. Yerelde frontend'i `localhost:3000` adresinden açın ve frontend/API origin ayarlarının eşleştiğini kontrol edin.
+
+1. Sunucudaki `deploy/api.env` içine `Auth__Google__ClientId` girin. Vercel'deki `GOOGLE_CLIENT_ID` aynı client olmalıdır. `GOOGLE_CLIENT_SECRET` yalnız Vercel Production ortamında sunucu değişkenidir. Bu sürüm yeni SQL migration gerektirmez.
+2. Önce Google uç noktasını taşıyan API'yi yayımlayın. Health'i ve yapılandırmayı kontrol edin. Sözleşme duman testi aşağıdaki geçersiz istekle `400` döner; `404` eski API, `503` eksik client ID, `403` ise origin uyumsuzluğu gösterebilir. Bu test oturum açmaz.
+3. API hazır olduktan sonra Vercel Production'da `NEXT_PUBLIC_GOOGLE_AUTH=1` ile frontend'i derleyip yayımlayın. İşletmecinin onaylı örnek hesabıyla gerçek Google girişini, yeni Google hesabında pilot onay ekranını ve parola girişinin çalıştığını doğrulayın.
+4. Google'ı geri almak için Vercel'de bayrağı kaldırıp yeniden derleyin, ardından API'deki `Auth__Google__ClientId` alanını kaldırıp yalnız API'yi yeniden oluşturun. Mevcut Identity hesap ve bağlantı kayıtları korunur.
+
+```bash
+curl --silent --show-error --output /dev/null --write-out '%{http_code}\n' \
+  -H 'Origin: https://mulkum-beta.vercel.app' -H 'Content-Type: application/json' \
+  --data '{"idToken":"","nonce":""}' https://mulkapi.duckdns.org/api/v1/auth/google
+```
 ## E-posta (Mailu)
 
 SMTP: `mail.kasam360.com.tr:465` örtük TLS (Mailu içinde 587 kapalı). `Email__SmtpPort=465`, gönderen `mulkum@360labs.com.tr`. Container host ağını kullandığı için Mailu'ya ulaşır. Posta spam'e düşerse 360labs.com.tr için SPF/DKIM kaydı gerekir.
