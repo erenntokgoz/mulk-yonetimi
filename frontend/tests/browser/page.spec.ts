@@ -2,37 +2,16 @@ import { expect, test } from "@playwright/test";
 
 const fixtureUrl = "http://127.0.0.1:5089/state";
 
-for (const [state, label] of [
-  ["Healthy", "Çalışıyor"],
-  ["Degraded", "Kısıtlı çalışıyor"],
-  ["Unhealthy", "Hizmet kullanılamıyor"],
-  ["Disconnected", "Bağlantı kurulamadı"],
-] as const) {
-  test(`renders ${state} service status accessibly`, async ({ page, request }) => {
-    expect((await request.post(fixtureUrl, { data: state })).ok()).toBeTruthy();
-    await page.goto("/panel");
-    await expect(page.getByRole("heading", { level: 1, name: "Genel bakış" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Sistem durumu" }).getByRole("status")).toHaveText(label);
-    if (state !== "Disconnected") {
-      await expect(page.getByText("Veritabanı", { exact: true })).toBeVisible();
-      await expect(page.locator("dd > span")).toHaveText(label);
-    } else {
-      await expect(page.getByText(/Hizmet durumu alınamadı/)).toBeVisible();
-    }
-  });
-}
-
-test("shows configuration failure without exposing server details", async ({ page }) => {
-  await page.goto("http://127.0.0.1:3110/panel");
-  await expect(page.getByRole("region", { name: "Sistem durumu" }).getByRole("status")).toHaveText("Bağlantı kurulamadı");
-  await expect(page.getByText(/Hizmet bağlantısı yapılandırılmamış/)).toBeVisible();
+test("dashboard does not show service health panels", async ({ page }) => {
+  await page.goto("/panel");
+  await expect(page.getByRole("heading", { level: 1, name: "Genel bakış" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Sistem durumu" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Hizmet kontrolleri" })).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText("BACKEND_BASE_URL");
 });
 
-test("keyboard skip link focuses main, then refresh retrieves changed status", async ({ page, request }) => {
-  expect((await request.post(fixtureUrl, { data: "Healthy" })).ok()).toBeTruthy();
+test("keyboard skip link focuses main", async ({ page }) => {
   await page.goto("/panel");
-  await expect(page.getByRole("region", { name: "Sistem durumu" }).getByRole("status")).toHaveText("Çalışıyor");
   await page.keyboard.press("Tab");
   const skipLink = page.getByRole("link", { name: "İçeriğe geç" });
   await expect(skipLink).toBeFocused();
@@ -40,17 +19,12 @@ test("keyboard skip link focuses main, then refresh retrieves changed status", a
   expect(bounds?.y).toBeGreaterThanOrEqual(0);
   await page.keyboard.press("Enter");
   await expect(page.getByRole("main")).toBeFocused();
-  expect((await request.post(fixtureUrl, { data: "Unhealthy" })).ok()).toBeTruthy();
-  await page.getByRole("button", { name: "Durumu yenile" }).click();
-  await expect(page.getByRole("region", { name: "Sistem durumu" }).getByRole("status")).toHaveText("Hizmet kullanılamıyor");
 });
 
-test("mobile shell keeps navigation and refresh usable without horizontal overflow", async ({ page, request }) => {
-  expect((await request.post(fixtureUrl, { data: "Healthy" })).ok()).toBeTruthy();
+test("mobile shell keeps navigation usable without horizontal overflow", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/panel");
   await expect(page.getByRole("button", { name: "Menüyü aç" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Durumu yenile" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
 });
 
@@ -89,32 +63,16 @@ test("section navigation groups links and filters them by label", async ({ page,
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
 });
 
-test("dashboard shows real portfolio summary and health details", async ({ page, request }) => {
-  expect((await request.post(fixtureUrl, { data: "Healthy" })).ok()).toBeTruthy();
+test("dashboard shows real portfolio summary", async ({ page }) => {
   await page.context().addCookies([{ name: "mulk.session", value: "fixture", url: "http://127.0.0.1:3109" }]);
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/panel");
   await expect(page.getByRole("heading", { level: 1, name: "Genel bakış" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Cari ay nakit akışı" })).toBeVisible();
-  const details = page.getByRole("region", { name: "Hizmet kontrolleri" });
-  await expect(details.getByText("Veritabanı", { exact: true })).toBeVisible();
-  const mainPanel = page.getByRole("region", { name: "Sistem sağlığı" });
-  await expect(mainPanel.getByRole("status")).toHaveText("Çalışıyor");
-  await expect(details.getByText("Yanıt süresi: 2 ms")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
   await page.setViewportSize({ width: 375, height: 812 });
-  const mobileMainBounds = await mainPanel.boundingBox();
-  const mobileDetailBounds = await details.boundingBox();
-  expect(mobileMainBounds && mobileDetailBounds && mobileDetailBounds.y > mobileMainBounds.y).toBeTruthy();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
-
-  expect((await request.post(fixtureUrl, { data: "Disconnected" })).ok()).toBeTruthy();
-  await page.reload();
-  await expect(details.getByText("Hizmet bilgisi alınamadı.")).toBeVisible();
-  await expect(details).not.toContainText("Veritabanı");
-  await expect(page.getByRole("region", { name: "Sistem durumu" }).getByRole("status")).toHaveCount(1);
   await expect(page.getByRole("main").locator(":scope > div")).toHaveCSS("opacity", "1");
-  await page.screenshot({ path: "frontend-theme-mobile.png", fullPage: true });
 });
 
 test("reference mobile menu opens with keyboard and closes with Escape", async ({ page, request }) => {

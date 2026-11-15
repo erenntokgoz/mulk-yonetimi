@@ -106,9 +106,6 @@ export function OverviewDashboard() {
                 </p>
               </CardContent>
             </Card>
-            <p className="text-xs text-muted-foreground">
-              Doluluk ve gecikme {data.asOf} tarihi itibarıyladır. Tutarlar API özetinden alınır.
-            </p>
           </>
         )
       )}
