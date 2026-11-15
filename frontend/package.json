@@ -14,6 +14,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --conditions=react-server --test tests/*.test.ts",
     "test:browser": "playwright test",
+    "test:browser:sql": "playwright test --config=playwright.sql.config.ts",
     "build": "next build",
     "api:types": "openapi-typescript http://127.0.0.1:5080/openapi/v1.json --output lib/api/generated.ts"
   },
