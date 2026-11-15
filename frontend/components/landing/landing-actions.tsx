@@ -34,7 +34,7 @@ export function LandingActions({ placement }: { placement: Placement }) {
   );
 }
 
-// Google girişi için sunucu ucu henüz yok; düğme yalnız NEXT_PUBLIC_GOOGLE_AUTH=1 iken çizilir.
+// Düğme yalnız NEXT_PUBLIC_GOOGLE_AUTH=1 iken çizilir; akış /api/bff/auth/google ile başlar.
 export function LandingGoogle() {
   const [signedIn] = useSessionState();
   if (signedIn || process.env.NEXT_PUBLIC_GOOGLE_AUTH !== "1") return null;
