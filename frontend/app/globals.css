@@ -9,14 +9,21 @@
 @layer base {
   :root {
     color-scheme: dark;
-    --bg: #05070c; --text: #eef2f8; --dim: #9aa6b8;
-    --glass: rgba(16, 21, 31, 0.3); --glass-strong: rgba(16, 21, 31, 0.78);
-    --edge: rgba(255, 255, 255, 0.08); --edge-hi: rgba(255, 255, 255, 0.16);
+    --bg: #08090c; --text: #eef2f8; --dim: #a3adbd;
+    --glass: rgba(20, 22, 28, 0.74); --glass-strong: rgba(20, 22, 28, 0.94);
+    --edge: rgba(255, 255, 255, 0.07); --edge-hi: rgba(255, 255, 255, 0.13);
     --hover: rgba(255, 255, 255, 0.05); --field: rgba(255, 255, 255, 0.04);
     --brand: #2f7bff; --brand-fill: #2159dc; --primary-soft: #8fb4ff; --primary-ink: #ffffff;
     --paid: #2fbf71; --partial: #f2b43c; --late: #ef5a5a; --expense: #9b7bff;
     --orb-1: #e3922f; --orb-2: #2a64e8; --orb-3: #2fae6f; --orb-4: #4fc8e0;
     --r: 22px;
+    /* Koyu temada cam yüzey sakin kalır: arka plan rengi camdan sızmaz, kenar ve parıltı veriyle yarışmaz. */
+    --glass-tint: linear-gradient(150deg, rgba(255,255,255,.035), rgba(255,255,255,.008) 45%, rgba(255,255,255,.015));
+    --glass-filter: blur(40px) saturate(115%);
+    --glass-rim: linear-gradient(145deg, rgba(255,255,255,.16), rgba(255,255,255,.04) 30%, rgba(255,255,255,.015) 60%, rgba(255,255,255,.06));
+    --glass-shadow: 0 30px 60px -40px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.05);
+    --glass-sheen: rgba(255,255,255,.035);
+    --glow: 0;
 
     --background: 220 41% 4%;
     --foreground: 215 36% 95%;
@@ -46,6 +53,12 @@
     --edge: rgba(15, 23, 42, 0.09); --edge-hi: rgba(15, 23, 42, 0.18);
     --hover: rgba(15, 23, 42, 0.05); --field: rgba(255, 255, 255, 0.6);
     --primary-soft: #1f5fd6;
+    --glass-tint: linear-gradient(150deg, rgba(255,255,255,.55), rgba(255,255,255,.12) 50%, rgba(255,255,255,.3));
+    --glass-filter: blur(34px) saturate(185%) brightness(1.06);
+    --glass-rim: linear-gradient(145deg, rgba(255,255,255,.95), rgba(255,255,255,.3) 35%, rgba(15,23,42,.06) 65%, rgba(255,255,255,.7));
+    --glass-shadow: 0 40px 80px -48px rgba(15,23,42,.35), inset 0 1px 0 rgba(255,255,255,.9);
+    --glass-sheen: rgba(255,255,255,.45);
+    --glow: 1;
 
     --background: 213 33% 90%;
     --foreground: 217 42% 10%;
@@ -76,12 +89,19 @@
 
 /* Buzlu camın arkasındaki renkli küreler (panel ve giriş sayfaları). */
 .orbs { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-.orb { position: absolute; border-radius: 50%; filter: blur(60px); opacity: .55; will-change: transform; }
+.orb { position: absolute; border-radius: 50%; will-change: transform; }
 .orb.a { width: 42vmax; height: 42vmax; left: 8vw; top: -16vmax; background: var(--orb-2); animation: driftA 40s ease-in-out infinite alternate; }
-.orb.b { width: 28vmax; height: 28vmax; right: -6vmax; top: 30vh; background: var(--orb-1); opacity: .36; animation: driftB 46s ease-in-out infinite alternate; }
-.orb.c { width: 26vmax; height: 26vmax; left: 34vw; bottom: -16vmax; background: var(--orb-3); opacity: .32; animation: driftC 52s ease-in-out infinite alternate; }
-.orb.d { width: 18vmax; height: 18vmax; left: -6vmax; bottom: 6vh; background: var(--orb-4); opacity: .28; animation: driftB 38s ease-in-out infinite alternate-reverse; }
-:root[data-theme="light"] .orb { opacity: .4; }
+.orb.b { width: 28vmax; height: 28vmax; right: -6vmax; top: 30vh; background: var(--orb-1); animation: driftB 46s ease-in-out infinite alternate; }
+.orb.c { width: 26vmax; height: 26vmax; left: 34vw; bottom: -16vmax; background: var(--orb-3); animation: driftC 52s ease-in-out infinite alternate; }
+.orb.d { width: 18vmax; height: 18vmax; left: -6vmax; bottom: 6vh; background: var(--orb-4); animation: driftB 38s ease-in-out infinite alternate-reverse; }
+/* Koyu tema: iki soluk, doygunluğu düşük küre; geniş bulanıklık yüzeyin arkasında yalnız derinlik verir. */
+.orb { filter: blur(120px) saturate(.55); opacity: .16; }
+.orb.b { opacity: .07; }
+.orb.c, .orb.d { display: none; }
+:root[data-theme="light"] .orb { filter: blur(60px); opacity: .4; }
+:root[data-theme="light"] .orb.b { opacity: .36; }
+:root[data-theme="light"] .orb.c { display: block; opacity: .32; }
+:root[data-theme="light"] .orb.d { display: block; opacity: .28; }
 @keyframes driftA { to { transform: translate(12vw, 8vh) scale(1.08); } }
 @keyframes driftB { to { transform: translate(-10vw, 12vh) scale(.92); } }
 @keyframes driftC { to { transform: translate(-14vw, -10vh) scale(1.1); } }
@@ -89,31 +109,21 @@
 /* Cam yüzey: kenarı ışığı kıran ince çerçeve, imleci izleyen parıltı. */
 .glass, .workspace-main .bg-card, .glass-table {
   position: relative; isolation: isolate; border: 1px solid transparent; border-radius: var(--r);
-  background: linear-gradient(150deg, rgba(255,255,255,.09), rgba(255,255,255,.015) 45%, rgba(255,255,255,.04)), var(--glass);
-  backdrop-filter: blur(34px) saturate(185%) brightness(1.06); -webkit-backdrop-filter: blur(34px) saturate(185%) brightness(1.06);
-  box-shadow: 0 40px 80px -46px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.14), inset 0 -1px 0 rgba(255,255,255,.03);
+  background: var(--glass-tint), var(--glass);
+  backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-shadow);
 }
 .glass::before, .workspace-main .bg-card::before, .glass-table::before {
   content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; pointer-events: none; z-index: 2;
-  background: linear-gradient(145deg, rgba(255,255,255,.5), rgba(255,255,255,.08) 30%, rgba(255,255,255,.02) 60%, rgba(255,255,255,.22));
+  background: var(--glass-rim);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
 }
 .glass::after, .workspace-main .bg-card::after, .glass-table::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1; opacity: 0; transition: opacity .4s;
-  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), rgba(255,255,255,.1), transparent 45%);
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), var(--glass-sheen), transparent 45%);
 }
 .glass:hover::after, .workspace-main .bg-card:hover::after, .glass-table:hover::after { opacity: 1; }
-:root[data-theme="light"] .glass, :root[data-theme="light"] .workspace-main .bg-card, :root[data-theme="light"] .glass-table {
-  background: linear-gradient(150deg, rgba(255,255,255,.55), rgba(255,255,255,.12) 50%, rgba(255,255,255,.3)), var(--glass);
-  box-shadow: 0 40px 80px -48px rgba(15,23,42,.35), inset 0 1px 0 rgba(255,255,255,.9);
-}
-:root[data-theme="light"] .glass::before, :root[data-theme="light"] .workspace-main .bg-card::before, :root[data-theme="light"] .glass-table::before {
-  background: linear-gradient(145deg, rgba(255,255,255,.95), rgba(255,255,255,.3) 35%, rgba(15,23,42,.06) 65%, rgba(255,255,255,.7));
-}
-:root[data-theme="light"] .glass::after, :root[data-theme="light"] .workspace-main .bg-card::after, :root[data-theme="light"] .glass-table::after {
-  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), rgba(255,255,255,.45), transparent 45%);
-}
 
 
 /* Chrome, Safari, Edge, Opera */
@@ -181,7 +191,8 @@ input[type='search']::-ms-clear {
 .reference-nav a { position: relative; min-height: 44px; gap: 12px; padding: 0 12px; border: 0; border-radius: 14px; color: var(--dim); font-size: 14px; font-weight: 600; background: transparent; }
 .reference-nav a svg { width: 19px; height: 19px; opacity: 1; }
 .reference-nav a:hover:not([aria-current="page"]) { color: var(--text); background: var(--hover); }
-.reference-nav a[aria-current="page"] { color: #fff; background: var(--brand-fill); box-shadow: 0 10px 24px -10px var(--brand), inset 0 1px 0 rgba(255,255,255,.25); }
+.reference-nav a[aria-current="page"] { color: #fff; background: var(--brand-fill); box-shadow: inset 0 1px 0 rgba(255,255,255,.18); }
+:root[data-theme="light"] .reference-nav a[aria-current="page"] { box-shadow: 0 10px 24px -10px var(--brand), inset 0 1px 0 rgba(255,255,255,.25); }
 .reference-nav input { height: 44px; font-size: 14px; background: var(--field); border: 1px solid var(--edge); border-radius: 14px; }
 .workspace { padding-left: 0; }
 .workspace-header { margin: 12px 12px 0; padding: 8px 8px 8px 16px; min-height: 60px; border-radius: 999px; gap: 8px; }
@@ -199,7 +210,8 @@ input[type='search']::-ms-clear {
 .workspace-main :is(input, select, textarea):focus { border-color: var(--brand); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 22%, transparent); }
 .mobile-sheet { background: var(--glass-strong); backdrop-filter: blur(34px) saturate(185%); -webkit-backdrop-filter: blur(34px) saturate(185%); color: var(--text); border-right: 1px solid var(--edge-hi); box-shadow: 0 0 60px rgba(0,0,0,.35); }
 .mobile-sheet .sidebar-footer { padding-top: 18px; }
-[data-scrim] { background: rgba(0,0,0,.4) !important; }
+[data-scrim] { background: rgba(0,0,0,.6) !important; }
+:root[data-theme="light"] [data-scrim] { background: rgba(15,23,42,.35) !important; }
 .workspace-header > .sidebar-toggle { padding: 0; border: 1px solid var(--edge); border-radius: 50%; background: var(--hover); }
 .workspace-header > button[aria-label="Menüyü aç"] { place-items: center; width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 50%; color: var(--text); flex-shrink: 0; border: 1px solid var(--edge); background: var(--hover); }
 .workspace-header > button[aria-label="Menüyü aç"] svg { width: 20px; height: 20px; flex-shrink: 0; }

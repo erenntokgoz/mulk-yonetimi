@@ -9,6 +9,9 @@
 
 .scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
 .vignette { position: fixed; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(120% 90% at 70% 40%, transparent 40%, rgba(5,7,12,.75) 100%); }
+/* Koyu temada metin sahnenin önünde okunur kalsın diye sol kenar hafifçe koyulaşır; sahne sağda olduğu gibi görünür. */
+:global(:root:not([data-theme="light"])) .vignette { background: linear-gradient(90deg, rgba(8,9,12,.78) 0%, rgba(8,9,12,.5) 34%, transparent 62%), radial-gradient(120% 90% at 70% 40%, transparent 40%, rgba(8,9,12,.75) 100%); }
+@media (max-width: 860px) { :global(:root:not([data-theme="light"])) .vignette { background: linear-gradient(0deg, rgba(8,9,12,.85) 0%, rgba(8,9,12,.55) 45%, transparent 75%); } }
 .labels { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; opacity: 0; }
 .mlabel { font: 600 12px/1 "Plus Jakarta Sans", system-ui, sans-serif; letter-spacing: .06em; color: var(--text); opacity: .8; text-shadow: 0 1px 8px rgba(0,0,0,.8); }
 
@@ -46,7 +49,7 @@
 .ln > span { display: inline-block; will-change: transform; }
 .grad { color: transparent; background: linear-gradient(100deg, #9cc2ff 0%, #5a95ff 45%, #2f7bff 100%); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 2px 18px rgba(47,123,255,.45)); }
 :global(:root[data-theme="light"]) .grad { background: linear-gradient(100deg, #2563eb 0%, #1d4ed8 55%, #1e3a8a 100%); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 2px 14px rgba(255,255,255,.7)); }
-.hero p { text-shadow: 0 1px 14px rgba(0,0,0,.65); font-size: clamp(16px, 1.5vw, 19px); color: var(--dim); max-width: 44ch; line-height: 1.55; margin: 0 0 32px; }
+.hero p { text-shadow: 0 1px 14px rgba(0,0,0,.65); font-size: clamp(16px, 1.5vw, 19px); color: #c9d1de; max-width: 44ch; line-height: 1.55; margin: 0 0 32px; }
 :global(:root[data-theme="light"]) .hero p { color: #26324a; text-shadow: 0 1px 12px rgba(255,255,255,.9); }
 .hero .chip { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); background: rgba(10,14,22,.45); }
 :global(:root[data-theme="light"]) .hero .chip { background: rgba(255,255,255,.62); }
