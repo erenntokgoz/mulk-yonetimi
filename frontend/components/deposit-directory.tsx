@@ -208,7 +208,7 @@ export function DepositDirectory() {
                 <p className="text-sm text-muted-foreground">Depozito kaydı açılacak etkin sözleşme yok.</p>
               ) : (
                 <form
-                  className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+                  className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
                   onSubmit={(e) =>
                     submit(e, "/api/bff/deposits", (d) => ({
                       leaseId: String(d.get("leaseId")),
@@ -219,7 +219,7 @@ export function DepositDirectory() {
                 >
                   <label className="grid gap-1 text-sm">
                     Etkin sözleşme
-                    <select name="leaseId" required className="h-10 rounded border bg-background px-3">
+                    <select name="leaseId" required className="h-10 w-full min-w-0 rounded border bg-background px-3">
                       {leases
                         .filter(
                           (l) => Number(l.depositAmount) > 0 && !deposits.some((x) => x.leaseId === l.id),
