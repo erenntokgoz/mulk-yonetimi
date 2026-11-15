@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { formatDate, formatMoney, todayIso } from "@/lib/format";
+import Link from "next/link";
 
 type Lease = components["schemas"]["LeaseResponse"];
 type LeasePage = components["schemas"]["LeasePage"];
@@ -28,10 +31,7 @@ const moneyBody = (body: Record<string, unknown>, fields: string[]) => {
   }
   return json;
 };
-const showMoney = (value: number | string) => {
-  const [integer, fraction = ""] = String(value).split(".");
-  return `${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${fraction.padEnd(2, "0").slice(0, 2)} ₺`;
-};
+const showMoney = formatMoney;
 const leaseStatus: Record<components["schemas"]["LeaseStatus"], string> = {
   DRAFT: "Taslak",
   ACTIVE: "Etkin",
@@ -43,6 +43,8 @@ export function LeaseDirectory() {
   const [leasePage, setLeasePage] = useState(1);
   const [moreLeases, setMoreLeases] = useState(false);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [propertyNames, setPropertyNames] = useState<Map<string, string>>(new Map());
+  const { ask, dialog } = useConfirmDialog();
   const [propertyPage, setPropertyPage] = useState(1);
   const [moreProperties, setMoreProperties] = useState(false);
   const [unitPages, setUnitPages] = useState<Record<string, { page: number; hasMore: boolean }>>({});
@@ -108,6 +110,7 @@ export function LeaseDirectory() {
         }),
       );
       setLeases(leasePage.items);
+      setPropertyNames(new Map(propertyPage.items.map((property) => [property.id, property.name])));
       setLeasePage(1);
       setMoreLeases(leasePage.hasMore);
       setUnits(unitPages.flatMap(([, page]) => page.items.filter((unit) => !unit.archivedAtUtc)));
@@ -212,7 +215,7 @@ export function LeaseDirectory() {
     }
   }
   async function activate(lease: Lease) {
-    if (!window.confirm("Sözleşme etkinleştirilsin mi?")) return;
+    if ((await ask({ title: "Sözleşme etkinleştirilsin mi?", description: "Etkin sözleşme için aylık kira alacakları oluşturulur.", confirmLabel: "Etkinleştir" })) === null) return;
     setPending(true);
     setError("");
     try {
@@ -360,10 +363,19 @@ export function LeaseDirectory() {
           {open ? "Formu kapat" : "Sözleşme oluştur"}
         </Button>
       </div>
-      {error && (
-        <p role="alert" className="rounded-lg border border-destructive/50 bg-card p-4 text-sm">
-          {error}
+      {!loading && !error && (!units.length || !tenants.length) && (
+        <p className="text-sm text-muted-foreground">
+          Sözleşme için önce {!units.length && <Link className="underline" href="/portfoy">portföye birim</Link>}
+          {!units.length && !tenants.length && " ve "}
+          {!tenants.length && <Link className="underline" href="/kiracilar">kiracı</Link>} ekleyin.
         </p>
+      )}
+      {error && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/50 bg-card p-4 text-sm">
+          <p>{error}</p>
+          {error.includes("giriş yapın") && <Link className="underline" href="/giris">Giriş yap</Link>}
+          {!leases.length && <Button type="button" variant="outline" disabled={loading} onClick={() => void load()}>Yeniden dene</Button>}
+        </div>
       )}
       {open && (
         <Card>
@@ -374,7 +386,7 @@ export function LeaseDirectory() {
                 <select name="unitId" required className="h-11 rounded-md border bg-background px-3">
                   {units.map((unit) => (
                     <option key={unit.id} value={unit.id}>
-                      {unit.label}
+                      {propertyNames.get(unit.propertyId) ? `${propertyNames.get(unit.propertyId)} · ${unit.label}` : unit.label}
                     </option>
                   ))}
                 </select>
@@ -462,78 +474,13 @@ export function LeaseDirectory() {
       {open && (moreProperties || moreTenants || Object.values(unitPages).some((state) => state.hasMore)) &&
         <Button type="button" variant="outline" disabled={loadingMore}
           onClick={() => void loadMoreSelections()}>Diğer birim ve kiracıları yükle</Button>}
-      {terminateId && (
-        <Card>
-          <CardContent className="pt-6">
-            <form onSubmit={terminate} className="grid gap-4 sm:grid-cols-3">
-              <h2 className="font-semibold sm:col-span-3">Sözleşmeyi sonlandır</h2>
-              <label className="grid gap-2 text-sm">
-                Sonlandırma tarihi
-                <input
-                  name="terminationDate"
-                  type="date"
-                  required
-                  max={dateString(new Date())}
-                  defaultValue={dateString(new Date())}
-                  className="h-11 rounded-md border bg-background px-3"
-                />
-              </label>
-              <label className="grid gap-2 text-sm sm:col-span-2">
-                Gerekçe
-                <input
-                  name="reason"
-                  required
-                  maxLength={500}
-                  className="h-11 rounded-md border bg-background px-3"
-                />
-              </label>
-              <div className="flex gap-2 sm:col-span-3">
-                <Button type="submit" disabled={pending}>
-                  {pending ? "Kaydediliyor…" : "Sonlandırmayı kaydet"}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setTerminateId("")}>
-                  Vazgeç
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-      {renewId && (
-        <Card>
-          <CardContent className="pt-6">
-            <form onSubmit={renew} className="grid gap-4 sm:grid-cols-2">
-              <h2 className="font-semibold sm:col-span-2">Sözleşmeyi yenile</h2>
-              <label className="grid gap-2 text-sm">Yeni bitiş tarihi
-                <input name="newEndDate" type="date" required min={leases.find((item) => item.id === renewId)?.plannedEndDate ?? undefined}
-                  className="h-11 rounded-md border bg-background px-3" />
-              </label>
-              <label className="grid gap-2 text-sm">Yeni bedelin başlangıcı
-                <input name="effectiveFrom" type="date" required min={nextMonthStart()} defaultValue={nextMonthStart()}
-                  className="h-11 rounded-md border bg-background px-3" />
-              </label>
-              <label className="grid gap-2 text-sm">Aylık kira (₺)
-                <input name="monthlyAmount" type="number" min="0.01" step="0.01" required
-                  className="h-11 rounded-md border bg-background px-3" />
-              </label>
-              <label className="grid gap-2 text-sm">Gerekçe
-                <input name="reason" required maxLength={500} className="h-11 rounded-md border bg-background px-3" />
-              </label>
-              <div className="flex gap-2 sm:col-span-2">
-                <Button type="submit" disabled={pending}>{pending ? "Kaydediliyor…" : "Yenilemeyi kaydet"}</Button>
-                <Button type="button" variant="outline" onClick={() => setRenewId("")}>Vazgeç</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
       {loading ? (
         <Card>
           <CardContent>
             <ListSkeleton label="Sözleşmeler yükleniyor…" />
           </CardContent>
         </Card>
-      ) : !leases.length ? (
+      ) : error && !leases.length ? null : !leases.length ? (
         <Card>
           <CardContent className="py-12 text-center">
             <h2 className="font-medium">Sözleşme kaydı yok</h2>
@@ -549,14 +496,24 @@ export function LeaseDirectory() {
                     <h2 className="font-semibold">
                       {unitNames.get(lease.unitId) ?? "Birim"} · {tenantNames.get(lease.tenantId) ?? "Kiracı"}
                     </h2>
-                    <span className="rounded-full border px-2.5 py-1 text-xs">
+                    <span className={`status-pill ${lease.status === "ACTIVE" ? "paid" : lease.status === "DRAFT" ? "info" : "muted"}`}>
                       {leaseStatus[lease.status]}
                     </span>
+                    {lease.status === "ACTIVE" && lease.plannedEndDate && lease.plannedEndDate < todayIso() && (
+                      <span className="status-pill partial">Planlanan bitiş geçti</span>
+                    )}
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {lease.startDate}
-                    {lease.plannedEndDate ? ` – ${lease.plannedEndDate}` : ""} · Vade günü {lease.dueDay}
+                    {[
+                      propertyNames.get(units.find((unit) => unit.id === lease.unitId)?.propertyId ?? ""),
+                      `Başlangıç ${formatDate(lease.startDate)}`,
+                      lease.plannedEndDate ? `Planlanan bitiş ${formatDate(lease.plannedEndDate)}` : "Süresiz",
+                      lease.terminationDate ? `Sonlandırma ${formatDate(lease.terminationDate)}` : "",
+                      `Vade günü ${lease.dueDay}`,
+                      Number(lease.depositAmount) > 0 ? `Depozito ${showMoney(lease.depositAmount)}` : "",
+                    ].filter(Boolean).join(" · ")}
                   </p>
+                  {lease.terminationReason && <p className="mt-1 text-sm text-muted-foreground">Sonlandırma gerekçesi: {lease.terminationReason}</p>}
                   {lease.note && <p className="mt-1 text-sm text-muted-foreground">{lease.note}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -584,6 +541,67 @@ export function LeaseDirectory() {
                   </Button>
                 </div>
               </CardContent>
+              {terminateId === lease.id && (
+                <CardContent className="border-t p-5">
+                    <form onSubmit={terminate} className="grid gap-4 sm:grid-cols-3">
+                      <h2 className="font-semibold sm:col-span-3">Sözleşmeyi sonlandır</h2>
+                      <label className="grid gap-2 text-sm">
+                        Sonlandırma tarihi
+                        <input
+                          name="terminationDate"
+                          type="date"
+                          required
+                          max={dateString(new Date())}
+                          defaultValue={dateString(new Date())}
+                          className="h-11 rounded-md border bg-background px-3"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm sm:col-span-2">
+                        Gerekçe
+                        <input
+                          name="reason"
+                          required
+                          maxLength={500}
+                          className="h-11 rounded-md border bg-background px-3"
+                        />
+                      </label>
+                      <div className="flex gap-2 sm:col-span-3">
+                        <Button type="submit" disabled={pending}>
+                          {pending ? "Kaydediliyor…" : "Sonlandırmayı kaydet"}
+                        </Button>
+                        <Button type="button" variant="outline" onClick={() => setTerminateId("")}>
+                          Vazgeç
+                        </Button>
+                      </div>
+                    </form>
+                  </CardContent>
+              )}
+              {renewId === lease.id && (
+                <CardContent className="border-t p-5">
+                    <form onSubmit={renew} className="grid gap-4 sm:grid-cols-2">
+                      <h2 className="font-semibold sm:col-span-2">Sözleşmeyi yenile</h2>
+                      <label className="grid gap-2 text-sm">Yeni bitiş tarihi
+                        <input name="newEndDate" type="date" required min={leases.find((item) => item.id === renewId)?.plannedEndDate ?? undefined}
+                          className="h-11 rounded-md border bg-background px-3" />
+                      </label>
+                      <label className="grid gap-2 text-sm">Yeni bedelin başlangıcı
+                        <input name="effectiveFrom" type="date" required min={nextMonthStart()} defaultValue={nextMonthStart()}
+                          className="h-11 rounded-md border bg-background px-3" />
+                      </label>
+                      <label className="grid gap-2 text-sm">Aylık kira (₺)
+                        <input name="monthlyAmount" type="number" min="0.01" step="0.01" required
+                          className="h-11 rounded-md border bg-background px-3" />
+                      </label>
+                      <label className="grid gap-2 text-sm">Gerekçe
+                        <input name="reason" required maxLength={500} className="h-11 rounded-md border bg-background px-3" />
+                      </label>
+                      <div className="flex gap-2 sm:col-span-2">
+                        <Button type="submit" disabled={pending}>{pending ? "Kaydediliyor…" : "Yenilemeyi kaydet"}</Button>
+                        <Button type="button" variant="outline" onClick={() => setRenewId("")}>Vazgeç</Button>
+                      </div>
+                    </form>
+                  </CardContent>
+              )}
               {detailId === lease.id && (
                 <CardContent className="grid gap-4 border-t p-5">
                   <div className="flex items-center justify-between">
@@ -600,7 +618,7 @@ export function LeaseDirectory() {
                           className="flex flex-wrap justify-between gap-2 rounded border p-3 text-sm"
                         >
                           <span>
-                            {rate.effectiveFrom}
+                            {formatDate(rate.effectiveFrom)}
                             {rate.reason ? ` · ${rate.reason}` : ""}
                           </span>
                           <strong>{showMoney(rate.monthlyAmount)}</strong>
@@ -608,14 +626,14 @@ export function LeaseDirectory() {
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-sm text-muted-foreground">Bedel geçmişi alınamadı veya boş.</p>
+                    <p className="text-sm text-muted-foreground">Kira bedeli kaydı yok.</p>
                   )}
                   {renewals.length > 0 && (
                     <div className="grid gap-2 text-sm">
                       <h4 className="font-medium">Ek protokoller</h4>
                       <ul className="grid gap-2">{renewals.map((item) => (
                         <li key={item.id} className="rounded border p-3">
-                          {item.previousEndDate} → {item.newEndDate} · {item.effectiveFrom} · {showMoney(item.monthlyAmount)} · {item.reason}
+                          {formatDate(item.previousEndDate)} → {formatDate(item.newEndDate)} · {formatDate(item.effectiveFrom)} · {showMoney(item.monthlyAmount)} · {item.reason}
                         </li>
                       ))}</ul>
                     </div>
@@ -667,6 +685,7 @@ export function LeaseDirectory() {
           ))}
         </div>
       )}
+      {dialog}
       {moreLeases && <Button type="button" variant="outline" disabled={loadingMore}
         onClick={() => void loadMoreLeases()}>Diğer sözleşmeleri yükle</Button>}
     </section>

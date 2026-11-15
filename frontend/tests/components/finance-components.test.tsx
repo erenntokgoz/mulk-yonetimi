@@ -110,7 +110,7 @@ describe("LeaseDirectory", () => {
     fireEvent.change(screen.getByLabelText("Gerekçe"), { target: { value: "Yıllık artış" } });
     fireEvent.click(screen.getByRole("button", { name: "Yenilemeyi kaydet" }));
 
-    await waitFor(() => expect(screen.getByText(/2026-01-01 – 2100-12-31/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Başlangıç 01\.01\.2026 · Planlanan bitiş 31\.12\.2100/)).toBeTruthy());
     const post = fetchMock.mock.calls.find(([url, init]) => String(url) === `/api/bff/leases/${leaseId}/renewals` && init?.method === "POST");
     expect(post).toBeDefined();
     expect(JSON.parse(String(post?.[1]?.body))).toMatchObject({ version: "AQ==", newEndDate: "2100-12-31", effectiveFrom: "2100-01-01", monthlyAmount: 13500, reason: "Yıllık artış" });
