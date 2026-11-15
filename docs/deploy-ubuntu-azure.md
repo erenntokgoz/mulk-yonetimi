@@ -75,7 +75,24 @@ SMTP: `mail.kasam360.com.tr:465` örtük TLS (Mailu içinde 587 kapalı). `Email
 
 ## Özel R2 ve zararlı yazılım taraması
 
-Her ortam için ayrı private R2 bucket ve o bucket ile sınırlı erişim anahtarı gerekir. Bucket CORS politikasında yalnız ilgili frontend origin'i için `PUT`/`GET` ve `Content-Type` imzalı başlığını açın; üretim anahtarını frontend ortamına koymayın. `Storage__R2*` değerleri yalnız `deploy/api.env` içindedir.
+Her ortam için ayrı private R2 bucket ve yalnız o bucket'a kapsamlı `Object Read & Write` S3 API token kullanın. R2 S3 kurulumu için [Cloudflare'ın resmi yönergesini](https://developers.cloudflare.com/r2/get-started/s3/), token kapsamı için [R2 token belgelerini](https://developers.cloudflare.com/r2/api/tokens/) izleyin. Bucket'ı private bırakın; public access veya public custom domain açmayın. Account ID, bucket adı, Access Key ID ve Secret Access Key yalnız API hostundaki `deploy/api.env` içine konur; secret token üretiminde yalnız bir kez gösterilir, başka yere kopyalamayın.
+
+Bu uygulamada browser doğrudan imzalı `PUT` ile `Content-Type` gönderir ve imzalı `GET` ile indirir. `HEAD` metadata kontrolünü API tarafı yapar, tarayıcı CORS gereksinimi değildir. Cloudflare Dashboard → **Storage & databases → R2 → bucket → Settings → CORS Policy** altında exact production origin kuralı kullanın; wildcard eklemeyin:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://mulkum-beta.vercel.app"],
+    "AllowedMethods": ["GET", "PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Üretim origin'i farklıysa `Auth__FrontendOrigin` ile aynı origin'i ve uygulamanın gerçek public origin'ini kullanın. Preview için origin gerekiyorsa yalnız tam preview hostunu staging bucket politikasına ekleyin; tüm `vercel.app` alanını açmayın.
+
+ClamAV resmi container'ı imza veritabanı ile gelir ve 3310 TCP hizmeti sağlar; [resmi container belgesi](https://github.com/Cisco-Talos/clamav-documentation/blob/main/src/manual/Installing/Docker.md) 4 GB RAM önerir. Paylaşılan sunucuda kapasite ölçülmeden profili açmayın. Ayrı staging ortamında önce `docker compose -f deploy/compose.api.yaml --profile scanner up -d clamav` çalıştırın; yalnız `127.0.0.1:3310` dinlenmelidir. Güncel imza ve sağlıklı scanner doğrulandıktan sonra `Scanner__Host=127.0.0.1` koyup API'yi yeniden başlatın. Tarayıcı yoksa/erişilemiyorsa `complete` 503, tehdit bulunursa 422 döner; dosya ACTIVE olmaz. R2/ClamAV canlı kabul testi ve gerçek CORS testi geçmeden belge özelliğini açık ilan etmeyin.
 
 ClamAV resmi container'ı imza veritabanı ile gelir ve 3310 TCP hizmeti sağlar; [resmi container belgesi](https://github.com/Cisco-Talos/clamav-documentation/blob/main/src/manual/Installing/Docker.md) 4 GB RAM önerir. Paylaşılan sunucuda kapasite ölçülmeden profili açmayın. Ayrı staging ortamında önce `docker compose -f deploy/compose.api.yaml --profile scanner up -d clamav` çalıştırın; yalnız `127.0.0.1:3310` dinlenmelidir. Güncel imza ve sağlıklı scanner doğrulandıktan sonra `Scanner__Host=127.0.0.1` koyup API'yi yeniden başlatın. Tarayıcı yoksa/erişilemiyorsa `complete` 503, tehdit bulunursa 422 döner; dosya ACTIVE olmaz. R2/ClamAV canlı kabul testi ve gerçek CORS testi geçmeden belge özelliğini açık ilan etmeyin.
 
