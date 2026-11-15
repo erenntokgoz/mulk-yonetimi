@@ -20,18 +20,16 @@ public interface IConfirmationMailer
 public sealed class SmtpConfirmationMailer(IConfiguration configuration) : IConfirmationMailer
 {
     public async Task SendAsync(string address, string confirmationUrl, CancellationToken cancellationToken)
-        => await SendMessageAsync(address, "Mülküm: e-posta adresinizi doğrulayın",
-            $"Mülküm hesabınızı etkinleştirmek için e-posta adresinizi doğrulayın:\n{confirmationUrl}\n\nBu işlemi siz başlatmadıysanız bu iletiyi yok sayabilirsiniz.", cancellationToken);
+        => await SendMessageAsync(address, EmailTemplates.ConfirmEmail(confirmationUrl), cancellationToken);
 
     public async Task SendPasswordResetAsync(string address, string resetUrl, CancellationToken cancellationToken)
-        => await SendMessageAsync(address, "Mülküm: parola sıfırlama",
-            $"Mülküm parolanızı sıfırlamak için bağlantıyı açın:\n{resetUrl}\n\nBu isteği siz yapmadıysanız bu iletiyi yok sayabilirsiniz. Parolanız değişmez.", cancellationToken);
+        => await SendMessageAsync(address, EmailTemplates.ResetPassword(resetUrl), cancellationToken);
 
     public async Task SendNotificationAsync(string address, string subject, string body,
         CancellationToken cancellationToken) =>
-        await SendMessageAsync(address, subject, body, cancellationToken);
+        await SendMessageAsync(address, EmailTemplates.Notification(subject, body), cancellationToken);
 
-    private async Task SendMessageAsync(string address, string subject, string body, CancellationToken cancellationToken)
+    private async Task SendMessageAsync(string address, RenderedEmail email, CancellationToken cancellationToken)
     {
         var host = configuration["Email:SmtpHost"];
         var sender = configuration["Email:From"];
@@ -42,8 +40,9 @@ public sealed class SmtpConfirmationMailer(IConfiguration configuration) : IConf
         using var message = new MimeMessage();
         message.From.Add(new MailboxAddress("Mülküm", MailboxAddress.Parse(sender).Address));
         message.To.Add(MailboxAddress.Parse(address));
-        message.Subject = subject;
-        message.Body = new TextPart("plain") { Text = body };
+        message.Subject = email.Subject;
+        message.Headers.Add("Auto-Submitted", "auto-generated");
+        message.Body = email.ToMimeBody();
         using var client = new SmtpClient { Timeout = 30_000 };
         await client.ConnectAsync(host, port, SmtpSecurity.For(port), cancellationToken);
         if (!string.IsNullOrWhiteSpace(user))
