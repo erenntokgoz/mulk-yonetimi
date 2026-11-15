@@ -6,10 +6,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
 type Summary = components["schemas"]["DashboardSummary"];
-const money = (v: number | string) =>
-  `${String(v)
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ".")
-    .replace(".", ",")} ₺`;
+// Tutarlar tr-TR yerel biçimiyle gösterilir (binlik nokta, ondalık virgül); API ondalık metin de dönebilir.
+const trMoney = new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (v: number | string) => `${trMoney.format(Number(v))} ₺`;
 export function OverviewDashboard() {
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);

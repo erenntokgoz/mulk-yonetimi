@@ -114,7 +114,7 @@ test("documents upload through a signed intent, complete, download, and soft del
 
   await page.goto("/belgeler");
   await expect(page.getByRole("heading", { level: 1, name: "Belgeler" })).toBeVisible();
-  await expect(page.getByText(/Zararlı dosya tarama/)).toBeVisible();
+  await expect(page.getByText(/Zararlı dosya taramasından geçmeyen dosya etkin belge olmaz/)).toBeVisible();
   await page.getByRole("combobox", { name: "Mülk" }).selectOption("property-1");
   await page.getByLabel("Dosya").setInputFiles({ name: "test.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") });
   await page.getByRole("button", { name: "Dosyayı yükle" }).click();
@@ -141,7 +141,7 @@ test("documents disclose missing R2 configuration and never claim a failed uploa
     else await route.fulfill({ json: { items: [], page: 1, pageSize: 25, hasMore: false } });
   });
   await page.goto("/belgeler");
-  await expect(page.getByText(/Zararlı dosya tarama/)).toBeVisible();
+  await expect(page.getByText(/Zararlı dosya taramasından geçmeyen dosya etkin belge olmaz/)).toBeVisible();
   await page.getByRole("combobox", { name: "Mülk" }).selectOption("property-1");
   await page.getByLabel("Dosya").setInputFiles({ name: "test.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") });
   await page.getByRole("button", { name: "Dosyayı yükle" }).click();
