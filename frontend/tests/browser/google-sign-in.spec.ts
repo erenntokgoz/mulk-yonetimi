@@ -8,7 +8,7 @@ test("Google button follows the build flag on login and registration", async ({ 
     await expect(page.getByRole("button", { name: submit, exact: true })).toBeVisible();
     const googleLink = page.getByRole("link", { name: "Google ile devam et" });
     if (process.env.NEXT_PUBLIC_GOOGLE_AUTH === "1") {
-      await expect(googleLink).toHaveAttribute("href", "/api/bff/auth/google");
+      await expect(googleLink).toHaveAttribute("href", "/api/bff/auth/google?popup=1");
     } else {
       await expect(googleLink).toHaveCount(0);
     }
@@ -16,7 +16,8 @@ test("Google button follows the build flag on login and registration", async ({ 
 });
 
 test("login page shows Google callback errors", async ({ page }) => {
-  await page.goto("/giris?hata=onay");
+  const response = await page.goto("/giris?hata=onay");
+  expect(response?.headers()["cross-origin-opener-policy"]).toBe("same-origin-allow-popups");
   await expect(page.locator("main [role=alert]")).toHaveText(
     "Hesabınız pilot onayı bekliyor. Onaylandıktan sonra giriş yapabilirsiniz.",
   );

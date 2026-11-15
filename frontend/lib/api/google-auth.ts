@@ -16,7 +16,10 @@ const COOKIE_AAD = Buffer.from("mulk.google.flow.v1");
 
 export type GoogleSignInError = "google" | "onay" | "erisim" | "sinir" | "google-hesap";
 
-type Flow = { state: string; nonce: string; verifier: string; next: string; origin: string; expiresAt: number };
+type Flow = { state: string; nonce: string; verifier: string; next: string; origin: string; expiresAt: number; popup?: boolean };
+type PopupResult =
+  | { type: "mulk-google-auth-result"; status: "success"; next: string }
+  | { type: "mulk-google-auth-result"; status: "error"; error: GoogleSignInError };
 
 function googleConfig(): { clientId: string; clientSecret: string } | null {
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
@@ -57,10 +60,11 @@ function open(value: string | null, clientSecret: string): Flow | null {
     const text = Buffer.concat([decipher.update(raw.subarray(12, raw.length - 16)), decipher.final()]).toString("utf8");
     const flow: unknown = JSON.parse(text);
     if (!flow || typeof flow !== "object") return null;
-    const { state, nonce, verifier, next, origin, expiresAt } = flow as Record<string, unknown>;
+    const { state, nonce, verifier, next, origin, expiresAt, popup } = flow as Record<string, unknown>;
     if (typeof state !== "string" || typeof nonce !== "string" || typeof verifier !== "string" ||
-      typeof next !== "string" || typeof origin !== "string" || typeof expiresAt !== "number") return null;
-    return { state, nonce, verifier, next, origin, expiresAt };
+      typeof next !== "string" || typeof origin !== "string" || typeof expiresAt !== "number" ||
+      (popup !== undefined && typeof popup !== "boolean")) return null;
+    return { state, nonce, verifier, next, origin, expiresAt, popup: popup === true };
   } catch {
     return null;
   }
@@ -91,17 +95,39 @@ function redirect(location: string, cookies: string[]): Response {
   return new Response(null, { status: 303, headers });
 }
 
-function failure(error: GoogleSignInError, next: string, cookies: string[]): Response {
+function failureLocation(error: GoogleSignInError, next: string): string {
   const query = new URLSearchParams({ hata: error });
   if (next !== "/panel") query.set("next", next);
-  return redirect(`/giris?${query}`, cookies);
+  return `/giris?${query}`;
+}
+
+function popupResult(result: PopupResult, fallback: string, cookies: string[]): Response {
+  const json = JSON.stringify(result).replace(/</g, "\\u003c");
+  const encodedFallback = fallback.replaceAll("&", "&amp;").replaceAll("\"", "&quot;")
+    .replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("'", "&#39;");
+  const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Google girişi</title></head><body><p>Google girişi tamamlanıyor…</p><script type="application/json" id="google-result">${json}</script><div id="google-fallback" data-redirect="${encodedFallback}"></div><script>(()=>{const result=JSON.parse(document.getElementById("google-result").textContent||"{}");if(window.opener&&!window.opener.closed){window.opener.postMessage(result,location.origin);window.close();return}location.replace(document.getElementById("google-fallback").dataset.redirect||"/giris")})()</script></body></html>`;
+  const headers = new Headers({
+    "Cache-Control": "no-store",
+    "Content-Type": "text/html; charset=utf-8",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+  });
+  for (const cookie of cookies) headers.append("Set-Cookie", cookie);
+  return new Response(html, { status: 200, headers });
+}
+
+function failure(error: GoogleSignInError, next: string, cookies: string[], popup = false): Response {
+  const location = failureLocation(error, next);
+  if (popup) return popupResult({ type: "mulk-google-auth-result", status: "error", error }, location, cookies);
+  return redirect(location, cookies);
 }
 
 export function startGoogleSignIn(request: Request): Response {
   const next = safeNextPath(new URL(request.url).searchParams.get("next"));
+  const popup = new URL(request.url).searchParams.get("popup") === "1";
   const config = googleConfig();
   const origin = redirectOrigin(request);
-  if (!config || !origin) return failure("google", next, []);
+  if (!config || !origin) return failure("google", next, [], popup);
 
   const verifier = random();
   const flow: Flow = {
@@ -111,6 +137,7 @@ export function startGoogleSignIn(request: Request): Response {
     next,
     origin,
     expiresAt: Date.now() + FLOW_SECONDS * 1000,
+    popup,
   };
   const authorize = new URL(AUTHORIZE_URL);
   authorize.search = new URLSearchParams({
@@ -136,20 +163,23 @@ export async function finishGoogleSignIn(request: Request, now = Date.now()): Pr
   const flow = config ? open(readCookie(request, GOOGLE_FLOW_COOKIE), config.clientSecret) : null;
   const url = new URL(request.url);
   const state = url.searchParams.get("state");
-  if (!config || !flow || flow.expiresAt < now || !state || !safeEqual(state, flow.state))
+  if (!config || !flow)
     return failure("google", "/panel", cleared);
   const next = safeNextPath(flow.next);
   const origin = redirectOrigin(request);
+  const popup = flow.popup === true && origin === flow.origin;
+  if (flow.expiresAt < now || !state || !safeEqual(state, flow.state))
+    return failure("google", next, cleared, popup);
   const code = url.searchParams.get("code");
   const frontendOrigin = configuredFrontendOrigin();
   if (!origin || origin !== flow.origin || url.searchParams.has("error") || !code || code.length > 2048 || !frontendOrigin)
-    return failure("google", next, cleared);
+    return failure("google", next, cleared, popup);
 
   let backendUrl: string;
   try {
     backendUrl = getBackendBaseUrl();
   } catch {
-    return failure("google", next, cleared);
+    return failure("google", next, cleared, popup);
   }
 
   let idToken: unknown;
@@ -169,13 +199,13 @@ export async function finishGoogleSignIn(request: Request, now = Date.now()): Pr
       redirect: "error",
       signal: AbortSignal.timeout(10000),
     });
-    if (!token.ok) return failure("google", next, cleared);
+    if (!token.ok) return failure("google", next, cleared, popup);
     const body: unknown = await token.json();
     idToken = body && typeof body === "object" ? (body as { id_token?: unknown }).id_token : undefined;
   } catch {
-    return failure("google", next, cleared);
+    return failure("google", next, cleared, popup);
   }
-  if (typeof idToken !== "string" || !idToken) return failure("google", next, cleared);
+  if (typeof idToken !== "string" || !idToken) return failure("google", next, cleared, popup);
 
   const headers = new Headers({ Accept: "application/json", "Content-Type": "application/json", Origin: frontendOrigin });
   setSignedClientIp(request, headers);
@@ -190,8 +220,10 @@ export async function finishGoogleSignIn(request: Request, now = Date.now()): Pr
       signal: AbortSignal.timeout(10000),
     });
   } catch {
-    return failure("google", next, cleared);
+    return failure("google", next, cleared, popup);
   }
-  if (upstream.status !== 204) return failure(statusErrors[upstream.status] ?? "google", next, cleared);
-  return redirect(next, [...cleared, ...upstream.headers.getSetCookie()]);
+  if (upstream.status !== 204) return failure(statusErrors[upstream.status] ?? "google", next, cleared, popup);
+  const sessionCookies = [...cleared, ...upstream.headers.getSetCookie()];
+  if (popup) return popupResult({ type: "mulk-google-auth-result", status: "success", next }, next, sessionCookies);
+  return redirect(next, sessionCookies);
 }

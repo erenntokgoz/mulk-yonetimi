@@ -51,9 +51,10 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-function start(next?: string, origin = "http://localhost:3000") {
+function start(next?: string, origin = "http://localhost:3000", popup = false) {
   const url = new URL("/api/bff/auth/google", origin);
   if (next !== undefined) url.searchParams.set("next", next);
+  if (popup) url.searchParams.set("popup", "1");
   const response = startGoogleSignIn(new Request(url));
   const setCookie = response.headers.getSetCookie();
   return { response, location: response.headers.get("location") ?? "", setCookie, cookie: setCookie[0]?.split(";")[0] ?? "" };
@@ -118,7 +119,7 @@ test("callback rejects a state mismatch without exchanging the code", async () =
   const { cookie } = start("/kiracilar");
   const response = await callback(cookie, { state: "attacker-state", code: "attacker-code" });
   assert.equal(response.status, 303);
-  assert.equal(response.headers.get("location"), "/giris?hata=google");
+  assert.equal(response.headers.get("location"), "/giris?hata=google&next=%2Fkiracilar");
   assertFlowCookieCleared(response);
   assert.ok(!response.headers.getSetCookie().some((value) => value.startsWith("mulk.session=")));
   assert.equal(calls.length, 0);
@@ -172,6 +173,49 @@ test("callback exchanges the code with PKCE, sends the nonce to the API and keep
   assert.equal(apiHeaders.get("origin"), "http://localhost:3000");
   assert.equal(apiHeaders.get("content-type"), "application/json");
   assert.deepEqual(JSON.parse(String(api.init?.body)), { idToken: "google-id-token", nonce: google.searchParams.get("nonce") });
+});
+
+test("popup callback posts only a success result to the opener and sets the session cookie", async () => {
+  const { cookie, location } = start("/kiracilar?durum=aktif", undefined, true);
+  const google = new URL(location);
+  const response = await callback(cookie, { state: google.searchParams.get("state")!, code: "auth-code" });
+  const html = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.match(response.headers.get("content-type") ?? "", /text\/html; charset=utf-8/i);
+  assert.match(html, /window\.opener\.postMessage\(result,location\.origin\)/);
+  assert.match(html, /location\.replace/);
+  assert.match(html, /"status":"success","next":"\/kiracilar\?durum=aktif"/);
+  assert.ok(response.headers.getSetCookie().some((cookie) => cookie.startsWith("mulk.session=api-session")));
+  assertFlowCookieCleared(response);
+  assert.doesNotMatch(html, /google-id-token|client-secret|auth-code/);
+});
+
+test("popup callback sends a mapped failure without setting a session cookie", async () => {
+  mockFetch(409);
+  const { cookie, location } = start("/kiracilar", undefined, true);
+  const response = await callback(cookie, { state: new URL(location).searchParams.get("state")!, code: "auth-code" });
+  const html = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(html, /"status":"error","error":"google-hesap"/);
+  assert.match(html, /data-redirect="\/giris\?hata=google-hesap&amp;next=%2Fkiracilar"/);
+  assert.ok(!response.headers.getSetCookie().some((cookie) => cookie.startsWith("mulk.session=")));
+  assertFlowCookieCleared(response);
+});
+
+test("popup cancellation returns a closeable error result and a full-page fallback", async () => {
+  const { cookie, location } = start("/kiracilar", undefined, true);
+  const response = await callback(cookie, {
+    state: new URL(location).searchParams.get("state")!,
+    error: "access_denied",
+  });
+  const html = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(html, /"status":"error","error":"google"/);
+  assert.match(html, /location\.replace/);
 });
 
 test("callback maps API refusals to login page errors and keeps the safe next path", async () => {
