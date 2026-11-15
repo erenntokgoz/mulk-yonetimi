@@ -14,10 +14,10 @@ The plan is `docs/superpowers/plans/2026-11-15-delivery-readiness.md`.
 - [x] Cashflow and payment CSV (code and targeted unit tests; SQL acceptance pending)
 - [ ] Expired auth tokens (deterministic SQL integration assertions compile; execution pending)
 - [ ] Component, real API E2E and visual regression tests
-- [ ] Typed API client and CI contract/dependency gates
+- [x] Typed server API client and CI contract/dependency gates (local type/build checks; CI run pending)
 - [ ] Malware scanner and R2 acceptance harness (ClamAV adapter/protocol tests done; real R2 pending)
 - [ ] Staging, restore, release and rollout docs
-- [ ] First setup guidance
+- [x] First setup guidance (real API state and existing forms)
 - [ ] Full verification and self-review
 
 ## External evidence
@@ -36,3 +36,4 @@ Production deployment, production restore and real R2 acceptance require credent
 - Expired confirmation/reset token assertions use a negative token lifetime in the real provider and compile in SQL integration project. Their API result is unverified until SQL is available.
 - `pnpm api:types` and `pnpm typecheck`: exit 0 after pilot endpoint; generated types updated, `next-env.d.ts` restored.
 - Pagination/404: targeted `pnpm build` exit 0, 4 Playwright tests passed (property #101, notification #26, tenant picker #101, unauthenticated unknown route 404). Unknown route test first failed at received 200, then passed after proxy guard narrowed to known sections and Turkish 404 page. Targeted ESLint exit 0. Full browser suite remains pending.
+- Initial setup: Playwright test failed before route existed, then `pnpm build` exit 0 and 2/2 targeted tests passed; first empty state and real form progression checked. The typed server client compiles against generated OpenAPI GET paths/responses. CI schema regeneration and Dependabot files added but workflow has not run.

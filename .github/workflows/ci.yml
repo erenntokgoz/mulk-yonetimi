@@ -49,6 +49,22 @@ jobs:
       - name: Run remaining backend tests
         run: dotnet test MulkYonetimi.slnx --no-build --configuration Release --filter 'FullyQualifiedName!~MulkYonetimi.Api.Tests.PropertyContractTests'
       - run: dotnet format MulkYonetimi.slnx --verify-no-changes --no-restore
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.15.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Check generated OpenAPI client
+        run: |
+          ASPNETCORE_ENVIRONMENT=Development Email__WorkerEnabled=false Notifications__WorkerEnabled=false RentCharges__WorkerEnabled=false \
+            dotnet src/MulkYonetimi.Api/bin/Release/net10.0/MulkYonetimi.Api.dll --urls http://127.0.0.1:5080 > "$RUNNER_TEMP/openapi-server.log" 2>&1 &
+          curl --fail --retry 20 --retry-delay 1 --retry-connrefused http://127.0.0.1:5080/openapi/v1.json -o "$RUNNER_TEMP/openapi.json"
+          cd ../frontend
+          pnpm install --frozen-lockfile
+          pnpm api:types
+          git diff --exit-code -- lib/api/generated.ts
       - name: Prepare API and migration artifacts
         if: github.event_name == 'push'
         run: |
