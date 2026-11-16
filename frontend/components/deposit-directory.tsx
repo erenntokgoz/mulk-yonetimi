@@ -5,22 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { formatDate, formatMoney, todayIso } from "@/lib/format";
 
 type Deposit = components["schemas"]["DepositResponse"];
 type Movement = components["schemas"]["DepositMovementResponse"];
 type Lease = components["schemas"]["LeaseResponse"];
-const money = (v: number | string) => {
-  const [integer, fraction = ""] = String(v).split(".");
-  return `${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${fraction.padEnd(2, "0").slice(0, 2)} ₺`;
-};
-const today = () => new Date().toLocaleDateString("en-CA");
+type Tenant = components["schemas"]["TenantResponse"];
+const money = formatMoney;
+const today = todayIso;
 const key = () => crypto.randomUUID().replaceAll("-", "");
 const decimalBody = (v: string) => {
   if (!/^\d+(?:\.\d{1,2})?$/.test(v)) throw new Error("Tutarı en çok iki ondalık basamakla girin.");
   return v;
 };
-function leaseName(lease: Lease) {
-  return `${lease.startDate} · ${money(lease.depositAmount)}`;
+function tenantName(tenant: Tenant | undefined) {
+  if (!tenant) return "Kiracı";
+  return tenant.kind === "COMPANY" ? (tenant.companyName ?? "Şirket") : `${tenant.firstName ?? ""} ${tenant.lastName ?? ""}`.trim();
 }
 
 export function DepositDirectory() {
@@ -38,11 +38,19 @@ export function DepositDirectory() {
   const [dataError, setDataError] = useState("");
   const [pending, setPending] = useState(false);
   const [retry, setRetry] = useState<{ url: string; body: string; key: string } | null>(null);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const leaseName = (lease: Lease | undefined) => lease
+    ? `${tenantName(tenants.find((tenant) => tenant.id === lease.tenantId))} · ${formatDate(lease.startDate)} başlangıçlı sözleşme`
+    : "Sözleşme";
   async function load() {
     setLoading(true);
     try {
       const get = (url: string) => fetch(url, { cache: "no-store" });
       const leasesRequest = get("/api/bff/leases?status=ACTIVE&page=1&pageSize=100");
+      // Kiracı adları yalnız etiket içindir; alınamazsa depozito ekranı yine çalışır.
+      void get("/api/bff/tenants?page=1&pageSize=100&includeArchived=true")
+        .then(async (response) => response.ok ? setTenants(((await response.json()) as { items: Tenant[] }).items) : undefined)
+        .catch(() => undefined);
       const d = await get("/api/bff/deposits?page=1&pageSize=100");
       if (!d.ok) {
         void leasesRequest.catch(() => undefined);
@@ -196,11 +204,11 @@ export function DepositDirectory() {
               <h2 className="text-lg font-semibold">Depozito kaydı</h2>
               {loading ? (
                 <ListSkeleton label="Sözleşmeler yükleniyor…" />
-              ) : !leases.length ? (
-                <p className="text-sm text-muted-foreground">Depozito tutarı olan etkin sözleşme yok.</p>
+              ) : !leases.some((l) => Number(l.depositAmount) > 0 && !deposits.some((x) => x.leaseId === l.id)) ? (
+                <p className="text-sm text-muted-foreground">Depozito kaydı açılacak etkin sözleşme yok.</p>
               ) : (
                 <form
-                  className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+                  className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
                   onSubmit={(e) =>
                     submit(e, "/api/bff/deposits", (d) => ({
                       leaseId: String(d.get("leaseId")),
@@ -211,14 +219,14 @@ export function DepositDirectory() {
                 >
                   <label className="grid gap-1 text-sm">
                     Etkin sözleşme
-                    <select name="leaseId" required className="h-10 rounded border bg-background px-3">
+                    <select name="leaseId" required className="h-10 w-full min-w-0 rounded border bg-background px-3">
                       {leases
                         .filter(
                           (l) => Number(l.depositAmount) > 0 && !deposits.some((x) => x.leaseId === l.id),
                         )
                         .map((l) => (
                           <option key={l.id} value={l.id}>
-                            {leaseName(l)}
+                            {leaseName(l)} · {money(l.depositAmount)}
                           </option>
                         ))}
                     </select>
@@ -261,7 +269,7 @@ export function DepositDirectory() {
                 <div className="grid gap-3">
                   {deposits.map((d) => (
                     <article key={d.id} className="grid gap-3 rounded-lg border p-4">
-                      <h3 className="font-medium">Sözleşme · {money(d.amountAgreed)}</h3>
+                      <h3 className="font-medium">{leaseName(leases.find((lease) => lease.id === d.leaseId))} · {money(d.amountAgreed)}</h3>
                       <p className="text-sm text-muted-foreground">
                         {d.custodyType === "OWNER_HELD" ? "Malik tarafından tutuluyor" : "Bankada bloke"} ·
                         Bakiye {money(d.balance)}
@@ -322,7 +330,7 @@ export function DepositDirectory() {
                       <ul className="grid gap-2 border-t pt-3 sm:grid-cols-2">
                         {(movements[d.id] ?? []).map((m) => (
                           <li key={m.id} className="text-sm">
-                            {m.movementOn} ·{" "}
+                            {formatDate(m.movementOn)} ·{" "}
                             {m.movementType === "RETURNED"
                               ? "İade"
                               : m.movementType === "HELD"

@@ -28,7 +28,7 @@ Yerel SQL `BACKUP`/`RESTORE VERIFYONLY`/ayrı DB `RESTORE`/`DBCC CHECKDB` tatbik
 - Azure SQL PITR restore süresi/RPO ölçümü kaydedildi; önerilen hedefler operatörce kabul edildi. Üretim env, SMTP ve domain/HTTPS/host ayarları kontrol edildi.
 - Uygulanacak migration scripti idempotent ve release SHA'sına ait; Azure SQL geri dönüş noktası migration öncesi kaydedildi. İşletmeci go kararı, zaman ve SHA'yı kayıt altına aldı.
 
-Bu kapılardan biri eksikse **no-go**. Bu çalışma ağacında gerçek SQL, R2, SMTP, staging ve Azure restore kanıtı yoktur; şu an karar no-go'dur.
+Bu kapılar tam pilot kabulü içindir. CI'da [gerçek SQL ve tarayıcı kanıtı](https://github.com/erenntokgoz/mulk-yonetimi/actions/runs/43694853694) vardır. Bununla birlikte staging, gerçek R2/tarama kabulü ve Azure restore tatbikatı açık olduğundan tam pilot kabulü **no-go** durumundadır. Güncel gereksinim ve demo özeti: [16 Kasım teslim notu](teslim-notu-2026-11-16.md).
 
 ## Rollout ve rollback
 

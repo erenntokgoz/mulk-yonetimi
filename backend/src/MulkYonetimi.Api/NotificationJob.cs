@@ -30,49 +30,84 @@ public sealed class NotificationJob(ApplicationDbContext db, EmailOutboxQueue ou
             var preferences = await db.NotificationPreferences.AsNoTracking()
                 .Where(item => item.AccountId == accountId).ToDictionaryAsync(item => item.UserId, ct);
             var dueThrough = today.AddDays(DueSoonDays);
-            var charges = await db.RentCharges.AsNoTracking()
-                .Where(charge => charge.AccountId == accountId && charge.DueDate <= dueThrough)
-                .Select(charge => new
-                {
-                    charge.Id,
-                    charge.DueDate,
-                    charge.Amount,
-                    Paid = db.PaymentAllocations.Where(allocation => allocation.AccountId == accountId &&
-                        allocation.RentChargeId == charge.Id && db.Payments.Any(payment =>
-                            payment.AccountId == accountId && payment.Id == allocation.PaymentId &&
-                            payment.VoidedAtUtc == null)).Sum(allocation => (decimal?)allocation.Amount) ?? 0m
-                }).ToListAsync(ct);
+            var charges = await (from charge in db.RentCharges.AsNoTracking()
+                                 join lease in db.Leases.AsNoTracking()
+                                     on new { charge.AccountId, Id = charge.LeaseId } equals new { lease.AccountId, lease.Id }
+                                 join unit in db.Units.AsNoTracking()
+                                     on new { lease.AccountId, Id = lease.UnitId } equals new { unit.AccountId, unit.Id }
+                                 join property in db.Properties.AsNoTracking()
+                                     on new { unit.AccountId, Id = unit.PropertyId } equals new { property.AccountId, property.Id }
+                                 join tenant in db.Tenants.AsNoTracking()
+                                     on new { lease.AccountId, Id = lease.TenantId } equals new { tenant.AccountId, tenant.Id }
+                                 where charge.AccountId == accountId && charge.DueDate <= dueThrough
+                                 select new
+                                 {
+                                     charge.Id,
+                                     charge.DueDate,
+                                     charge.Amount,
+                                     PropertyName = property.Name,
+                                     UnitLabel = unit.Label,
+                                     unit.IsDefault,
+                                     TenantKind = tenant.Kind,
+                                     tenant.FirstName,
+                                     tenant.LastName,
+                                     tenant.CompanyName,
+                                     Paid = db.PaymentAllocations.Where(allocation => allocation.AccountId == accountId &&
+                                         allocation.RentChargeId == charge.Id && db.Payments.Any(payment =>
+                                             payment.AccountId == accountId && payment.Id == allocation.PaymentId &&
+                                             payment.VoidedAtUtc == null)).Sum(allocation => (decimal?)allocation.Amount) ?? 0m
+                                 }).ToListAsync(ct);
             foreach (var charge in charges.Where(item => item.Amount > item.Paid))
             {
+                var place = NotificationCopy.Place(charge.PropertyName, charge.UnitLabel, charge.IsDefault);
+                var tenant = NotificationCopy.TenantName(charge.TenantKind, charge.FirstName, charge.LastName,
+                    charge.CompanyName);
+                var unpaid = charge.Amount - charge.Paid;
                 if (charge.DueDate >= today)
                     await AddEventAsync(accountId, members, preferences, "RENT_DUE",
-                        $"rent-due:{charge.Id}:{charge.DueDate:yyyyMMdd}", "Yaklaşan kira vadesi",
-                        $"Kira ödeme tarihi {charge.DueDate:dd.MM.yyyy}.", ct);
+                        $"rent-due:{charge.Id}:{charge.DueDate:yyyyMMdd}",
+                        NotificationCopy.RentDue(place, tenant, charge.DueDate, unpaid), ct);
                 else
                     await AddEventAsync(accountId, members, preferences, "OVERDUE_RENT",
-                        $"overdue-rent:{charge.Id}", "Vadesi geçen kira",
-                        $"Kira ödemesinin vadesi {charge.DueDate:dd.MM.yyyy} tarihinde geçti.", ct);
+                        $"overdue-rent:{charge.Id}",
+                        NotificationCopy.OverdueRent(place, tenant, charge.DueDate, unpaid), ct);
             }
 
-            var leases = await db.Leases.AsNoTracking().Where(lease => lease.AccountId == accountId &&
-                lease.Status == LeaseStatus.ACTIVE).Select(lease => new
-                {
-                    lease.Id,
-                    lease.PlannedEndDate,
-                    lease.StartDate
-                }).ToListAsync(ct);
+            var leases = await (from lease in db.Leases.AsNoTracking()
+                                join unit in db.Units.AsNoTracking()
+                                    on new { lease.AccountId, Id = lease.UnitId } equals new { unit.AccountId, unit.Id }
+                                join property in db.Properties.AsNoTracking()
+                                    on new { unit.AccountId, Id = unit.PropertyId } equals new { property.AccountId, property.Id }
+                                join tenant in db.Tenants.AsNoTracking()
+                                    on new { lease.AccountId, Id = lease.TenantId } equals new { tenant.AccountId, tenant.Id }
+                                where lease.AccountId == accountId && lease.Status == LeaseStatus.ACTIVE
+                                select new
+                                {
+                                    lease.Id,
+                                    lease.PlannedEndDate,
+                                    lease.StartDate,
+                                    PropertyName = property.Name,
+                                    UnitLabel = unit.Label,
+                                    unit.IsDefault,
+                                    TenantKind = tenant.Kind,
+                                    tenant.FirstName,
+                                    tenant.LastName,
+                                    tenant.CompanyName
+                                }).ToListAsync(ct);
             foreach (var lease in leases)
             {
+                var place = NotificationCopy.Place(lease.PropertyName, lease.UnitLabel, lease.IsDefault);
+                var tenant = NotificationCopy.TenantName(lease.TenantKind, lease.FirstName, lease.LastName,
+                    lease.CompanyName);
                 if (lease.PlannedEndDate is { } end && end >= today && end <= today.AddDays(LeaseEndWarningDays))
                     await AddEventAsync(accountId, members, preferences, "LEASE_END",
-                        $"lease-end:{lease.Id}:{end:yyyyMMdd}", "Sözleşme bitiş tarihi yaklaşıyor",
-                        $"Planlanan sözleşme bitiş tarihi {end:dd.MM.yyyy}.", ct);
+                        $"lease-end:{lease.Id}:{end:yyyyMMdd}", NotificationCopy.LeaseEnd(place, tenant, end), ct);
 
                 if (lease.StartDate <= today && lease.StartDate.Month == today.Month &&
                     lease.StartDate.Day == today.Day)
                     await AddEventAsync(accountId, members, preferences, "RENT_ANNIVERSARY",
-                        $"rent-anniversary:{lease.Id}:{today.Year}", "Kira güncelleme yıl dönümü",
-                        "Sözleşme başlangıç tarihinin yıl dönümü bugün.", ct);
+                        $"rent-anniversary:{lease.Id}:{today.Year}",
+                        NotificationCopy.RentAnniversary(place, tenant, lease.StartDate), ct);
             }
 
             await db.SaveChangesAsync(ct);
@@ -83,8 +118,9 @@ public sealed class NotificationJob(ApplicationDbContext db, EmailOutboxQueue ou
 
     private async Task AddEventAsync(Guid accountId, IReadOnlyList<NotificationRecipient> members,
         IReadOnlyDictionary<Guid, NotificationPreference> preferences, string type, string eventKey,
-        string title, string message, CancellationToken ct)
+        NotificationText text, CancellationToken ct)
     {
+        var (title, message) = text;
         foreach (var member in members)
         {
             var preference = preferences.GetValueOrDefault(member.UserId) ?? new NotificationPreference

@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { formatDate, formatMoney, formatPeriod } from "@/lib/format";
 
 type Charge = components["schemas"]["RentChargeResponse"];
 type ChargePage = components["schemas"]["RentChargePage"];
@@ -12,10 +14,7 @@ type PaymentPage = components["schemas"]["PaymentPage"];
 type Tenant = components["schemas"]["TenantResponse"];
 type PendingRequest = { url: string; body: string; key: string };
 const jsonHeaders = { "Content-Type": "application/json" };
-const showMoney = (value: number | string) => {
-  const [integer, fraction = ""] = String(value).split(".");
-  return `${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${fraction.padEnd(2, "0").slice(0, 2)} ₺`;
-};
+const showMoney = formatMoney;
 function decimalBody<T extends object>(payload: T, field: keyof T & string, allowZero = false) {
   const raw = String((payload as Record<string, unknown>)[field] ?? "").trim();
   if (!(allowZero ? /^(?:0|\d+(?:\.\d{1,2})?)$/ : /^\d+(?:\.\d{1,2})?$/).test(raw))
@@ -56,6 +55,7 @@ export function RentCollection() {
   const [retry, setRetry] = useState<PendingRequest | null>(null);
   const [correctionId, setCorrectionId] = useState("");
   const [allocationId, setAllocationId] = useState("");
+  const { ask, dialog } = useConfirmDialog();
   const tenantNames = useMemo(
     () => new Map(tenants.map((tenant) => [tenant.id, tenantName(tenant)])),
     [tenants],
@@ -163,8 +163,14 @@ export function RentCollection() {
     }
   }
   async function voidPayment(payment: Payment) {
-    const reason = window.prompt("İptal gerekçesi");
-    if (!reason?.trim()) return;
+    const reason = await ask({
+      title: "Tahsilat iptal edilsin mi?",
+      description: `${tenantNames.get(payment.tenantId) ?? "Kiracı"} · ${formatDate(payment.paidOn)} · ${showMoney(payment.amount)}. Kayıt silinmez; dağıtımları geri alınır.`,
+      reasonLabel: "İptal gerekçesi",
+      confirmLabel: "Tahsilatı iptal et",
+      destructive: true,
+    });
+    if (!reason) return;
     const body = JSON.stringify({
       reason: reason.trim(),
     } satisfies components["schemas"]["VoidPaymentRequest"]);
@@ -220,17 +226,16 @@ export function RentCollection() {
                   className="grid gap-3 rounded-lg border p-4 sm:grid-cols-[1fr_auto] sm:items-center"
                 >
                   <div>
-                    <h3 className="font-medium">
-                      {tenantNames.get(charge.tenantId) ?? "Kiracı"} · {charge.periodStart.slice(0, 7)}
-                    </h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-medium">
+                        {tenantNames.get(charge.tenantId) ?? "Kiracı"} · {formatPeriod(charge.periodStart)}
+                      </h3>
+                      <span className={`status-pill ${charge.status === "PAID" ? "paid" : charge.isOverdue ? "late" : charge.status === "PARTIAL" ? "partial" : "muted"}`}>
+                        {charge.isOverdue ? "Gecikti" : charge.status === "PAID" ? "Ödendi" : charge.status === "PARTIAL" ? "Kısmi" : "Bekliyor"}
+                      </span>
+                    </div>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Vade {charge.dueDate} ·{" "}
-                      {charge.status === "PAID"
-                        ? "Ödendi"
-                        : charge.status === "PARTIAL"
-                          ? "Kısmi ödendi"
-                          : "Ödenmedi"}
-                      {charge.isOverdue ? " · Gecikmiş" : ""}
+                      Vade {formatDate(charge.dueDate)}
                     </p>
                     <p className="mt-1 text-sm">
                       Alacak {showMoney(charge.amount)} · Ödenen {showMoney(charge.paidAmount)} · Bakiye{" "}
@@ -245,12 +250,14 @@ export function RentCollection() {
                     >
                       Düzelt
                     </Button>
-                    <Button
-                      type="button"
-                      onClick={() => setAllocationId(allocationId === charge.id ? "" : charge.id)}
-                    >
-                      Tahsilat dağıt
-                    </Button>
+                    {charge.status !== "PAID" && (
+                      <Button
+                        type="button"
+                        onClick={() => setAllocationId(allocationId === charge.id ? "" : charge.id)}
+                      >
+                        Tahsilat dağıt
+                      </Button>
+                    )}
                   </div>
                   {correctionId === charge.id && (
                     <form
@@ -324,7 +331,7 @@ export function RentCollection() {
                             )
                             .map((payment) => (
                               <option key={payment.id} value={payment.id}>
-                                {payment.paidOn} · {showMoney(payment.unallocatedAmount)} bekliyor
+                                {formatDate(payment.paidOn)} · {showMoney(payment.unallocatedAmount)} bekliyor
                               </option>
                             ))}
                         </select>
@@ -356,6 +363,11 @@ export function RentCollection() {
                       >
                         Dağıtımı kaydet
                       </Button>
+                      {!payments.some((payment) => payment.tenantId === charge.tenantId && payment.status === "RECORDED" && hasPositiveMoney(payment.unallocatedAmount)) && (
+                        <p className="text-sm text-muted-foreground sm:col-span-3">
+                          Bu kiracının dağıtılmamış tahsilatı yok. Önce aşağıdan tahsilat kaydedin.
+                        </p>
+                      )}
                     </form>
                   )}
                 </article>
@@ -370,8 +382,9 @@ export function RentCollection() {
       </Card>
       <Card>
         <CardContent className="grid gap-4 p-5">
-          <div>
+          <div className="grid gap-1">
             <h2 className="text-lg font-semibold">Tahsilatlar</h2>
+            <p className="text-sm text-muted-foreground">Kullanıcı tarafından kaydedildi; banka doğrulaması yapılmadı.</p>
           </div>
           <form
             className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-5"
@@ -455,9 +468,12 @@ export function RentCollection() {
                   className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"
                 >
                   <div>
-                    <h3 className="font-medium">
-                      {tenantNames.get(payment.tenantId) ?? "Kiracı"} · {payment.paidOn}
-                    </h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-medium">
+                        {tenantNames.get(payment.tenantId) ?? "Kiracı"} · {formatDate(payment.paidOn)}
+                      </h3>
+                      {payment.status === "VOIDED" && <span className="status-pill late">İptal</span>}
+                    </div>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {payment.method === "TRANSFER"
                         ? "Havale/EFT"
@@ -495,6 +511,7 @@ export function RentCollection() {
             onClick={() => void loadMore("payments")}>Diğer tahsilatları yükle</Button>}
         </CardContent>
       </Card>
+      {dialog}
     </section>
   );
 }

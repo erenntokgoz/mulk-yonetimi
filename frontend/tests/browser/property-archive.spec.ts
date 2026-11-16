@@ -25,13 +25,14 @@ test("archived properties remain available for read-only details and units", asy
   await page.getByRole("button", { name: "Birimi kaydet" }).click();
   await expect(page.getByText("Daire 1", { exact: true })).toBeVisible();
   const unit = page.locator("li").filter({ hasText: "Daire 1" });
-  page.once("dialog", dialog => dialog.accept());
   await unit.getByRole("button", { name: "Arşivle" }).click();
+  const unitArchiveDialog = page.getByRole("dialog", { name: /birimi arşivlensin mi/ });
+  await unitArchiveDialog.getByRole("button", { name: "Arşivle" }).click();
   await expect(page.getByText("Daire 1", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Kapat" }).click();
 
-  page.once("dialog", dialog => dialog.accept());
   await property.getByRole("button", { name: "Mülkü arşivle" }).click();
+  await page.getByRole("dialog", { name: /mülkü arşivlensin mi/ }).getByRole("button", { name: "Arşivle" }).click();
   await expect(property).toHaveCount(0);
 
   await page.getByLabel("Arşivli mülkleri göster").check();

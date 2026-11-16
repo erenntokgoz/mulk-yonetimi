@@ -1,0 +1,10 @@
+E-posta adresinizi doğrulayın
+
+Bu adresle bir Mülküm hesabı oluşturuldu. Giriş yapabilmek için önce adresin size ait olduğunu doğrulayın.
+
+Adresinizi doğrulamak için bu bağlantıyı açın.
+https://mulkum.example.test/dogrula?userId=3f0c8a52-6d1e-4b7a-9c1e-2a5b8d4e7f10&token=CfDJ8OrnekOnizlemeBelirteci%2BYalnizcaTasarimIcin%2FGecersizDeger7QmVsaXJ0ZWMgw7ZybmXEn2lkaXIgdmUgaGnDp2JpciBoZXNhcCBpw6dpbiBnZcOnZXJsaSBkZcSfaWxkaXI%3D
+
+Hesabı siz oluşturmadıysanız bu iletiyi yok sayabilirsiniz. Adres doğrulanmadıkça hesaba giriş yapılamaz.
+
+Bu iletiyi adresinizle bir Mülküm hesabı oluşturulduğu için aldınız.

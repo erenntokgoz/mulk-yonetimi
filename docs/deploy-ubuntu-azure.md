@@ -69,10 +69,18 @@ add_header Strict-Transport-Security "max-age=31536000" always;
 ## Güncelleme
 
 ```bash
-cd /opt/mulk-yonetimi && git pull -q && docker compose -f deploy/compose.api.yaml up -d --build --force-recreate
+cd /opt/mulk-yonetimi &&
+test "$(git branch --show-current)" = main &&
+git diff --quiet HEAD -- &&
+git fetch origin main &&
+git diff --quiet HEAD origin/main -- deploy/sql/migrations-idempotent.sql &&
+git merge --ff-only origin/main &&
+docker compose -f deploy/compose.api.yaml up -d --build --no-deps api &&
+git rev-parse HEAD &&
+curl --silent --show-error --fail --retry 10 --retry-connrefused http://127.0.0.1:5180/health
 ```
 
-Yeni migration varsa önce bölüm 2'deki komut çalıştırılır; `deploy/sql/migrations-idempotent.sql` yeniden üretilmelidir.
+Yukarıdaki komut temiz bir main checkout ister ve migration dosyası değişmişse durur. Yalnız API servisini günceller; çalışan ClamAV, nginx ve Mailu yapılandırmasına dokunmaz. Yeni migration varsa önce bölüm 2'deki komut çalıştırılır; `deploy/sql/migrations-idempotent.sql` yeniden üretilmelidir.
 
 ## 5. Vercel
 
