@@ -365,7 +365,8 @@ public sealed class PropertyIsolationTests
         using var deniedDeposit = await foreign.PostAsJsonAsync(deposits, depositInput);
         Assert.Equal(HttpStatusCode.NotFound, deniedDeposit.StatusCode);
         // Sözleşme depozito tutarıyla oluştuğu için beklenen depozito kaydı kendiliğinden açılmış olmalı.
-        var automatic = Assert.Single((await owner.GetFromJsonAsync<DepositPage>(deposits, Json))!.Items);
+        var leaseDeposits = $"{deposits}?leaseId={lease.Id}";
+        var automatic = Assert.Single((await owner.GetFromJsonAsync<DepositPage>(leaseDeposits, Json))!.Items);
         Assert.Equal(lease.Id, automatic.LeaseId);
         Assert.Equal(40000m, automatic.AmountAgreed);
         Assert.Equal(DepositCustody.OWNER_HELD, automatic.CustodyType);
@@ -378,7 +379,7 @@ public sealed class PropertyIsolationTests
         Assert.Equal(40000m, deposit.AmountAgreed);
         using var replayed = await owner.PostAsJsonAsync(deposits, depositInput);
         Assert.Equal(HttpStatusCode.OK, replayed.StatusCode);
-        Assert.Single((await owner.GetFromJsonAsync<DepositPage>(deposits, Json))!.Items);
+        Assert.Single((await owner.GetFromJsonAsync<DepositPage>(leaseDeposits, Json))!.Items);
         var movements = $"{deposits}/{deposit.Id}/movements";
         var hold = new { movementOn = month, movementType = "HELD", amount = 40000m };
         using var deniedList = await foreign.GetAsync(movements);
@@ -394,7 +395,7 @@ public sealed class PropertyIsolationTests
             PostWithKeyAsync(owner, movements, refund, "return-two"));
         using var returned = Assert.Single(refunds, response => response.StatusCode == HttpStatusCode.Created);
         using var blocked = Assert.Single(refunds, response => response.StatusCode == HttpStatusCode.Conflict);
-        Assert.Equal(15000m, Assert.Single((await owner.GetFromJsonAsync<DepositPage>(deposits, Json))!.Items).Balance);
+        Assert.Equal(15000m, Assert.Single((await owner.GetFromJsonAsync<DepositPage>(leaseDeposits, Json))!.Items).Balance);
         Assert.Equal(2, (await owner.GetFromJsonAsync<DepositMovementPage>(movements, Json))!.Items.Length);
         Assert.Empty((await foreign.GetFromJsonAsync<DepositPage>(deposits, Json))!.Items);
 
