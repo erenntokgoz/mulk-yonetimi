@@ -24,24 +24,21 @@ public sealed class RentChargeJob(ApplicationDbContext db)
     }
 }
 
+// Üretim kaçırılan dönemleri de ekler ve (AccountId, LeaseId, PeriodStart) tekil olduğu için tekrar çalışması
+// çift alacak yazmaz; bu yüzden seyrek aralık ay sınırında dönem kaçırmaz.
 internal sealed class RentChargeWorker(IServiceScopeFactory scopes, IConfiguration configuration,
     ILogger<RentChargeWorker> logger) : BackgroundService
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    internal static TimeSpan Interval(IConfiguration configuration) =>
+        ScheduledJob.Hours(configuration, "Jobs:RentChargeHours", 12, 24);
+
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!configuration.GetValue("RentCharges:WorkerEnabled", true)) return;
-        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(15));
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        if (!configuration.GetValue("RentCharges:WorkerEnabled", true)) return Task.CompletedTask;
+        return ScheduledJob.RunAsync("Kira alacağı üretimi", Interval(configuration), async ct =>
         {
-            try
-            {
-                await using var scope = scopes.CreateAsyncScope();
-                await scope.ServiceProvider.GetRequiredService<RentChargeJob>().GenerateAsync(RentRules.Today, stoppingToken);
-            }
-            catch (Exception) when (!stoppingToken.IsCancellationRequested)
-            {
-                logger.LogWarning("Kira alacağı üretimi başarısız oldu. Sonraki turda yeniden denenecek.");
-            }
-        }
+            await using var scope = scopes.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<RentChargeJob>().GenerateAsync(RentRules.Today, ct);
+        }, logger, stoppingToken);
     }
 }

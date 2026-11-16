@@ -5,8 +5,8 @@ namespace MulkYonetimi.Api;
 
 public sealed class NotificationJob(ApplicationDbContext db, EmailOutboxQueue outbox)
 {
-    private const int DueSoonDays = 3;
-    private const int LeaseEndWarningDays = 30;
+    internal const int DueSoonDays = 3;
+    internal const int LeaseEndWarningDays = 30;
 
     public async Task GenerateAsync(DateOnly today, CancellationToken ct)
     {
@@ -63,14 +63,11 @@ public sealed class NotificationJob(ApplicationDbContext db, EmailOutboxQueue ou
                 var tenant = NotificationCopy.TenantName(charge.TenantKind, charge.FirstName, charge.LastName,
                     charge.CompanyName);
                 var unpaid = charge.Amount - charge.Paid;
-                if (charge.DueDate >= today)
-                    await AddEventAsync(accountId, members, preferences, "RENT_DUE",
-                        $"rent-due:{charge.Id}:{charge.DueDate:yyyyMMdd}",
-                        NotificationCopy.RentDue(place, tenant, charge.DueDate, unpaid), ct);
-                else
-                    await AddEventAsync(accountId, members, preferences, "OVERDUE_RENT",
-                        $"overdue-rent:{charge.Id}",
-                        NotificationCopy.OverdueRent(place, tenant, charge.DueDate, unpaid), ct);
+                if (ChargeEvent(charge.Id, charge.DueDate, today) is not { } chargeEvent) continue;
+                await AddEventAsync(accountId, members, preferences, chargeEvent.Type, chargeEvent.EventKey,
+                    chargeEvent.Type == "RENT_DUE"
+                        ? NotificationCopy.RentDue(place, tenant, charge.DueDate, unpaid)
+                        : NotificationCopy.OverdueRent(place, tenant, charge.DueDate, unpaid), ct);
             }
 
             var leases = await (from lease in db.Leases.AsNoTracking()
@@ -99,14 +96,12 @@ public sealed class NotificationJob(ApplicationDbContext db, EmailOutboxQueue ou
                 var place = NotificationCopy.Place(lease.PropertyName, lease.UnitLabel, lease.IsDefault);
                 var tenant = NotificationCopy.TenantName(lease.TenantKind, lease.FirstName, lease.LastName,
                     lease.CompanyName);
-                if (lease.PlannedEndDate is { } end && end >= today && end <= today.AddDays(LeaseEndWarningDays))
-                    await AddEventAsync(accountId, members, preferences, "LEASE_END",
-                        $"lease-end:{lease.Id}:{end:yyyyMMdd}", NotificationCopy.LeaseEnd(place, tenant, end), ct);
+                if (LeaseEndEventKey(lease.Id, lease.PlannedEndDate, today) is { } leaseEndKey)
+                    await AddEventAsync(accountId, members, preferences, "LEASE_END", leaseEndKey,
+                        NotificationCopy.LeaseEnd(place, tenant, lease.PlannedEndDate!.Value), ct);
 
-                if (lease.StartDate <= today && lease.StartDate.Month == today.Month &&
-                    lease.StartDate.Day == today.Day)
-                    await AddEventAsync(accountId, members, preferences, "RENT_ANNIVERSARY",
-                        $"rent-anniversary:{lease.Id}:{today.Year}",
+                if (AnniversaryEventKey(lease.Id, lease.StartDate, today) is { } anniversaryKey)
+                    await AddEventAsync(accountId, members, preferences, "RENT_ANNIVERSARY", anniversaryKey,
                         NotificationCopy.RentAnniversary(place, tenant, lease.StartDate), ct);
             }
 
@@ -115,6 +110,26 @@ public sealed class NotificationJob(ApplicationDbContext db, EmailOutboxQueue ou
             db.ChangeTracker.Clear();
         }
     }
+
+    // Olay kararları saf fonksiyondur: anahtar olayın kendisinden (alacak, vade, bitiş, yıl) türetilir, çalışma
+    // saatinden türetilmez. Aynı olay hangi turda görülürse görülsün aynı anahtarı alır ve tekilleştirilir.
+    internal static (string Type, string EventKey)? ChargeEvent(Guid chargeId, DateOnly dueDate, DateOnly today)
+    {
+        if (dueDate > today.AddDays(DueSoonDays)) return null;
+        return dueDate >= today
+            ? ("RENT_DUE", $"rent-due:{chargeId}:{dueDate:yyyyMMdd}")
+            : ("OVERDUE_RENT", $"overdue-rent:{chargeId}");
+    }
+
+    internal static string? LeaseEndEventKey(Guid leaseId, DateOnly? plannedEndDate, DateOnly today) =>
+        plannedEndDate is { } end && end >= today && end <= today.AddDays(LeaseEndWarningDays)
+            ? $"lease-end:{leaseId}:{end:yyyyMMdd}"
+            : null;
+
+    internal static string? AnniversaryEventKey(Guid leaseId, DateOnly startDate, DateOnly today) =>
+        startDate <= today && startDate.Month == today.Month && startDate.Day == today.Day
+            ? $"rent-anniversary:{leaseId}:{today.Year}"
+            : null;
 
     private async Task AddEventAsync(Guid accountId, IReadOnlyList<NotificationRecipient> members,
         IReadOnlyDictionary<Guid, NotificationPreference> preferences, string type, string eventKey,
@@ -165,32 +180,25 @@ public sealed class NotificationJob(ApplicationDbContext db, EmailOutboxQueue ou
     private sealed record NotificationRecipient(Guid AccountId, Guid UserId, string? Email, bool EmailConfirmed);
 }
 
+// Bildirim anahtarları olay başına tekildir (vade, gecikme, bitiş, yıl); seyrek tur çift bildirim üretmez.
+// Her tur önce eksik kira alacaklarını tamamlar: bildirim, ayrı çalışan alacak işinin sırasına bağlı kalmaz.
 internal sealed class NotificationWorker(IServiceScopeFactory scopes, IConfiguration configuration,
     ILogger<NotificationWorker> logger) : BackgroundService
 {
-    internal static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);
+    internal static TimeSpan Interval(IConfiguration configuration) =>
+        ScheduledJob.Hours(configuration, "Jobs:NotificationHours", 12, 24);
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!configuration.GetValue("Notifications:WorkerEnabled", true)) return;
-        using var timer = new PeriodicTimer(Interval);
-        while (!stoppingToken.IsCancellationRequested)
+        if (!configuration.GetValue("Notifications:WorkerEnabled", true)) return Task.CompletedTask;
+        var generateCharges = configuration.GetValue("RentCharges:WorkerEnabled", true);
+        return ScheduledJob.RunAsync("Bildirim üretimi", Interval(configuration), async ct =>
         {
-            try
-            {
-                await using var scope = scopes.CreateAsyncScope();
-                await scope.ServiceProvider.GetRequiredService<NotificationJob>()
-                    .GenerateAsync(RentRules.Today, stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception) when (!stoppingToken.IsCancellationRequested)
-            {
-                logger.LogWarning("Bildirim üretimi başarısız oldu. Sonraki turda yeniden denenecek.");
-            }
-            await timer.WaitForNextTickAsync(stoppingToken);
-        }
+            await using var scope = scopes.CreateAsyncScope();
+            var today = RentRules.Today;
+            if (generateCharges)
+                await scope.ServiceProvider.GetRequiredService<RentChargeJob>().GenerateAsync(today, ct);
+            await scope.ServiceProvider.GetRequiredService<NotificationJob>().GenerateAsync(today, ct);
+        }, logger, stoppingToken);
     }
 }

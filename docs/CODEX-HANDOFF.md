@@ -73,7 +73,7 @@ Kimlik: Identity cookie `mulk.session` (HttpOnly, SameSite=Lax). Auth mutasyonla
 - Frontend: https://mulkum-beta.vercel.app. Vercel projesi `mulkum`, bölge `fra1`. Ortam değişkenleri: `BACKEND_BASE_URL=https://mulkapi.duckdns.org`, `FRONTEND_ORIGIN=https://mulkum-beta.vercel.app`.
 - API: Ubuntu 24 sunucu `109.236.51.239`, dizin `/opt/mulk-yonetimi`. `docker compose -f deploy/compose.api.yaml` ile `network_mode: host`, Kestrel yalnız `127.0.0.1:5180`. Önünde host nginx ve certbot ile `mulkapi.duckdns.org`. Host ağı gerekir, çünkü ana makine kendi genel IP'sine köprü ağından gelen trafiği reddeder ve Mailu o IP'de yayındadır.
 - Secret'lar yalnız `/opt/mulk-yonetimi/deploy/api.env` içindedir (`chmod 600`). Asla yazdırma, loglama veya depoya koyma.
-- Veritabanı: Azure SQL ücretsiz teklif, Sweden Central, sunucu `mulkyonetimi-sql.database.windows.net`, veritabanı `MulkYonetimi`. Uygulama `mulk_app` girişiyle (`db_datareader`, `db_datawriter`) bağlanır. Yönetici girişi yalnız migration içindir. Firewall'da yalnız sunucu IP'si açık. Yedek: otomatik PITR, 7 gün.
+- Veritabanı: Azure SQL ücretsiz teklif, Sweden Central, sunucu `mulkyonetimi-sql.database.windows.net`, veritabanı `MulkYonetimi2` (ilk veritabanı Kasım kotasını bitirdi, ADR 013). Uygulama `mulk_app` girişiyle (`db_datareader`, `db_datawriter`) bağlanır. Yönetici girişi yalnız migration içindir. Firewall'da yalnız sunucu IP'si açık. Yedek: otomatik PITR, 7 gün.
 - E-posta: aynı sunucudaki Mailu. SMTP `mail.kasam360.com.tr:465` örtük TLS (Mailu içinde 587 kapalı), gönderen `mulkum@360labs.com.tr`.
 - Bu sunucu kasam360 ve Mailu ile paylaşılır. Onları bozma: yalnız `/opt/mulk-yonetimi`, `mulk-yonetimi` container ve `mulkapi` nginx dosyasına dokun.
 - Bilinenler: sunucu "System restart required" gösteriyor. `*:3000` üzerinde herkese açık, bu projeyle ilgisiz bir `node /root/apps` süreci dinliyor; sahibin incelemesi bekleniyor.
@@ -92,7 +92,7 @@ Migration (yeni migration varsa; önce `deploy/sql/migrations-idempotent.sql` ye
 cd /opt/mulk-yonetimi
 read -rsp "Yönetici parolası: " SQLCMDPASSWORD; echo; export SQLCMDPASSWORD
 docker run --rm -e SQLCMDPASSWORD -v "$PWD/deploy/sql:/sql:ro" mcr.microsoft.com/mssql-tools \
-  /opt/mssql-tools/bin/sqlcmd -S tcp:mulkyonetimi-sql.database.windows.net,1433 -d MulkYonetimi -U <admin> -N -b -I \
+  /opt/mssql-tools/bin/sqlcmd -S tcp:mulkyonetimi-sql.database.windows.net,1433 -d MulkYonetimi2 -U <admin> -N -b -I \
   -i /sql/migrations-idempotent.sql
 unset SQLCMDPASSWORD
 ```

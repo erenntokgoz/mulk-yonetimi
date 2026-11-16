@@ -41,10 +41,32 @@ public sealed class EmailOutboxQueue(ApplicationDbContext db, IDataProtectionPro
     }
 }
 
+public interface IEmailOutboxDispatcher
+{
+    Task<int> DispatchOnceAsync(CancellationToken cancellationToken);
+
+    // Bekleyen iş yoksa null döner; işleyici o durumda yalnız seyrek güvenlik taramasında uyanır.
+    Task<DateTime?> NextAttemptAtUtcAsync(CancellationToken cancellationToken);
+}
+
 public sealed class EmailOutboxDispatcher(ApplicationDbContext db, IDataProtectionProvider protection,
     IConfirmationMailer mailer, IConfiguration configuration, ILogger<EmailOutboxDispatcher> logger)
+    : IEmailOutboxDispatcher
 {
+    public const int BatchSize = 20;
+
     private readonly IDataProtector protector = protection.CreateProtector("MulkYonetimi.EmailOutbox.v1");
+
+    public async Task<DateTime?> NextAttemptAtUtcAsync(CancellationToken cancellationToken)
+    {
+        var pending = await db.OutboxMessages.AsNoTracking().Where(item => item.Status == "PENDING")
+            .MinAsync(item => (DateTime?)item.NextAttemptAtUtc, cancellationToken);
+        var reclaimable = await db.OutboxMessages.AsNoTracking().Where(item => item.Status == "PROCESSING")
+            .MinAsync(item => item.ClaimedUntilUtc, cancellationToken);
+        if (pending is null) return reclaimable;
+        if (reclaimable is null) return pending;
+        return pending < reclaimable ? pending : reclaimable;
+    }
 
     public async Task<int> DispatchOnceAsync(CancellationToken cancellationToken)
     {
@@ -53,7 +75,7 @@ public sealed class EmailOutboxDispatcher(ApplicationDbContext db, IDataProtecti
             .Where(item => (item.Status == "PENDING" && item.NextAttemptAtUtc <= now) ||
                 (item.Status == "PROCESSING" && item.ClaimedUntilUtc < now))
             .OrderBy(item => item.NextAttemptAtUtc).Select(item => item.Id)
-            .Take(20).ToListAsync(cancellationToken);
+            .Take(BatchSize).ToListAsync(cancellationToken);
         var processed = 0;
         foreach (var id in ids)
         {
@@ -174,25 +196,78 @@ public sealed class EmailOutboxHealthCheck(ApplicationDbContext db,
     }
 }
 
-public sealed class EmailOutboxWorker(IServiceScopeFactory scopes, IConfiguration configuration,
-    ILogger<EmailOutboxWorker> logger) : BackgroundService
+// Azure SQL serverless ücretsiz katmanı yalnız oturum ve CPU sıfırken duraklar (ADR 013). Bu yüzden işleyici
+// sabit aralıkla sorgu atmaz: istekler kayıt eklediğinde sinyalle uyanır, tekrar denemeler için en erken zamanı
+// bekler ve kaza/çökme kurtarması için yalnız seyrek bir güvenlik taraması yapar.
+public sealed class EmailOutboxWorker(IServiceScopeFactory scopes, EmailOutboxSignal signal,
+    IConfiguration configuration, ILogger<EmailOutboxWorker> logger) : BackgroundService
 {
+    internal static readonly TimeSpan MinimumRetryGap = TimeSpan.FromMinutes(5);
+    private const int MaxBatchesPerWake = 50;
+
+    internal static TimeSpan SweepInterval(IConfiguration configuration) =>
+        TimeSpan.FromMinutes(Math.Clamp(configuration.GetValue("Jobs:OutboxSweepMinutes", 360), 5, 1440));
+
+    // Tekrar denemesi süpürmeden önceyse o zamana kadar beklenir; ama son turdan en az MinimumRetryGap sonra.
+    internal static TimeSpan NextDelay(DateTime nowUtc, DateTime nextSweepUtc, DateTime? nextAttemptUtc)
+    {
+        var wakeUtc = nextSweepUtc;
+        if (nextAttemptUtc is { } attempt)
+        {
+            var earliest = nowUtc + MinimumRetryGap;
+            var retryUtc = attempt < earliest ? earliest : attempt;
+            if (retryUtc < wakeUtc) wakeUtc = retryUtc;
+        }
+        var delay = wakeUtc - nowUtc;
+        return delay < TimeSpan.Zero ? TimeSpan.Zero : delay;
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!configuration.GetValue("Email:WorkerEnabled", true)) return;
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        var sweep = SweepInterval(configuration);
+        // Açılışta bir tur: önceki süreçte kalmış bekleyen veya sahiplenilmiş kayıtlar kurtarılır.
+        var nextSweepUtc = DateTime.UtcNow;
+        DateTime? nextAttemptUtc = null;
+        var failures = 0;
+        while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                using var scope = scopes.CreateScope();
-                await scope.ServiceProvider.GetRequiredService<EmailOutboxDispatcher>()
-                    .DispatchOnceAsync(stoppingToken);
+                await signal.WaitAsync(NextDelay(DateTime.UtcNow, nextSweepUtc, nextAttemptUtc), stoppingToken);
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
+            catch (OperationCanceledException)
             {
-                logger.LogWarning("E-posta outbox işleyicisi başarısız oldu; bir sonraki turda tekrar denenecek.");
+                break;
+            }
+
+            if (DateTime.UtcNow >= nextSweepUtc) nextSweepUtc = DateTime.UtcNow + sweep;
+            try
+            {
+                nextAttemptUtc = await DrainAsync(stoppingToken);
+                failures = 0;
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception)
+            {
+                failures++;
+                var retry = ScheduledJob.RetryDelay(failures, sweep);
+                nextAttemptUtc = DateTime.UtcNow + retry;
+                logger.LogWarning("E-posta outbox işleyicisi başarısız oldu; {RetryMinutes} dakika sonra tekrar denenecek.",
+                    (int)retry.TotalMinutes);
             }
         }
+    }
+
+    private async Task<DateTime?> DrainAsync(CancellationToken cancellationToken)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IEmailOutboxDispatcher>();
+        for (var batch = 0; batch < MaxBatchesPerWake; batch++)
+            if (await dispatcher.DispatchOnceAsync(cancellationToken) < EmailOutboxDispatcher.BatchSize) break;
+        return await dispatcher.NextAttemptAtUtcAsync(cancellationToken);
     }
 }
