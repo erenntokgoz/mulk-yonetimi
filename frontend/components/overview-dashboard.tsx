@@ -10,7 +10,6 @@ import { ListSkeleton } from "@/components/ui/skeleton";
 import { useSetupProgress } from "@/lib/setup-progress";
 import {
   loadOverviewExtras,
-  monthBreakdown,
   monthName,
   overdueRows,
   upcomingRows,
@@ -138,7 +137,6 @@ export function OverviewDashboard() {
   const circumference = 2 * Math.PI * 74;
   const today = data?.asOf ?? "";
   const names = extras?.names ?? new Map<string, string>();
-  const month = extras && data ? monthBreakdown(extras.charges, data.periodStart) : null;
   const overdue = extras ? overdueRows(extras.charges, names, today) : null;
   const upcoming = extras ? upcomingRows(extras.charges, names, today) : null;
   const hasCash = extras?.cash.some((point) => point.income > 0 || point.expense > 0) ?? false;
@@ -171,27 +169,10 @@ export function OverviewDashboard() {
               <section className={`bg-card ${styles.panel} ${styles.c12} rv`} style={delay(2)} aria-labelledby="month-title">
                 <div className={styles.month}>
                   <div>
-                    <h2 id="month-title">{monthName(data.periodStart)} tahsilatı</h2>
-                    {month ? (
-                      <>
-                        <div className={styles.monthV}>
-                          <b className="num">{lira(month.paid)}</b>
-                          <span className="num">/ {lira(month.total)}</span>
-                        </div>
-                        <div className={styles.stack} role="img" aria-label={`Ödenen ${lira(month.paid)}, bekleyen ${lira(month.pending)}, geciken ${lira(month.late)}`}>
-                          <i style={{ "--w": `${(month.paid / month.total) * 100}%`, background: "var(--paid)" } as React.CSSProperties} />
-                          <i style={{ "--w": `${(month.pending / month.total) * 100}%`, background: "var(--partial)" } as React.CSSProperties} />
-                          <i style={{ "--w": `${(month.late / month.total) * 100}%`, background: "var(--late)" } as React.CSSProperties} />
-                        </div>
-                        <div className={styles.keys}>
-                          <span><i style={{ background: "var(--paid)" }} />Ödendi<b className="num">{lira(month.paid)}</b></span>
-                          <span><i style={{ background: "var(--partial)" }} />Bekliyor<b className="num">{lira(month.pending)}</b></span>
-                          <span><i style={{ background: "var(--late)" }} />Gecikti<b className="num">{lira(month.late)}</b></span>
-                        </div>
-                      </>
-                    ) : (
-                      <WidgetState loading={!extras && !extrasError} error={extrasError} onRetry={retryExtras} empty="Bu ay için kira alacağı yok." />
-                    )}
+                    <h2 id="month-title">{monthName(data.periodStart)} özeti</h2>
+                    <p>Bu dönem alacağı</p>
+                    <div className={styles.monthV}><b className="num">{money(data.periodCharges)}</b></div>
+                    <p>Ödenmemiş bakiye: {money(data.periodUnpaid)}</p>
                   </div>
                   <div className={styles.qa}>
                     {quick.map(({ label, href, color, icon: Icon }) => (
@@ -286,6 +267,7 @@ export function OverviewDashboard() {
                 <h2 id="late-title">Geciken kiralar</h2>
                 <Link href="/kira-tahsilatlar">Tümü</Link>
               </div>
+              <p className="text-sm text-muted-foreground">Liste, son 24 ay ve gelecek ay için alınan en fazla 500 kayda dayanır.</p>
               {overdue && overdue.rows.length ? <ChargeList rows={overdue.rows} tone={styles.late} /> : (
                 <WidgetState loading={!extras && !extrasError} error={extrasError} onRetry={retryExtras} empty="Geciken kira yok." />
               )}
@@ -296,6 +278,7 @@ export function OverviewDashboard() {
                 <h2 id="soon-title">Yaklaşan vadeler</h2>
                 <Link href="/kira-tahsilatlar">Tümü</Link>
               </div>
+              <p className="text-sm text-muted-foreground">Liste, son 24 ay ve gelecek ay için alınan en fazla 500 kayda dayanır.</p>
               {upcoming && upcoming.rows.length ? <ChargeList rows={upcoming.rows} tone={styles.soon} /> : (
                 <WidgetState loading={!extras && !extrasError} error={extrasError} onRetry={retryExtras} empty="Önümüzdeki 14 günde vadesi gelen kira yok." />
               )}
@@ -306,3 +289,4 @@ export function OverviewDashboard() {
     </section>
   );
 }
+
