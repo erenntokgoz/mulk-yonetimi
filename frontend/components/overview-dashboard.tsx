@@ -8,15 +8,22 @@ import { CashFlowChart } from "@/components/cash-flow-chart";
 import { SetupWizard } from "@/components/setup-wizard";
 import { ListSkeleton } from "@/components/ui/skeleton";
 import { useSetupProgress } from "@/lib/setup-progress";
-import { mockMonth, mockOverdue, mockUpcoming } from "@/lib/overview-mock";
+import {
+  loadOverviewExtras,
+  monthBreakdown,
+  monthName,
+  overdueRows,
+  upcomingRows,
+  type ChargeRow,
+  type OverviewExtras,
+} from "@/lib/overview-data";
 import styles from "@/components/overview.module.css";
 
 type Summary = components["schemas"]["DashboardSummary"];
 // Tutarlar tr-TR yerel biçimiyle gösterilir (binlik nokta, ondalık virgül); API ondalık metin de dönebilir.
 const trMoney = new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const money = (v: number | string) => `${trMoney.format(Number(v))} ₺`;
-const trInt = new Intl.NumberFormat("tr-TR");
-const lira = (v: number) => `${trInt.format(v)} ₺`;
+const lira = (v: number) => `${trMoney.format(v)} ₺`;
 const delay = (i: number) => ({ "--i": i }) as React.CSSProperties;
 
 const kpis = [
@@ -33,11 +40,50 @@ const quick = [
   { label: "Belge yükle", href: "/belgeler", color: "var(--partial)", icon: FolderPlus },
 ] as const;
 
+function WidgetState({ loading, error, empty, onRetry }: { loading: boolean; error: boolean; empty: string; onRetry: () => void }) {
+  if (loading) return <ListSkeleton label="Yükleniyor…" />;
+  if (error)
+    return (
+      <div role="alert" className="flex flex-wrap items-center gap-3 p-2 text-sm">
+        <p>Veriler alınamadı.</p>
+        <Button type="button" variant="outline" onClick={onRetry}>
+          Yeniden dene
+        </Button>
+      </div>
+    );
+  return <p className="p-2 text-sm text-muted-foreground">{empty}</p>;
+}
+
+function ChargeList({ rows, tone }: { rows: ChargeRow[]; tone: string }) {
+  return (
+    <ul className={styles.list}>
+      {rows.map((item) => (
+        <li key={item.id}>
+          <span className={styles.unit}>{item.period}</span>
+          <div>
+            <b>{item.name}</b>
+            <small>{item.text}</small>
+          </div>
+          <div className={styles.amt}>
+            <b className="num">{lira(item.amount)}</b>
+            <span className={`${styles.pill} ${item.tag === "Gecikti" && item.partial ? styles.partial : tone}`}>
+              {item.tag === "Gecikti" && item.partial ? "Kısmi ödendi" : item.tag}
+            </span>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function OverviewDashboard() {
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filled, setFilled] = useState(false);
+  const [extras, setExtras] = useState<OverviewExtras | null>(null);
+  const [extrasError, setExtrasError] = useState(false);
+  const [extrasTry, setExtrasTry] = useState(0);
   const progress = useSetupProgress();
   async function load() {
     setLoading(true);
@@ -56,6 +102,26 @@ export function OverviewDashboard() {
       setLoading(false);
     }
   }
+  const retryExtras = () => {
+    setExtrasError(false);
+    setExtrasTry((n) => n + 1);
+  };
+  const periodStart = data?.periodStart;
+  useEffect(() => {
+    if (!periodStart) return;
+    let active = true;
+    loadOverviewExtras(periodStart).then(
+      (result) => active && setExtras(result),
+      () => {
+        if (!active) return;
+        setExtras(null);
+        setExtrasError(true);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [periodStart, extrasTry]);
   useEffect(() => {
     void Promise.resolve().then(load);
   }, []);
@@ -70,6 +136,12 @@ export function OverviewDashboard() {
   const occupied = Number(data?.occupiedUnits ?? 0);
   const percent = total > 0 ? Math.round((occupied / total) * 100) : 0;
   const circumference = 2 * Math.PI * 74;
+  const today = data?.asOf ?? "";
+  const names = extras?.names ?? new Map<string, string>();
+  const month = extras && data ? monthBreakdown(extras.charges, data.periodStart) : null;
+  const overdue = extras ? overdueRows(extras.charges, names, today) : null;
+  const upcoming = extras ? upcomingRows(extras.charges, names, today) : null;
+  const hasCash = extras?.cash.some((point) => point.income > 0 || point.expense > 0) ?? false;
 
   return (
     <section className="grid gap-4" aria-labelledby="overview-title">
@@ -99,21 +171,27 @@ export function OverviewDashboard() {
               <section className={`bg-card ${styles.panel} ${styles.c12} rv`} style={delay(2)} aria-labelledby="month-title">
                 <div className={styles.month}>
                   <div>
-                    <h2 id="month-title">{mockMonth.title}</h2>
-                    <div className={styles.monthV}>
-                      <b className="num">{lira(mockMonth.paid)}</b>
-                      <span className="num">/ {lira(mockMonth.total)}</span>
-                    </div>
-                    <div className={styles.stack} role="img" aria-label={`Ödenen ${lira(mockMonth.paid)}, kısmi ${lira(mockMonth.partial)}, geciken ${lira(mockMonth.late)}`}>
-                      <i style={{ "--w": `${(mockMonth.paid / mockMonth.total) * 100}%`, background: "var(--paid)" } as React.CSSProperties} />
-                      <i style={{ "--w": `${(mockMonth.partial / mockMonth.total) * 100}%`, background: "var(--partial)" } as React.CSSProperties} />
-                      <i style={{ "--w": `${(mockMonth.late / mockMonth.total) * 100}%`, background: "var(--late)" } as React.CSSProperties} />
-                    </div>
-                    <div className={styles.keys}>
-                      <span><i style={{ background: "var(--paid)" }} />Ödendi<b className="num">{lira(mockMonth.paid)}</b></span>
-                      <span><i style={{ background: "var(--partial)" }} />Kısmi<b className="num">{lira(mockMonth.partial)}</b></span>
-                      <span><i style={{ background: "var(--late)" }} />Gecikti<b className="num">{lira(mockMonth.late)}</b></span>
-                    </div>
+                    <h2 id="month-title">{monthName(data.periodStart)} tahsilatı</h2>
+                    {month ? (
+                      <>
+                        <div className={styles.monthV}>
+                          <b className="num">{lira(month.paid)}</b>
+                          <span className="num">/ {lira(month.total)}</span>
+                        </div>
+                        <div className={styles.stack} role="img" aria-label={`Ödenen ${lira(month.paid)}, bekleyen ${lira(month.pending)}, geciken ${lira(month.late)}`}>
+                          <i style={{ "--w": `${(month.paid / month.total) * 100}%`, background: "var(--paid)" } as React.CSSProperties} />
+                          <i style={{ "--w": `${(month.pending / month.total) * 100}%`, background: "var(--partial)" } as React.CSSProperties} />
+                          <i style={{ "--w": `${(month.late / month.total) * 100}%`, background: "var(--late)" } as React.CSSProperties} />
+                        </div>
+                        <div className={styles.keys}>
+                          <span><i style={{ background: "var(--paid)" }} />Ödendi<b className="num">{lira(month.paid)}</b></span>
+                          <span><i style={{ background: "var(--partial)" }} />Bekliyor<b className="num">{lira(month.pending)}</b></span>
+                          <span><i style={{ background: "var(--late)" }} />Gecikti<b className="num">{lira(month.late)}</b></span>
+                        </div>
+                      </>
+                    ) : (
+                      <WidgetState loading={!extras && !extrasError} error={extrasError} onRetry={retryExtras} empty="Bu ay için kira alacağı yok." />
+                    )}
                   </div>
                   <div className={styles.qa}>
                     {quick.map(({ label, href, color, icon: Icon }) => (
@@ -151,7 +229,11 @@ export function OverviewDashboard() {
                   <span><i style={{ background: "var(--paid)" }} />Net</span>
                 </div>
               </div>
-              <CashFlowChart />
+              {extras && hasCash ? (
+                <CashFlowChart points={extras.cash} />
+              ) : (
+                <WidgetState loading={!extras && !extrasError} error={extrasError} onRetry={retryExtras} empty="Son 12 ayda tahsilat ya da gider kaydı yok." />
+              )}
               <div className={styles.cfNow}>
                 <h3>Cari ay nakit akışı</h3>
                 <p className="num">{money(data.cashFlow.netOperatingCashFlow)}</p>
@@ -204,23 +286,9 @@ export function OverviewDashboard() {
                 <h2 id="late-title">Geciken kiralar</h2>
                 <Link href="/kira-tahsilatlar">Tümü</Link>
               </div>
-              <ul className={styles.list}>
-                {mockOverdue.map((item) => (
-                  <li key={item.unit}>
-                    <span className={styles.unit}>{item.unit}</span>
-                    <div>
-                      <b>{item.name}</b>
-                      <small>{item.since}</small>
-                    </div>
-                    <div className={styles.amt}>
-                      <b className="num">{lira(item.amount)}</b>
-                      <span className={`${styles.pill} ${item.status === "late" ? styles.late : styles.partial}`}>
-                        {item.status === "late" ? "Gecikti" : "Kısmi ödendi"}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              {overdue && overdue.rows.length ? <ChargeList rows={overdue.rows} tone={styles.late} /> : (
+                <WidgetState loading={!extras && !extrasError} error={extrasError} onRetry={retryExtras} empty="Geciken kira yok." />
+              )}
             </section>
 
             <section className={`bg-card ${styles.panel} ${styles.c5} rv`} style={delay(10)} aria-labelledby="soon-title">
@@ -228,21 +296,9 @@ export function OverviewDashboard() {
                 <h2 id="soon-title">Yaklaşan vadeler</h2>
                 <Link href="/kira-tahsilatlar">Tümü</Link>
               </div>
-              <ul className={styles.list}>
-                {mockUpcoming.map((item) => (
-                  <li key={item.unit}>
-                    <span className={styles.unit}>{item.unit}</span>
-                    <div>
-                      <b>{item.name}</b>
-                      <small>{item.due}</small>
-                    </div>
-                    <div className={styles.amt}>
-                      <b className="num">{lira(item.amount)}</b>
-                      <span className={`${styles.pill} ${styles.soon}`}>{item.inDays} gün</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              {upcoming && upcoming.rows.length ? <ChargeList rows={upcoming.rows} tone={styles.soon} /> : (
+                <WidgetState loading={!extras && !extrasError} error={extrasError} onRetry={retryExtras} empty="Önümüzdeki 14 günde vadesi gelen kira yok." />
+              )}
             </section>
           </div>
         )

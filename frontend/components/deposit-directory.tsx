@@ -283,9 +283,45 @@ export function DepositDirectory() {
                       <h3 className="font-medium">{leaseName(leases.find((lease) => lease.id === d.leaseId))} · {money(d.amountAgreed)}</h3>
                       <p className="text-sm text-muted-foreground">
                         {d.custodyType === "OWNER_HELD" ? "Malik tarafından tutuluyor" : "Bankada bloke"} ·
-                        Bakiye {money(d.balance)}
+                        {Number(d.balance) === 0 ? "Beklenen, henüz alınmadı" : `Bakiye ${money(d.balance)}`}
                         {d.note ? ` · ${d.note}` : ""}
                       </p>
+                      {Number(d.balance) === 0 && !(movements[d.id] ?? []).length && (
+                        <form
+                          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+                          onSubmit={(e) =>
+                            submit(e, "/api/bff/deposits", (f) => ({
+                              leaseId: d.leaseId,
+                              custodyType: String(f.get("custodyType")),
+                              note: String(f.get("note") || "") || null,
+                            }), () => "Muhafaza bilgisi güncellendi.")
+                          }
+                        >
+                          <label className="grid gap-1 text-sm">
+                            Muhafaza biçimi
+                            <select
+                              name="custodyType"
+                              defaultValue={d.custodyType}
+                              className="h-10 rounded border bg-background px-3"
+                            >
+                              <option value="OWNER_HELD">Malik tarafından tutuluyor</option>
+                              <option value="BANK_BLOCKED">Bankada bloke</option>
+                            </select>
+                          </label>
+                          <label className="grid gap-1 text-sm">
+                            Not
+                            <input
+                              name="note"
+                              maxLength={500}
+                              defaultValue={d.note ?? ""}
+                              className="h-10 rounded border bg-background px-3"
+                            />
+                          </label>
+                          <Button type="submit" variant="outline" disabled={pending} className="self-end">
+                            Muhafazayı güncelle
+                          </Button>
+                        </form>
+                      )}
                       <form
                         className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5"
                         onSubmit={(e) =>

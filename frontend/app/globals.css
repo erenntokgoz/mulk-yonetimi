@@ -208,6 +208,20 @@ input[type='search']::-ms-clear {
 .workspace-main :is(input, select, textarea) { background-color: var(--field); border-color: var(--edge-hi); border-radius: 12px; }
 .workspace-main :is(input, select, textarea):hover:not(:focus) { border-color: color-mix(in srgb, var(--brand) 55%, transparent); }
 .workspace-main :is(input, select, textarea):focus { border-color: var(--brand); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 22%, transparent); }
+/* Tarih ve ay alanları: takvim simgesi tarayıcı varsayılanında küçük ve yarı saydam kalıyordu; kabuk temasıyla aynı dilde büyütülür. */
+input[type="date"], input[type="month"] { color-scheme: dark; color: var(--text); min-height: 40px; font-variant-numeric: tabular-nums; accent-color: var(--brand); }
+:root[data-theme="light"] input[type="date"], :root[data-theme="light"] input[type="month"] { color-scheme: light; }
+input[type="date"]::-webkit-datetime-edit, input[type="month"]::-webkit-datetime-edit { padding: 0; color: var(--text); }
+input[type="date"]::-webkit-datetime-edit-fields-wrapper, input[type="month"]::-webkit-datetime-edit-fields-wrapper { padding: 0; }
+input[type="date"]::-webkit-calendar-picker-indicator, input[type="month"]::-webkit-calendar-picker-indicator {
+  box-sizing: content-box; width: 18px; height: 18px; padding: 5px; margin: 0 -5px 0 8px; border-radius: 10px; cursor: pointer; opacity: .9;
+  background-size: 18px 18px; background-position: center; background-repeat: no-repeat;
+  transition: background-color 160ms ease, opacity 160ms ease;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover, input[type="month"]::-webkit-calendar-picker-indicator:hover { background-color: var(--hover); opacity: 1; }
+input[type="date"]::-webkit-calendar-picker-indicator:focus-visible, input[type="month"]::-webkit-calendar-picker-indicator:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 0; opacity: 1; }
+:root[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator, :root[data-theme="light"] input[type="month"]::-webkit-calendar-picker-indicator { opacity: .75; }
+:root[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator:hover, :root[data-theme="light"] input[type="month"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 .mobile-sheet { background: var(--glass-strong); backdrop-filter: blur(34px) saturate(185%); -webkit-backdrop-filter: blur(34px) saturate(185%); color: var(--text); border-right: 1px solid var(--edge-hi); box-shadow: 0 0 60px rgba(0,0,0,.35); }
 .mobile-sheet .sidebar-footer { padding-top: 18px; }
 [data-scrim] { background: rgba(0,0,0,.6) !important; }
