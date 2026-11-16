@@ -142,7 +142,7 @@ internal static class GoogleSignInEndpoint
         };
         Require(await users.CreateAsync(user));
         Require(await users.AddLoginAsync(user, login));
-        var account = new Account { Id = Guid.NewGuid(), Name = Truncate(name, 200)!, Status = "PENDING" };
+        var account = new Account { Id = Guid.NewGuid(), Name = Truncate(name, 200)!, Status = PilotAccess.NewAccountStatus(configuration) };
         db.Accounts.Add(account);
         db.AccountMembers.Add(new AccountMember { AccountId = account.Id, UserId = user.Id, Role = "OWNER", Status = "ACTIVE" });
         db.AccountPlans.Add(new AccountPlan { AccountId = account.Id, Code = "PILOT" });

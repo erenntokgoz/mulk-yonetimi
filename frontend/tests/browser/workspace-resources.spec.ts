@@ -27,11 +27,12 @@ test("settings loads profile and preferences and saves each through the BFF", as
   await expect(page.getByLabel("E-posta bildirimleri")).toBeDisabled();
   await page.getByLabel("Görünen ad").fill("Yeni ad");
   await page.getByRole("button", { name: "Profili kaydet" }).click();
-  await expect(page.getByRole("status")).toContainText("Profil kaydedildi");
+  await expect(page.locator("[data-toast-live=polite]")).toContainText("Profil kaydedildi.");
+  await expect(page.locator(".toaster").getByText("Profil kaydedildi.")).toBeVisible();
   expect(savedProfile).toEqual({ displayName: "Yeni ad" });
   await page.getByLabel("Vade günü hatırlatması").uncheck();
   await page.getByRole("button", { name: "Tercihleri kaydet" }).click();
-  await expect(page.getByRole("status")).toContainText("Bildirim tercihleri kaydedildi");
+  await expect(page.locator("[data-toast-live=polite]")).toContainText("Bildirim tercihleri kaydedildi.");
   expect(savedPreferences.rentDueEnabled).toBe(false);
 });
 
@@ -70,7 +71,7 @@ test("notifications filters unread items, marks one read, and marks all read", a
   await page.getByRole("checkbox", { name: "Yalnızca okunmamış" }).uncheck();
   await expect(page.getByText("Yeni vade bildirimi")).toBeVisible();
   await page.getByRole("button", { name: "Tümünü okundu işaretle" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Bildirimler okundu olarak işaretlendi" })).toBeVisible();
+  await expect(page.locator(".toaster").getByText("Bildirimler okundu olarak işaretlendi.")).toBeVisible();
   expect(readAll).toBe(true);
 });
 
@@ -117,6 +118,7 @@ test("documents upload through a signed intent, complete, download, and soft del
   await page.getByLabel("Dosya").setInputFiles({ name: "test.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") });
   await page.getByRole("button", { name: "Dosyayı yükle" }).click();
   await expect(page.getByText("test.pdf")).toBeVisible();
+  await expect(page.locator(".toaster").getByText("Belge yüklendi.")).toBeVisible();
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "İndir test.pdf" }).click();
   const download = await downloadPromise;
@@ -126,6 +128,7 @@ test("documents upload through a signed intent, complete, download, and soft del
   await page.getByRole("button", { name: "Belgeyi sil test.pdf" }).click();
   await page.getByRole("dialog", { name: /test\.pdf.*kaldırılsın mı/ }).getByRole("button", { name: "Belgeyi kaldır" }).click();
   await expect(page.getByText("Henüz belge yok.")).toBeVisible();
+  await expect(page.locator(".toaster").getByText("Belge kaldırıldı.")).toBeVisible();
   expect(lifecycle).toEqual(["intent", "put", "complete", "download-url", "delete"]);
 });
 

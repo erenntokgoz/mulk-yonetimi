@@ -7,6 +7,7 @@ import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatDate, formatMoney, todayIso } from "@/lib/format";
+import { toast } from "@/lib/toast";
 type Expense = components["schemas"]["ExpenseResponse"];
 type Property = components["schemas"]["PropertyResponse"];
 type Unit = components["schemas"]["UnitResponse"];
@@ -153,6 +154,7 @@ export function ExpenseDirectory() {
       formRef.current?.reset();
       setFormPropertyId("");
       await load();
+      toast.success("Gider kaydedildi.");
     } catch (e) {
       setRetry(r);
       setError(e instanceof Error ? e.message : "Gider kaydedilemedi.");
@@ -205,8 +207,9 @@ export function ExpenseDirectory() {
       });
       if (!r.ok) throw new Error("Gider iptal edilemedi.");
       await load();
+      toast.success("Gider iptal edildi.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gider iptal edilemedi.");
+      toast.error(e instanceof Error ? e.message : "Gider iptal edilemedi.");
     } finally {
       setPending(false);
     }

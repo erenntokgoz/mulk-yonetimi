@@ -22,8 +22,10 @@ test("empty account shows the wizard with step 1 current and a working link", as
   await expect(wizard.getByText("Tamamlandı")).toHaveCount(0);
   const link = current.getByRole("link", { name: "Mülk ekle" });
   expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(43.5);
+  await expect(link).toHaveAttribute("href", "/portfoy?yeni=mulk");
   await link.click();
   await expect(page).toHaveURL(/\/portfoy$/);
+  await expect(page.getByLabel("Mülk adı")).toBeFocused();
 });
 
 test("wizard advances from real records and hide persists until Kurulum reopens it", async ({
@@ -43,7 +45,7 @@ test("wizard advances from real records and hide persists until Kurulum reopens 
   await expect(wizard.locator('li[aria-current="step"]')).toContainText(
     "Daire ekle",
   );
-  await expect(wizard.getByText("Tamamlandı")).toHaveCount(1);
+  await expect(wizard.locator("li").first()).toContainText("1 mülk");
 
   await wizard.getByRole("button", { name: "Sihirbazı gizle" }).click();
   await expect(wizard).toHaveCount(0);

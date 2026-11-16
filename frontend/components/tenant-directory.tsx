@@ -5,6 +5,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CreateIntent } from "@/components/create-intent";
+import { announceSetupStep, invalidateSetupProgress } from "@/lib/setup-progress";
+import { toast } from "@/lib/toast";
 
 type Tenant = components["schemas"]["TenantResponse"];
 type TenantPage = components["schemas"]["TenantPage"];
@@ -88,9 +91,12 @@ export function TenantDirectory() {
         throw new Error("Kiracı başka bir işlemde değişti. Güncel kaydı yükleyin.");
       }
       if (!response.ok) throw new Error("Kiracı kaydedilemedi. Bilgileri kontrol edin.");
+      const wasEditing = !!editing;
       setOpen(false);
       setEditing(null);
       await load(query, includeArchived);
+      if (wasEditing) toast.success("Kiracı güncellendi.");
+      else await announceSetupStep("Kiracı eklendi.", "/kiracilar");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Kiracı kaydedilemedi.");
     } finally {
@@ -100,7 +106,6 @@ export function TenantDirectory() {
   async function archive(tenant: Tenant) {
     if ((await ask({ title: `“${displayName(tenant)}” arşivlensin mi?`, description: "Arşivlenen kiracı yeni sözleşme ve tahsilatta seçilemez; geçmiş kayıtları korunur.", confirmLabel: "Arşivle" })) === null) return;
     setPending(true);
-    setError("");
     try {
       const response = await fetch(`/api/bff/tenants/${tenant.id}`, {
         method: "POST",
@@ -108,13 +113,17 @@ export function TenantDirectory() {
         body: JSON.stringify({ version: tenant.version }),
       });
       if (response.status === 409) {
-        setConflict(true);
-        throw new Error("Kiracı başka bir işlemde değişti. Güncel listeyi yükleyin.");
+        toast.error("Kiracı başka bir işlemde değişti. Güncel listeyi yükleyin.", {
+          action: { label: "Listeyi yenile", onClick: () => void load(query, includeArchived) },
+        });
+        return;
       }
       if (!response.ok) throw new Error("Kiracı arşivlenemedi.");
       await load(query, includeArchived);
+      toast.success("Kiracı arşivlendi.");
+      void invalidateSetupProgress();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Kiracı arşivlenemedi.");
+      toast.error(cause instanceof Error ? cause.message : "Kiracı arşivlenemedi.");
     } finally {
       setPending(false);
     }
@@ -122,6 +131,16 @@ export function TenantDirectory() {
 
   return (
     <section className="grid gap-5" aria-labelledby="tenants-title">
+      <CreateIntent
+        ready={!loading}
+        onIntent={() => {
+          setEditing(null);
+          setKind("PERSON");
+          setError("");
+          setOpen(true);
+          return () => formRef.current?.querySelector<HTMLElement>("input, select") ?? null;
+        }}
+      />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 id="tenants-title" className="text-2xl font-semibold tracking-tight">

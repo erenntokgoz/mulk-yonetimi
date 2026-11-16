@@ -8,6 +8,7 @@ import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { fileKind, formatDate, formatFileSize } from "@/lib/format";
+import { toast } from "@/lib/toast";
 
 type Document = components["schemas"]["DocumentResponse"];
 type DocumentPage = components["schemas"]["DocumentPage"];
@@ -167,7 +168,8 @@ export function DocumentLibrary() {
       const completed = (await completeResponse.json()) as Document;
       setDocuments((current) => [completed, ...current.filter((item) => item.id !== completed.id)]);
       setFile(null);
-      setStatus("Belge tarandı ve kaydedildi.");
+      setStatus("");
+      toast.success("Belge yüklendi.");
       if (fileInput.current) fileInput.current.value = "";
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Belge yüklenemedi. Yeniden deneyin.");
@@ -179,7 +181,6 @@ export function DocumentLibrary() {
 
   async function download(document: Document) {
     setBusy(true);
-    setError("");
     try {
       const response = await fetch(`/api/bff/documents/${encodeURIComponent(document.id)}/download-url`, {
         cache: "no-store",
@@ -196,7 +197,7 @@ export function DocumentLibrary() {
       // Signed URL is served with Content-Disposition: attachment, so same-tab navigation downloads without leaving the page and is not popup-blocked after await.
       window.location.assign(result.downloadUrl);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Belge indirilemedi.");
+      toast.error(cause instanceof Error ? cause.message : "Belge indirilemedi.");
     } finally {
       setBusy(false);
     }
@@ -205,7 +206,6 @@ export function DocumentLibrary() {
   async function remove(document: Document) {
     if ((await ask({ title: `“${document.originalName}” kaldırılsın mı?`, description: "Belge listeden kaldırılır ve indirilemez.", confirmLabel: "Belgeyi kaldır", destructive: true })) === null) return;
     setBusy(true);
-    setError("");
     try {
       const response = await fetch(`/api/bff/documents/${encodeURIComponent(document.id)}`, {
         method: "DELETE",
@@ -217,9 +217,9 @@ export function DocumentLibrary() {
             : "Belge kaldırılamadı. Yeniden deneyin.",
         );
       setDocuments((current) => current.filter((item) => item.id !== document.id));
-      setStatus("Belge listeden kaldırıldı.");
+      toast.success("Belge kaldırıldı.");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Belge kaldırılamadı.");
+      toast.error(cause instanceof Error ? cause.message : "Belge kaldırılamadı.");
     } finally {
       setBusy(false);
     }

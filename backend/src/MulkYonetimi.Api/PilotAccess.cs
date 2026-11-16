@@ -9,6 +9,11 @@ namespace MulkYonetimi.Api;
 
 internal static class PilotAccess
 {
+    // Pilot onayı varsayılan olarak açıktır. Pilot:RequireApproval=false ile yeni hesaplar onay beklemeden açılır;
+    // e-posta doğrulaması ve kota kuralları bundan etkilenmez.
+    public static string NewAccountStatus(IConfiguration configuration) =>
+        configuration.GetValue("Pilot:RequireApproval", true) ? "PENDING" : "ACTIVE";
+
     public static async Task<IResult?> CheckUnitQuotaAsync(ApplicationDbContext db, Guid accountId, CancellationToken ct)
     {
         var limit = await db.AccountEntitlements.AsNoTracking()

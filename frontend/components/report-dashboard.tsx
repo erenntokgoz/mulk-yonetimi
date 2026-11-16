@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { toast } from "@/lib/toast";
 type CashFlow = components["schemas"]["CashFlowResponse"];
 type Property = components["schemas"]["PropertyResponse"];
 const money = (v: number | string | null) => {
@@ -166,8 +167,8 @@ export function ReportDashboard() {
             onClick={() => void loadMoreProperties()}>Diğer mülkleri yükle</Button>}
           {flow && !error && (
             <div className="flex flex-wrap gap-2">
-              <Button asChild variant="outline" size="lg"><a href={`/api/bff/reports/cashflow.csv?${exportQuery}`} download="cashflow.csv">Nakit akışı CSV</a></Button>
-              <Button asChild variant="outline" size="lg"><a href={`/api/bff/reports/payments.csv?${exportQuery}`} download="payments.csv">Tahsilatlar CSV</a></Button>
+              <Button asChild variant="outline" size="lg"><a href={`/api/bff/reports/cashflow.csv?${exportQuery}`} download="cashflow.csv" onClick={() => toast.info("Nakit akışı dosyası indiriliyor.")}>Nakit akışı CSV</a></Button>
+              <Button asChild variant="outline" size="lg"><a href={`/api/bff/reports/payments.csv?${exportQuery}`} download="payments.csv" onClick={() => toast.info("Tahsilat dosyası indiriliyor.")}>Tahsilatlar CSV</a></Button>
             </div>
           )}
         </CardContent>

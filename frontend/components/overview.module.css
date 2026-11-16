@@ -116,9 +116,12 @@
 }
 @media (max-width: 900px) {
   .steps { grid-template-columns: 1fr; }
-  .steps li { min-height: 0; grid-template-columns: 28px 1fr auto; align-items: center; }
-  .steps li small { display: none; }
-  .stepGo { margin: 0; }
+  .steps li { min-height: 0; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 12px 14px; }
+  .stepNo { grid-row: 1 / span 2; }
+  .steps b { grid-column: 2; }
+  .steps li:not(:has(small)) b { grid-row: 1 / span 2; }
+  .steps li small { grid-column: 2; }
+  .stepGo { grid-column: 3; grid-row: 1 / span 2; margin: 0; }
 }
 @media (max-width: 560px) {
   .c3 { grid-column: span 6; }

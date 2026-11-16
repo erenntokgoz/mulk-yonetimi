@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { toast } from "@/lib/toast";
 
 type Profile = components["schemas"]["ProfileResponse"];
 type Preferences = components["schemas"]["NotificationPreferenceResponse"];
@@ -32,7 +33,6 @@ export function SettingsDashboard() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [error, setError] = useState("");
-  const [status, setStatus] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,7 +68,6 @@ export function SettingsDashboard() {
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSavingProfile(true);
-    setStatus("");
     setError("");
     try {
       const response = await fetch("/api/bff/me/profile", {
@@ -87,7 +86,7 @@ export function SettingsDashboard() {
       const saved = (await response.json()) as Profile;
       setProfile(saved);
       setDisplayName(saved.displayName ?? "");
-      setStatus("Profil kaydedildi.");
+      toast.success("Profil kaydedildi.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Profil kaydedilemedi.");
     } finally {
@@ -99,7 +98,6 @@ export function SettingsDashboard() {
     event.preventDefault();
     if (!preferences) return;
     setSavingPreferences(true);
-    setStatus("");
     setError("");
     try {
       const response = await fetch("/api/bff/me/notification-preferences", {
@@ -116,7 +114,7 @@ export function SettingsDashboard() {
               : requestError(response.status, "Bildirim tercihleri"),
         );
       setPreferences((await response.json()) as Preferences);
-      setStatus("Bildirim tercihleri kaydedildi.");
+      toast.success("Bildirim tercihleri kaydedildi.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Bildirim tercihleri kaydedilemedi.");
     } finally {
@@ -146,11 +144,6 @@ export function SettingsDashboard() {
             Yeniden dene
           </Button>
         </div>
-      )}
-      {status && (
-        <p role="status" className="text-sm text-muted-foreground">
-          {status}
-        </p>
       )}
       {loading && <ListSkeleton label="Ayarlar yükleniyor…" />}
       {!loading && profile && preferences && (

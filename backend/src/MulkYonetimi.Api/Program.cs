@@ -267,7 +267,7 @@ app.MapPost("/api/v1/auth/register", async (RegisterRequest input, HttpContext c
 
     var defaultUnitLimit = configuration.GetValue<int?>("Pilot:DefaultUnitLimit");
     if (defaultUnitLimit is < 1) throw new InvalidOperationException("Pilot:DefaultUnitLimit must be positive when set.");
-    var account = new Account { Id = Guid.NewGuid(), Name = accountName, Status = "PENDING" };
+    var account = new Account { Id = Guid.NewGuid(), Name = accountName, Status = PilotAccess.NewAccountStatus(configuration) };
     db.Accounts.Add(account);
     db.AccountMembers.Add(new AccountMember { AccountId = account.Id, UserId = user.Id, Role = "OWNER", Status = "ACTIVE" });
     db.AccountPlans.Add(new AccountPlan { AccountId = account.Id, Code = "PILOT" });
