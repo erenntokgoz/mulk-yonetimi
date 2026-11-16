@@ -35,7 +35,7 @@ jobs:
         run: pnpm test:browser
       - name: Upload browser artifacts on failure
         if: failure() && steps.browser-tests.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: browser-test-results-${{ github.run_id }}
           path: frontend/test-results/
@@ -80,7 +80,7 @@ jobs:
           dotnet publish src/MulkYonetimi.Api -c Release --no-build -o "${RUNNER_TEMP}/release/api"
           dotnet tool restore
           dotnet tool run dotnet-ef migrations script --idempotent --project src/MulkYonetimi.Infrastructure --startup-project src/MulkYonetimi.Api --context ApplicationDbContext --configuration Release --no-build --output "${RUNNER_TEMP}/release/migrate.sql"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: github.event_name == 'push'
         with:
           name: api-release-${{ github.sha }}
