@@ -42,8 +42,14 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<DepositMovementType>(allowIntegerValues: false));
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<ExpenseCategory>(allowIntegerValues: false));
 });
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddSingleton<EmailOutboxSignal>();
+builder.Services.AddSingleton<OutboxPendingSignals>();
+builder.Services.AddSingleton<OutboxSaveChangesSignalInterceptor>();
+builder.Services.AddSingleton<OutboxTransactionSignalInterceptor>();
+builder.Services.AddDbContext<ApplicationDbContext>((services, options) =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+        .AddInterceptors(services.GetRequiredService<OutboxSaveChangesSignalInterceptor>(),
+            services.GetRequiredService<OutboxTransactionSignalInterceptor>()));
 var documentStorageOptions = DocumentStorageOptions.FromConfiguration(builder.Configuration);
 builder.Services.AddSingleton(documentStorageOptions);
 builder.Services.AddSingleton<IR2DocumentStorage>(serviceProvider =>
@@ -103,6 +109,7 @@ builder.Services.AddSingleton<IGoogleIdTokenValidator>(_ => GoogleJwksIdTokenVal
 builder.Services.AddScoped<IConfirmationMailer, SmtpConfirmationMailer>();
 builder.Services.AddScoped<EmailOutboxQueue>();
 builder.Services.AddScoped<EmailOutboxDispatcher>();
+builder.Services.AddScoped<IEmailOutboxDispatcher>(services => services.GetRequiredService<EmailOutboxDispatcher>());
 builder.Services.AddHostedService<EmailOutboxWorker>();
 builder.Services.AddScoped<NotificationJob>();
 builder.Services.AddHostedService<NotificationWorker>();
