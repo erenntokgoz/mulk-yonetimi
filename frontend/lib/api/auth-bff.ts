@@ -3,13 +3,11 @@ import { createHmac } from "node:crypto";
 import { isIP } from "node:net";
 import { getBackendBaseUrl } from "./health.ts";
 
-export async function proxyAuth(request: Request, path: string, mutation: boolean): Promise<Response> {
-  const frontendOrigin = process.env.FRONTEND_ORIGIN;
-  if (!frontendOrigin) return new Response(null, { status: 503 });
-
-  let expectedOrigin: string;
+// FRONTEND_ORIGIN yalnız şema+ana makine olabilir; API aynı değeri Origin olarak bekler.
+export function configuredFrontendOrigin(value = process.env.FRONTEND_ORIGIN): string | null {
+  if (!value) return null;
   try {
-    const configured = new URL(frontendOrigin);
+    const configured = new URL(value);
     if (
       !["http:", "https:"].includes(configured.protocol) ||
       configured.username ||
@@ -18,11 +16,28 @@ export async function proxyAuth(request: Request, path: string, mutation: boolea
       configured.search ||
       configured.hash
     )
-      throw new Error();
-    expectedOrigin = configured.origin;
+      return null;
+    return configured.origin;
   } catch {
-    return new Response(null, { status: 503 });
+    return null;
   }
+}
+
+// Vercel'in eklediği tek istemci IP'si imzalanır; istemcinin gönderdiği X-Mulk-* başlıkları hiçbir zaman aktarılmaz.
+export function setSignedClientIp(request: Request, headers: Headers): void {
+  const rateLimitSigningKey = process.env.BACKEND_RATE_LIMIT_SIGNING_KEY;
+  const forwardedIp = process.env.VERCEL === "1"
+    ? request.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim()
+    : undefined;
+  if (forwardedIp && isIP(forwardedIp) && rateLimitSigningKey && Buffer.byteLength(rateLimitSigningKey, "utf8") >= 32) {
+    headers.set("X-Mulk-Client-IP", forwardedIp);
+    headers.set("X-Mulk-Client-IP-Signature", createHmac("sha256", rateLimitSigningKey).update(forwardedIp).digest("hex"));
+  }
+}
+
+export async function proxyAuth(request: Request, path: string, mutation: boolean): Promise<Response> {
+  const expectedOrigin = configuredFrontendOrigin();
+  if (!expectedOrigin) return new Response(null, { status: 503 });
 
   if (mutation && request.headers.get("origin") !== expectedOrigin) {
     return new Response(null, { status: 403 });
@@ -44,14 +59,7 @@ export async function proxyAuth(request: Request, path: string, mutation: boolea
   if (contentType) headers.set("Content-Type", contentType);
   const idempotencyKey = request.headers.get("idempotency-key");
   if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
-  const rateLimitSigningKey = process.env.BACKEND_RATE_LIMIT_SIGNING_KEY;
-  const forwardedIp = process.env.VERCEL === "1"
-    ? request.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim()
-    : undefined;
-  if (forwardedIp && isIP(forwardedIp) && rateLimitSigningKey && Buffer.byteLength(rateLimitSigningKey, "utf8") >= 32) {
-    headers.set("X-Mulk-Client-IP", forwardedIp);
-    headers.set("X-Mulk-Client-IP-Signature", createHmac("sha256", rateLimitSigningKey).update(forwardedIp).digest("hex"));
-  }
+  setSignedClientIp(request, headers);
 
   let upstream: Response;
   try {

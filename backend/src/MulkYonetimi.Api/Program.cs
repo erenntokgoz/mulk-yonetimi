@@ -99,6 +99,7 @@ builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
     });
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<AccountMembershipResolver>();
+builder.Services.AddSingleton<IGoogleIdTokenValidator>(_ => GoogleJwksIdTokenValidator.ForGoogle());
 builder.Services.AddScoped<IConfirmationMailer, SmtpConfirmationMailer>();
 builder.Services.AddScoped<EmailOutboxQueue>();
 builder.Services.AddScoped<EmailOutboxDispatcher>();
@@ -390,6 +391,7 @@ app.MapPost("/api/v1/auth/reset-password", async (ResetPasswordRequest input, Ht
     .Produces(StatusCodes.Status400BadRequest)
     .Produces(StatusCodes.Status403Forbidden);
 
+app.MapGoogleSignIn();
 app.MapPropertyEndpoints();
 app.MapAccountSettingsEndpoints();
 app.MapTenantEndpoints();
