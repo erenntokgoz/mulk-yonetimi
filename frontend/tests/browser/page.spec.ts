@@ -131,7 +131,7 @@ test("rent charges and payments load from the API and idempotent actions can be 
   expect(setup.tenantId).toBeTruthy();
   await page.goto("/kira-tahsilatlar");
   await expect(page.getByRole("heading", { name: "Alacaklar" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: /Ada Yılmaz · 2026-01/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ada Yılmaz · Ocak 2026" })).toBeVisible();
   await page.request.post("http://127.0.0.1:5089/finance-fail-once");
   await page.getByLabel("Tutar (₺)").fill("12500.00");
   await page.getByRole("button", { name: "Tahsilatı kaydet" }).click();
@@ -141,10 +141,13 @@ test("rent charges and payments load from the API and idempotent actions can be 
   await expect(page.getByText(/Dağıtılan 0,00 ₺ · Bekleyen 12\.500,00 ₺/)).toBeVisible();
   await page.getByRole("button", { name: "Tahsilat dağıt" }).click();
   await page.getByRole("button", { name: "Dağıtımı kaydet" }).click();
-  await expect(page.getByText("Vade 2026-01-01 · Ödendi")).toBeVisible();
+  await expect(page.getByText("Vade 01.01.2026")).toBeVisible();
+  await expect(page.getByText("Ödendi", { exact: true })).toBeVisible();
   await expect(page.getByText("Alacak 12.500,00 ₺ · Ödenen 12.500,00 ₺ · Bakiye", { exact: false })).toBeVisible();
-  page.once("dialog", (dialog) => void dialog.accept("Test iptali"));
   await page.getByRole("button", { name: "İptal et" }).click();
+  const voidDialog = page.getByRole("dialog", { name: "Tahsilat iptal edilsin mi?" });
+  await voidDialog.getByLabel("İptal gerekçesi").fill("Test iptali");
+  await voidDialog.getByRole("button", { name: "Tahsilatı iptal et" }).click();
   await expect(page.getByText("İptal edildi")).toBeVisible();
 });
 
@@ -199,7 +202,7 @@ test("theme motion respects reduced-motion preference", async ({ page }) => {
   await page.context().addCookies([{ name: "mulk.session", value: "fixture", url: "http://127.0.0.1:3109" }]);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/panel");
-  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(5, 7, 12)");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(8, 9, 12)");
   const card = page.getByRole("heading", { name: "Cari ay nakit akışı" });
   await expect(card).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveCSS("animation-duration", "1e-05s");
@@ -238,8 +241,8 @@ test("portfolio creates and archives a property through the BFF", async ({ page 
   await expect(page.locator("p[role=alert]")).toContainText("başka bir işlemde değişti");
   await page.getByRole("button", { name: "Listeyi yenile" }).click();
   await expect(page.getByText("Daire", { exact: true })).toBeVisible();
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Mülkü arşivle" }).click();
+  await page.getByRole("dialog", { name: /mülkü arşivlensin mi/ }).getByRole("button", { name: "Arşivle" }).click();
   await expect(page.getByText("Daire", { exact: true })).toHaveCount(0);
 });
 
@@ -255,7 +258,7 @@ test("tenant directory creates, edits, handles a version conflict, and archives"
   await page.getByLabel("Parola").fill("Valid-Password-123!");
   await page.getByRole("button", { name: "Giriş yap" }).click();
   await page.goto("/kiracilar");
-  await expect(page.getByText("Kiracı kaydı bulunamadı")).toBeVisible();
+  await expect(page.getByText("Henüz kiracı kaydı yok")).toBeVisible();
   await page.getByRole("button", { name: "Kiracı ekle" }).click();
   await page.getByLabel("Ad", { exact: true }).fill("Ayşe");
   await page.getByLabel("Soyad").fill("Yılmaz");
@@ -271,8 +274,8 @@ test("tenant directory creates, edits, handles a version conflict, and archives"
   await expect(page.locator("p[role=alert]")).toContainText("başka bir işlemde değişti");
   await page.getByRole("button", { name: "Listeyi yenile" }).click();
   await expect(page.getByText("Ayşe Demir")).toBeVisible();
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Kiracıyı arşivle" }).click();
+  await page.getByRole("dialog", { name: /arşivlensin mi/ }).getByRole("button", { name: "Arşivle" }).click();
   await expect(page.getByText("Ayşe Demir")).toHaveCount(0);
   await page.getByLabel("Arşivlenenleri göster").check();
   await expect(page.getByText("Ayşe Demir")).toBeVisible();
@@ -311,8 +314,8 @@ test("lease workflow creates a draft, activates it, records a rate, and terminat
   await page.getByLabel("Aylık kira (₺)").fill("12500.50");
   await page.getByRole("button", { name: "Taslağı kaydet" }).click();
   await expect(page.getByText("Taslak", { exact: true })).toBeVisible();
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Etkinleştir" }).click();
+  await page.getByRole("dialog", { name: "Sözleşme etkinleştirilsin mi?" }).getByRole("button", { name: "Etkinleştir" }).click();
   await expect(page.getByText("Etkin", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Kira bedelleri" }).first().click();
   await expect(page.getByText("12.500,50 ₺")).toBeVisible();

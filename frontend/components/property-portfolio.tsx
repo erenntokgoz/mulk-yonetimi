@@ -1,9 +1,10 @@
 "use client";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
-import { Building2, LayoutGrid, List, MapPin, Plus } from "lucide-react";
+import { Building2, LayoutGrid, List, MapPin, Plus, Search } from "lucide-react";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ListSkeleton } from "@/components/ui/skeleton";
 import { propertyCreateError, unitCreateError } from "@/lib/api/portfolio-errors";
 
@@ -30,6 +31,22 @@ export function PropertyPortfolio() {
   const [pending, setPending] = useState(false);
   const [includeArchived, setIncludeArchived] = useState(false);
   const [view, setView] = useState<"table" | "cards">("table");
+  const [kind, setKind] = useState<components["schemas"]["PropertyKind"]>("MULTI_UNIT");
+  const [query, setQuery] = useState("");
+  const formRef = useRef<HTMLDivElement>(null);
+  const unitsRef = useRef<HTMLDivElement>(null);
+  const { ask, dialog } = useConfirmDialog();
+  const needle = query.trim().toLocaleLowerCase("tr");
+  const visible = needle
+    ? items.filter((item) => `${item.name} ${item.address}`.toLocaleLowerCase("tr").includes(needle))
+    : items;
+  // Düzenleme formu ve birim paneli listenin üstünde açılır; aşağıdaki bir kayıttan açılınca görünür alana kaydırılır.
+  useEffect(() => {
+    if (open) formRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [open, editing]);
+  useEffect(() => {
+    if (unitProperty) unitsRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [unitProperty]);
   // Dar ekranlarda tablo yerine kart düzeni kullanılır.
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -178,7 +195,8 @@ export function PropertyPortfolio() {
     }
   }
   async function archiveUnit(unit: Unit) {
-    if (!unitProperty || !window.confirm(`“${unit.label}” birimi arşivlensin mi?`)) return;
+    if (!unitProperty) return;
+    if ((await ask({ title: `“${unit.label}” birimi arşivlensin mi?`, description: "Arşivlenen birim yeni sözleşmede seçilemez; geçmiş kayıtları korunur.", confirmLabel: "Arşivle" })) === null) return;
     setPending(true);
     setError("");
     try {
@@ -196,7 +214,7 @@ export function PropertyPortfolio() {
     }
   }
   async function archive(property: Property) {
-    if (!window.confirm(`“${property.name}” mülkü arşivlensin mi?`)) return;
+    if ((await ask({ title: `“${property.name}” mülkü arşivlensin mi?`, description: "Arşivlenen mülk listeden kalkar; geçmiş kayıtları korunur.", confirmLabel: "Arşivle" })) === null) return;
     setPending(true);
     setError("");
     try {
@@ -230,6 +248,7 @@ export function PropertyPortfolio() {
           onClick={() => {
             setOpen(!open);
             setEditing(null);
+            setKind("MULTI_UNIT");
             setError("");
           }}
         >
@@ -238,7 +257,13 @@ export function PropertyPortfolio() {
         </Button>
       </div>
       <div className="portfolio-toolbar">
-        <span className="portfolio-tab">Gösterilen mülkler {!loading && !error && <span>{items.length}</span>}</span>
+        <span className="portfolio-tab">Gösterilen mülkler {!loading && !error && <span>{visible.length}</span>}</span>
+        <label className="portfolio-search relative">
+          <span className="sr-only">Mülk ara</span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ad veya adres"
+            className="h-11 w-full rounded-md border bg-background pl-9 pr-3 text-sm" />
+        </label>
         <label className="flex min-h-11 items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -287,9 +312,10 @@ export function PropertyPortfolio() {
         </div>
       )}
       {open && (
-        <Card>
+        <Card ref={formRef}>
           <CardContent className="pt-6">
-            <form onSubmit={create} className="grid gap-4 sm:grid-cols-2">
+            <form key={editing?.id ?? "new"} onSubmit={create} className="grid gap-4 sm:grid-cols-2">
+              <h2 className="text-lg font-semibold sm:col-span-2">{editing ? `${editing.name} · düzenle` : "Yeni mülk"}</h2>
               <label className="grid gap-2 text-sm font-medium">
                 Mülk adı
                 <input
@@ -315,19 +341,23 @@ export function PropertyPortfolio() {
                 <select
                   disabled={!!editing}
                   name="propertyKind"
+                  value={editing ? editing.propertyKind : kind}
+                  onChange={(event) => setKind(event.target.value as components["schemas"]["PropertyKind"])}
                   className="h-11 rounded-md border bg-background px-3"
                 >
                   <option value="MULTI_UNIT">Çok birimli</option>
                   <option value="SINGLE_UNIT">Tek birimli</option>
                 </select>
               </label>
-              <label className="grid gap-2 text-sm font-medium">
-                Varsayılan birim kullanım türü
-                <select name="defaultUnitUsageType" className="h-11 rounded-md border bg-background px-3">
-                  <option value="RESIDENTIAL">Konut</option>
-                  <option value="COMMERCIAL">Ticari</option>
-                </select>
-              </label>
+              {!editing && kind === "SINGLE_UNIT" && (
+                <label className="grid gap-2 text-sm font-medium">
+                  Kullanım türü
+                  <select name="defaultUnitUsageType" className="h-11 rounded-md border bg-background px-3">
+                    <option value="RESIDENTIAL">Konut</option>
+                    <option value="COMMERCIAL">Ticari</option>
+                  </select>
+                </label>
+              )}
               <div className="flex gap-2 sm:col-span-2">
                 <Button type="submit" disabled={pending}>
                   {pending ? "Kaydediliyor…" : editing ? "Değişiklikleri kaydet" : "Kaydet"}
@@ -348,7 +378,7 @@ export function PropertyPortfolio() {
         </Card>
       )}
       {unitProperty && (
-        <Card>
+        <Card ref={unitsRef}>
           <CardContent className="grid gap-5 p-5">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">{unitProperty.name} · Birimler</h2>
@@ -361,7 +391,7 @@ export function PropertyPortfolio() {
             ) : units.length ? (
               <ul className="grid gap-2">
                 {units.map((unit) => (
-                  <li key={unit.id} className="rounded-md border p-3 text-sm">
+                  <li key={unit.id} className="flex flex-wrap items-center gap-2 rounded-md border p-3 text-sm">
                     <span className="font-medium">{unit.label}</span>
                     <span className="ml-2 text-muted-foreground">
                       {unit.usageType === "RESIDENTIAL" ? "Konut" : "Ticari"}
@@ -369,7 +399,7 @@ export function PropertyPortfolio() {
                       {unit.areaM2 ? ` · ${unit.areaM2} m²` : ""}
                     </span>
                     {unit.archivedAtUtc && <span className="ml-2 type-badge">Arşivlendi</span>}
-                    {!unit.archivedAtUtc && !unitProperty.archivedAtUtc && <Button type="button" variant="outline" className="ml-3" disabled={pending}
+                    {!unit.archivedAtUtc && !unitProperty.archivedAtUtc && <Button type="button" variant="outline" className="ml-auto" disabled={pending}
                       onClick={() => void archiveUnit(unit)}>
                       Arşivle
                     </Button>}
@@ -433,11 +463,11 @@ export function PropertyPortfolio() {
             <ListSkeleton label="Mülkler yükleniyor…" />
           </CardContent>
         </Card>
-      ) : error && !items.length ? null : items.length === 0 ? (
+      ) : error && !items.length ? null : visible.length === 0 ? (
         <Card>
           <CardContent className="portfolio-empty">
             <Building2 size={28} aria-hidden="true" />
-            <h2 className="font-medium">{includeArchived ? "Arşivlenmiş mülk yok" : "Henüz mülk kaydı yok"}</h2>
+            <h2 className="font-medium">{needle ? "Aramaya uyan mülk yok" : includeArchived ? "Arşivlenmiş mülk yok" : "Henüz mülk kaydı yok"}</h2>
           </CardContent>
         </Card>
       ) : (
@@ -456,7 +486,7 @@ export function PropertyPortfolio() {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((property) => (
+                  {visible.map((property) => (
                     <tr key={property.id}>
                       <td>
                         <span className="property-name">
@@ -484,7 +514,7 @@ export function PropertyPortfolio() {
             </div>
           ) : (
             <div className="property-grid">
-              {items.map((property) => (
+              {visible.map((property) => (
                 <Card key={property.id}>
                   <CardContent className="property-tile">
                     <span className="property-icon">
@@ -507,6 +537,7 @@ export function PropertyPortfolio() {
           )}
         </div>
       )}
+      {dialog}
       {moreProperties && <Button type="button" variant="outline" disabled={loading}
         onClick={() => void loadMoreProperties()}>Diğer mülkleri yükle</Button>}
     </section>
@@ -526,6 +557,7 @@ export function PropertyPortfolio() {
             aria-label="Mülkü düzenle"
             onClick={() => {
               setEditing(property);
+              setKind(property.propertyKind);
               setOpen(true);
               setError("");
             }}

@@ -41,7 +41,7 @@ test("renews an active lease and shows its recorded history", async ({ page }) =
   await page.getByLabel("Gerekçe").fill("Yıllık yenileme");
   await expect(form).toHaveScreenshot("lease-renewal-form-mobile.png");
   await page.getByRole("button", { name: "Yenilemeyi kaydet" }).click();
-  await expect(page.getByText(/2026-12-31 → 2027-12-31 · 2027-01-01/)).toBeVisible();
+  await expect(page.getByText(/31\.12\.2026 → 31\.12\.2027 · 01\.01\.2027/)).toBeVisible();
 });
 
 test("rent collection and lease renewal interfaces pass WCAG A/AA checks on mobile", async ({ page }) => {

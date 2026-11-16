@@ -53,7 +53,7 @@
 .kpiV { font-size: clamp(22px, 2vw, 28px); font-weight: 800; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .mini { display: flex; gap: 3px; height: 6px; }
 .mini i { height: 100%; border-radius: 999px; }
-.glowDot { position: absolute; right: -40px; top: -40px; width: 140px; height: 140px; border-radius: 50%; filter: blur(40px); opacity: .25; pointer-events: none; z-index: -1; }
+.glowDot { position: absolute; right: -40px; top: -40px; width: 140px; height: 140px; border-radius: 50%; filter: blur(40px); opacity: calc(.25 * var(--glow, 1)); pointer-events: none; z-index: -1; }
 .tPri .kpiIc { background: color-mix(in srgb, var(--brand) 18%, transparent); color: var(--primary-soft); } .tPri .glowDot { background: var(--brand); }
 .tPar .kpiIc { background: color-mix(in srgb, var(--partial) 18%, transparent); color: var(--partial); } .tPar .glowDot { background: var(--partial); }
 .tLate .kpiIc { background: color-mix(in srgb, var(--late) 18%, transparent); color: var(--late); } .tLate .glowDot { background: var(--late); }

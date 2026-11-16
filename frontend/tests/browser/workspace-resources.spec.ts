@@ -123,8 +123,8 @@ test("documents upload through a signed intent, complete, download, and soft del
   expect(download.url()).toBe("https://storage.example.test/download");
   expect(download.suggestedFilename()).toBe("test.pdf");
   await expect(page).toHaveURL(/\/belgeler$/);
-  page.on("dialog", dialog => void dialog.accept());
   await page.getByRole("button", { name: "Belgeyi sil test.pdf" }).click();
+  await page.getByRole("dialog", { name: /test\.pdf.*kaldırılsın mı/ }).getByRole("button", { name: "Belgeyi kaldır" }).click();
   await expect(page.getByText("Henüz belge yok.")).toBeVisible();
   expect(lifecycle).toEqual(["intent", "put", "complete", "download-url", "delete"]);
 });
