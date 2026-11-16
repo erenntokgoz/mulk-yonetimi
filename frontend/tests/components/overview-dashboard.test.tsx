@@ -26,6 +26,20 @@ const summary = {
   },
 };
 
+const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
+const emptyPage = { items: [], page: 1, pageSize: 100, hasMore: false };
+
+function stubApi(extra: (url: string) => Response | null) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/dashboard/summary")) return json(summary);
+      return extra(url) ?? json(emptyPage);
+    }),
+  );
+}
+
 describe("OverviewDashboard money formatting", () => {
   afterEach(() => {
     cleanup();
@@ -40,5 +54,37 @@ describe("OverviewDashboard money formatting", () => {
     expect(screen.getByText("2.345,67 ₺")).toBeTruthy();
     expect(screen.getByText("0,00 ₺")).toBeTruthy();
     expect(screen.getByText("-1.234,56 ₺")).toBeTruthy();
+  });
+
+  it("shows empty states and no sample data for a new account", async () => {
+    stubApi(() => null);
+    render(<OverviewDashboard />);
+    await waitFor(() => expect(screen.getByText("Geciken kira yok.")).toBeTruthy());
+    expect(screen.getByText("Önümüzdeki 14 günde vadesi gelen kira yok.")).toBeTruthy();
+    expect(screen.getByText("Son 12 ayda tahsilat ya da gider kaydı yok.")).toBeTruthy();
+    expect(screen.queryByText("Selin Kaya")).toBeNull();
+  });
+
+  it("lists overdue and upcoming rent charges from the API", async () => {
+    const tenant = { id: "t1", kind: "PERSON", firstName: "Ayşe", lastName: "Yılmaz", companyName: null };
+    const charge = (id: string, due: string, balance: number, paid: number) => ({
+      id, leaseId: "l1", tenantId: "t1", periodStart: due.slice(0, 7) + "-01", dueDate: due,
+      amount: balance + paid, paidAmount: paid, balance, status: paid ? "PARTIAL" : "UNPAID", isOverdue: due < "2026-11-14",
+    });
+    stubApi((url) => {
+      if (url.includes("/rent-charges"))
+        return json({ ...emptyPage, items: [charge("c1", "2026-11-04", 6500, 1000), charge("c2", "2026-11-20", 14000, 0)] });
+      if (url.includes("/tenants")) return json({ ...emptyPage, items: [tenant] });
+      if (url.includes("/reports/cashflow")) return json({ cashIn: 5000, cashOut: 1000 });
+      return null;
+    });
+    render(<OverviewDashboard />);
+    await waitFor(() => expect(screen.getByText("Vadesi 10 gün önce geçti")).toBeTruthy());
+    expect(screen.getByText("Kısmi ödendi")).toBeTruthy();
+    expect(screen.getByText("6.500,00 ₺")).toBeTruthy();
+    expect(screen.getByText("20 Kasım")).toBeTruthy();
+    expect(screen.getByText("6 gün")).toBeTruthy();
+    expect(screen.getAllByText("Ayşe Yılmaz").length).toBe(2);
+    expect(screen.queryByText("Son 12 ayda tahsilat ya da gider kaydı yok.")).toBeNull();
   });
 });

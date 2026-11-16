@@ -92,6 +92,19 @@ internal static class LeaseEndpoints
             MonthlyAmount = input.MonthlyAmount
         });
         AddAudit(db, principal, accountId, lease.Id, "LEASE", "CREATED");
+        if (lease.DepositAmount > 0)
+        {
+            // Beklenen depozito sözleşmeyle aynı işlemde açılır; muhafaza biçimi sonradan depozito ekranından değişir.
+            var deposit = new SecurityDeposit
+            {
+                Id = Guid.NewGuid(),
+                AccountId = accountId,
+                LeaseId = lease.Id,
+                CustodyType = DepositCustody.OWNER_HELD
+            };
+            db.SecurityDeposits.Add(deposit);
+            AddAudit(db, principal, accountId, deposit.Id, "DEPOSIT", "CREATED");
+        }
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return Results.CreatedAtRoute("GetLease", new { id = lease.Id }, ToResponse(lease));

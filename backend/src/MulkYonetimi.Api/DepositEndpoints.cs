@@ -72,7 +72,18 @@ internal static class DepositEndpoints
         if (existing is not null)
         {
             if (existing.CustodyType != input.CustodyType || existing.Note != note)
-                return Conflict("Sözleşmenin teminat kaydı mevcut.");
+            {
+                // Sözleşmeyle otomatik açılan kayıt hareket görmeden önce muhafaza biçimi ve notla güncellenebilir.
+                if (await db.DepositMovements.AnyAsync(item => item.AccountId == accountId && item.DepositId == existing.Id, ct))
+                    return Conflict("Hareket görmüş teminat kaydı değiştirilemez.");
+                existing.CustodyType = input.CustodyType.Value;
+                existing.Note = note;
+                AddAudit(db, principal, accountId, existing.Id, "DEPOSIT", "UPDATED");
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+                return Results.Ok(new DepositResponse(existing.Id, lease.Id, lease.DepositAmount, existing.CustodyType,
+                    existing.Note, 0));
+            }
             return Results.Ok(new DepositResponse(existing.Id, lease.Id, lease.DepositAmount, existing.CustodyType,
                 existing.Note, await BalanceAsync(db, accountId, existing.Id, ct)));
         }
