@@ -1,18 +1,22 @@
 "use client";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatDate, formatMoney, formatPeriod } from "@/lib/format";
+import { CreateIntent } from "@/components/create-intent";
+import { announceSetupStep } from "@/lib/setup-progress";
+import { toast } from "@/lib/toast";
 
 type Charge = components["schemas"]["RentChargeResponse"];
 type ChargePage = components["schemas"]["RentChargePage"];
 type Payment = components["schemas"]["PaymentResponse"];
 type PaymentPage = components["schemas"]["PaymentPage"];
 type Tenant = components["schemas"]["TenantResponse"];
-type PendingRequest = { url: string; body: string; key: string };
+// success: başarı mesajı. row: listeden başlatılan işlem; hatası satır içi değil mesajla gösterilir.
+type PendingRequest = { url: string; body: string; key: string; success: string; setup?: boolean; row?: boolean; form?: HTMLFormElement };
 const jsonHeaders = { "Content-Type": "application/json" };
 const showMoney = formatMoney;
 function decimalBody<T extends object>(payload: T, field: keyof T & string, allowZero = false) {
@@ -56,6 +60,7 @@ export function RentCollection() {
   const [correctionId, setCorrectionId] = useState("");
   const [allocationId, setAllocationId] = useState("");
   const { ask, dialog } = useConfirmDialog();
+  const paymentFormRef = useRef<HTMLFormElement>(null);
   const tenantNames = useMemo(
     () => new Map(tenants.map((tenant) => [tenant.id, tenantName(tenant)])),
     [tenants],
@@ -123,7 +128,7 @@ export function RentCollection() {
 
   async function send(request: PendingRequest) {
     setPending(true);
-    setError("");
+    if (!request.row) setError("");
     try {
       const response = await fetch(request.url, {
         method: "POST",
@@ -138,13 +143,22 @@ export function RentCollection() {
               ? "Oturum süresi dolmuş. Yeniden giriş yapın."
               : "İşlem kaydedilemedi. Aynı isteği güvenle yeniden deneyebilirsiniz.",
         );
-      setRetry(null);
+      if (!request.row) setRetry(null);
       setCorrectionId("");
       setAllocationId("");
+      request.form?.reset();
       await load();
+      if (request.setup) await announceSetupStep(request.success, "/kira-tahsilatlar");
+      else toast.success(request.success);
     } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "İşlem kaydedilemedi.";
+      if (request.row) {
+        // Aynı anahtarla yeniden deneme güvenlidir; mesajdaki düğme isteği değiştirmeden tekrarlar.
+        toast.error(message, { action: { label: "Tekrar dene", onClick: () => void send(request) } });
+        return;
+      }
       setRetry(request);
-      setError(cause instanceof Error ? cause.message : "İşlem kaydedilemedi.");
+      setError(message);
     } finally {
       setPending(false);
     }
@@ -153,11 +167,20 @@ export function RentCollection() {
     event: FormEvent<HTMLFormElement>,
     url: string,
     makeBody: (data: FormData) => string,
-    key = idempotencyKey(),
+    success: string,
+    options: { setup?: boolean; reset?: boolean } = {},
   ) {
     event.preventDefault();
+    const form = event.currentTarget;
     try {
-      void send({ url, key, body: makeBody(new FormData(event.currentTarget)) });
+      void send({
+        url,
+        key: idempotencyKey(),
+        body: makeBody(new FormData(form)),
+        success,
+        setup: options.setup,
+        form: options.reset ? form : undefined,
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Form bilgilerini kontrol edin.");
     }
@@ -174,12 +197,16 @@ export function RentCollection() {
     const body = JSON.stringify({
       reason: reason.trim(),
     } satisfies components["schemas"]["VoidPaymentRequest"]);
-    await send({ url: `/api/bff/payments/${payment.id}/void`, body, key: idempotencyKey() });
+    await send({ url: `/api/bff/payments/${payment.id}/void`, body, key: idempotencyKey(), success: "Tahsilat iptal edildi.", row: true });
   }
 
   const visibleCharges = includeClosed ? charges : charges.filter((charge) => charge.status !== "PAID");
   return (
     <section className="grid gap-5" aria-labelledby="rent-collection-title">
+      <CreateIntent
+        ready={!loading}
+        onIntent={() => () => paymentFormRef.current?.querySelector<HTMLElement>("select, input") ?? null}
+      />
       <div>
         <h1 id="rent-collection-title" className="text-2xl font-semibold tracking-tight">
           Kira ve tahsilatlar
@@ -272,6 +299,7 @@ export function RentCollection() {
                             "amount",
                             true,
                           ),
+                          "Alacak düzeltildi.",
                         )
                       }
                     >
@@ -316,6 +344,7 @@ export function RentCollection() {
                             } satisfies components["schemas"]["AllocatePaymentRequest"],
                             "amount",
                           ),
+                          "Tahsilat dağıtıldı.",
                         );
                       }}
                     >
@@ -387,6 +416,8 @@ export function RentCollection() {
             <p className="text-sm text-muted-foreground">Kullanıcı tarafından kaydedildi; banka doğrulaması yapılmadı.</p>
           </div>
           <form
+            ref={paymentFormRef}
+            aria-label="Tahsilat kaydı"
             className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-5"
             onSubmit={(event) =>
               submit(event, "/api/bff/payments", (data) =>
@@ -400,6 +431,8 @@ export function RentCollection() {
                   } satisfies components["schemas"]["CreatePaymentRequest"],
                   "amount",
                 ),
+                "Tahsilat kaydedildi.",
+                { setup: true, reset: true },
               )
             }
           >

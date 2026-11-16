@@ -7,6 +7,9 @@ import { Building2, LayoutGrid, List, MapPin, Plus, Search } from "lucide-react"
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ListSkeleton } from "@/components/ui/skeleton";
 import { propertyCreateError, unitCreateError } from "@/lib/api/portfolio-errors";
+import { CreateIntent } from "@/components/create-intent";
+import { announceSetupStep, invalidateSetupProgress } from "@/lib/setup-progress";
+import { toast } from "@/lib/toast";
 
 type Property = components["schemas"]["PropertyResponse"];
 type PropertyPage = components["schemas"]["PropertyPage"];
@@ -35,6 +38,7 @@ export function PropertyPortfolio() {
   const [query, setQuery] = useState("");
   const formRef = useRef<HTMLDivElement>(null);
   const unitsRef = useRef<HTMLDivElement>(null);
+  const unitFormRef = useRef<HTMLFormElement>(null);
   const { ask, dialog } = useConfirmDialog();
   const needle = query.trim().toLocaleLowerCase("tr");
   const visible = needle
@@ -122,9 +126,12 @@ export function PropertyPortfolio() {
         setConflict(true);
       }
       if (!response.ok) throw new Error(await propertyCreateError(response));
+      const wasEditing = !!editing;
       setOpen(false);
       setEditing(null);
       await load();
+      if (wasEditing) toast.success("Mülk güncellendi.");
+      else await announceSetupStep("Mülk eklendi.", "/portfoy");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Mülk kaydedilemedi.");
     } finally {
@@ -173,7 +180,8 @@ export function PropertyPortfolio() {
     if (!unitProperty) return;
     setPending(true);
     setError("");
-    const data = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const data = new FormData(form);
     try {
       const response = await fetch(`/api/bff/properties/${unitProperty.id}/units`, {
         method: "POST",
@@ -186,8 +194,10 @@ export function PropertyPortfolio() {
         }),
       });
       if (!response.ok) throw new Error(await unitCreateError(response));
+      form.reset();
       await showUnits(unitProperty);
       await load();
+      await announceSetupStep("Birim eklendi.", "/portfoy");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Birim kaydedilemedi.");
     } finally {
@@ -198,7 +208,6 @@ export function PropertyPortfolio() {
     if (!unitProperty) return;
     if ((await ask({ title: `“${unit.label}” birimi arşivlensin mi?`, description: "Arşivlenen birim yeni sözleşmede seçilemez; geçmiş kayıtları korunur.", confirmLabel: "Arşivle" })) === null) return;
     setPending(true);
-    setError("");
     try {
       const response = await fetch(`/api/bff/properties/${unitProperty.id}/units/${unit.id}/archive`, {
         method: "POST",
@@ -207,8 +216,10 @@ export function PropertyPortfolio() {
         ? "Etkin sözleşmesi olan birim arşivlenemez."
         : "Birim arşivlenemedi.");
       await showUnits(unitProperty);
+      toast.success("Birim arşivlendi.");
+      void invalidateSetupProgress();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Birim arşivlenemedi.");
+      toast.error(cause instanceof Error ? cause.message : "Birim arşivlenemedi.");
     } finally {
       setPending(false);
     }
@@ -216,7 +227,6 @@ export function PropertyPortfolio() {
   async function archive(property: Property) {
     if ((await ask({ title: `“${property.name}” mülkü arşivlensin mi?`, description: "Arşivlenen mülk listeden kalkar; geçmiş kayıtları korunur.", confirmLabel: "Arşivle" })) === null) return;
     setPending(true);
-    setError("");
     try {
       const response = await fetch(`/api/bff/properties/${property.id}`, {
         method: "POST",
@@ -224,19 +234,49 @@ export function PropertyPortfolio() {
         body: JSON.stringify({ version: property.version }),
       });
       if (response.status === 409) {
-        setConflict(true);
-        throw new Error("Mülk başka bir işlemde değişti. Güncel listeyi yükleyin.");
+        toast.error("Mülk başka bir işlemde değişti. Güncel listeyi yükleyin.", {
+          action: { label: "Listeyi yenile", onClick: () => void load() },
+        });
+        return;
       }
       if (!response.ok) throw new Error("Mülk arşivlenemedi.");
       await load();
+      toast.success("Mülk arşivlendi.");
+      void invalidateSetupProgress();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Mülk arşivlenemedi.");
+      toast.error(cause instanceof Error ? cause.message : "Mülk arşivlenemedi.");
     } finally {
       setPending(false);
     }
   }
+  // Sihirbaz bağlantısı: "mulk" yeni mülk formunu, "bolum" birimi olmayan ilk etkin mülkün birim formunu açar.
+  async function openFromIntent(value: string) {
+    if (value === "mulk") {
+      setEditing(null);
+      setKind("MULTI_UNIT");
+      setError("");
+      setOpen(true);
+      return () => formRef.current?.querySelector<HTMLElement>("input, select") ?? null;
+    }
+    if (value !== "bolum") return null;
+    const candidates = items.filter((item) => !item.archivedAtUtc && item.propertyKind === "MULTI_UNIT");
+    let target = candidates[0] ?? items.find((item) => !item.archivedAtUtc) ?? null;
+    for (const property of candidates) {
+      const response = await fetch(`/api/bff/properties/${property.id}/units?page=1&pageSize=1`, { cache: "no-store" });
+      if (!response.ok) break;
+      if (!((await response.json()) as UnitPage).items.length) {
+        target = property;
+        break;
+      }
+    }
+    if (!target) return null;
+    setOpen(false);
+    await showUnits(target);
+    return () => unitFormRef.current?.querySelector<HTMLElement>("input, select") ?? null;
+  }
   return (
     <section className="grid gap-5" aria-labelledby="portfolio-title">
+      <CreateIntent ready={!loading} onIntent={openFromIntent} />
       <div className="page-heading flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 id="portfolio-title" className="text-2xl font-semibold tracking-tight">
@@ -412,7 +452,7 @@ export function PropertyPortfolio() {
             {moreUnits && <Button type="button" variant="outline" disabled={unitLoading}
               onClick={() => void loadMoreUnits()}>Diğer birimleri yükle</Button>}
             {unitProperty.propertyKind === "MULTI_UNIT" && (
-              <form onSubmit={createUnit} className="grid gap-3 border-t pt-4 sm:grid-cols-2">
+              <form ref={unitFormRef} onSubmit={createUnit} className="grid gap-3 border-t pt-4 sm:grid-cols-2">
                 <h3 className="font-medium sm:col-span-2">Birim ekle</h3>
                 <label className="grid gap-2 text-sm">
                   Birim etiketi

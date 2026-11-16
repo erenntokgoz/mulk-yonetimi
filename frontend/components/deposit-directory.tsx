@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
 import { formatDate, formatMoney, todayIso } from "@/lib/format";
+import { toast } from "@/lib/toast";
 
 type Deposit = components["schemas"]["DepositResponse"];
 type Movement = components["schemas"]["DepositMovementResponse"];
@@ -23,6 +24,13 @@ function tenantName(tenant: Tenant | undefined) {
   return tenant.kind === "COMPANY" ? (tenant.companyName ?? "Şirket") : `${tenant.firstName ?? ""} ${tenant.lastName ?? ""}`.trim();
 }
 
+type DepositRequest = { url: string; body: string; key: string; success: string; form: HTMLFormElement };
+const movementSuccess: Record<string, string> = {
+  HELD: "Depozito tahsilatı kaydedildi.",
+  RETURNED: "Depozito iadesi kaydedildi.",
+  ADJUSTED: "Depozito düzeltmesi kaydedildi.",
+};
+
 export function DepositDirectory() {
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [depositPage, setDepositPage] = useState(1);
@@ -37,7 +45,7 @@ export function DepositDirectory() {
   const [error, setError] = useState("");
   const [dataError, setDataError] = useState("");
   const [pending, setPending] = useState(false);
-  const [retry, setRetry] = useState<{ url: string; body: string; key: string } | null>(null);
+  const [retry, setRetry] = useState<DepositRequest | null>(null);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const leaseName = (lease: Lease | undefined) => lease
     ? `${tenantName(tenants.find((tenant) => tenant.id === lease.tenantId))} · ${formatDate(lease.startDate)} başlangıçlı sözleşme`
@@ -130,7 +138,7 @@ export function DepositDirectory() {
   useEffect(() => {
     void Promise.resolve().then(load);
   }, []);
-  async function send(req: { url: string; body: string; key: string }) {
+  async function send(req: DepositRequest) {
     setPending(true);
     setError("");
     try {
@@ -146,7 +154,10 @@ export function DepositDirectory() {
             : "İşlem kaydedilemedi. Aynı istek güvenle yeniden denenebilir.",
         );
       setRetry(null);
+      // Form yalnız başarıdan sonra temizlenir; hata olursa girilen bilgiler korunur.
+      req.form.reset();
       await load();
+      toast.success(req.success);
     } catch (e) {
       setRetry(req);
       setError(e instanceof Error ? e.message : "İşlem kaydedilemedi.");
@@ -154,12 +165,12 @@ export function DepositDirectory() {
       setPending(false);
     }
   }
-  function submit(e: FormEvent<HTMLFormElement>, url: string, fields: (d: FormData) => object) {
+  function submit(e: FormEvent<HTMLFormElement>, url: string, fields: (d: FormData) => object, success: (d: FormData) => string) {
     e.preventDefault();
     const f = e.currentTarget;
     try {
-      void send({ url, body: JSON.stringify(fields(new FormData(f))), key: key() });
-      f.reset();
+      const data = new FormData(f);
+      void send({ url, body: JSON.stringify(fields(data)), key: key(), success: success(data), form: f });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Formu kontrol edin.");
     }
@@ -214,7 +225,7 @@ export function DepositDirectory() {
                       leaseId: String(d.get("leaseId")),
                       custodyType: String(d.get("custodyType")),
                       note: String(d.get("note") || "") || null,
-                    }))
+                    }), () => "Depozito kaydı açıldı.")
                   }
                 >
                   <label className="grid gap-1 text-sm">
@@ -283,7 +294,7 @@ export function DepositDirectory() {
                             movementType: String(f.get("movementType")),
                             amount: decimalBody(String(f.get("amount"))),
                             note: String(f.get("note") || "") || null,
-                          }))
+                          }), (f) => movementSuccess[String(f.get("movementType"))] ?? "Depozito hareketi kaydedildi.")
                         }
                       >
                         <label className="grid gap-1 text-sm">

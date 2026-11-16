@@ -348,3 +348,54 @@ html.lenis, html.lenis body { height: auto; }
 .portfolio-toolbar { flex-wrap: wrap; gap: 8px 16px; }
 .portfolio-search { flex: 1 1 220px; max-width: 360px; }
 @media (max-width: 639px) { .portfolio-search { order: 3; flex-basis: 100%; max-width: none; } .workspace-main { padding-top: 16px; } }
+
+/* İşlem mesajları: masaüstünde sağ altta, güvenli alanın içinde. En yeni mesaj en altta durur.
+   Üst çubuk simgelerini ve sayfanın ana düğmesini örtmez. Çekmece ve onay penceresi (z-index 50) mesajların üstünde kalır. */
+.toaster { position: fixed; z-index: 40; bottom: calc(24px + env(safe-area-inset-bottom)); right: calc(24px + env(safe-area-inset-right)); width: min(380px, calc(100vw - 48px)); display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+.toaster:empty { display: none; }
+.toast {
+  --tone: var(--brand); --swipe: 0px;
+  pointer-events: auto; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 4px 12px;
+  padding: 12px 8px 12px 14px; border-radius: 18px; color: var(--text); font-size: 14px; line-height: 1.45;
+  background: var(--glass-tint), var(--glass-strong); border: 1px solid var(--edge-hi);
+  box-shadow: 0 24px 48px -24px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter: blur(24px) saturate(140%); -webkit-backdrop-filter: blur(24px) saturate(140%);
+  transform: translateX(var(--swipe)); touch-action: pan-y;
+}
+.toast[data-kind="success"] { --tone: var(--paid); }
+.toast[data-kind="error"] { --tone: var(--late); }
+.toast-icon { display: grid; place-items: center; color: var(--tone); align-self: start; padding-top: 1px; }
+.toast-icon svg { width: 20px; height: 20px; }
+.toast-message { margin: 0; overflow-wrap: anywhere; font-weight: 500; }
+.toast-close { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 0; background: transparent; color: var(--dim); cursor: pointer; align-self: start; margin: -8px -2px -8px 0; }
+.toast-close:hover { color: var(--text); background: var(--hover); }
+.toast-close svg { width: 16px; height: 16px; }
+.toast-action { grid-column: 2; justify-self: start; display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--brand) 45%, transparent); background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--primary-soft); font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.toast-action:hover { background: color-mix(in srgb, var(--brand) 22%, transparent); }
+.toast-action + .toast-close { grid-column: 3; grid-row: 1; }
+:root[data-theme="light"] .toast { background: var(--glass-tint), rgba(255,255,255,.95); box-shadow: 0 24px 48px -28px rgba(15,23,42,.35), inset 0 1px 0 rgba(255,255,255,.9); }
+:root[data-theme="light"] .toast[data-kind="success"] { --tone: #13733f; }
+:root[data-theme="light"] .toast[data-kind="error"] { --tone: #b42318; }
+/* Dar ekranda alttaki mesaj sayfanın kaydet düğmelerini örtüyordu. Mesajlar üst çubuğun 8px altında durur.
+   Çubuk sayfa başında 22px'ten başlar ve 62px yükseklikle 84px'te biter. En yeni mesaj en üstte görünür. */
+@media (max-width: 639px) {
+  .toaster {
+    top: calc(92px + env(safe-area-inset-top)); bottom: auto; width: auto; flex-direction: column-reverse;
+    right: calc(16px + env(safe-area-inset-right)); left: calc(16px + env(safe-area-inset-left));
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .toast { animation: toast-in 220ms cubic-bezier(.16,1,.3,1) both; transition: opacity 180ms ease, transform 180ms ease; }
+  .toast[data-swiping="true"] { transition: none; }
+  .toast[data-closing="true"] { opacity: 0; transform: translateX(var(--swipe)) translateY(6px) scale(.98); }
+  .toast[data-swiped="right"][data-closing="true"] { transform: translateX(110%); }
+  .toast[data-swiped="left"][data-closing="true"] { transform: translateX(-110%); }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+  @media (max-width: 639px) {
+    .toast[data-closing="true"] { transform: translateX(var(--swipe)) translateY(-6px) scale(.98); }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast[data-closing="true"] { opacity: 0; }
+}

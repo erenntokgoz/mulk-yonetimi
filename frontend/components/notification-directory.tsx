@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { toast } from "@/lib/toast";
 
 type NotificationItem = components["schemas"]["NotificationItem"];
 type NotificationPage = components["schemas"]["NotificationPage"];
@@ -19,7 +20,6 @@ export function NotificationDirectory() {
   const [markingAll, setMarkingAll] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [error, setError] = useState("");
-  const [status, setStatus] = useState("");
   const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async (requestedPage = 1) => {
@@ -56,8 +56,6 @@ export function NotificationDirectory() {
 
   async function markRead(item: NotificationItem) {
     setBusyId(item.id);
-    setStatus("");
-    setError("");
     try {
       const response = await fetch(`/api/bff/notifications/${encodeURIComponent(item.id)}/read`, {
         method: "PATCH",
@@ -68,10 +66,10 @@ export function NotificationDirectory() {
             ? "Bildirimi güncellemek için giriş yapın."
             : "Bildirim okundu olarak işaretlenemedi.",
         );
-      setStatus("Bildirim okundu olarak işaretlendi.");
       await load();
+      toast.success("Bildirim okundu olarak işaretlendi.");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Bildirim güncellenemedi.");
+      toast.error(cause instanceof Error ? cause.message : "Bildirim güncellenemedi.");
     } finally {
       setBusyId("");
     }
@@ -79,8 +77,6 @@ export function NotificationDirectory() {
 
   async function markAllRead() {
     setMarkingAll(true);
-    setStatus("");
-    setError("");
     try {
       const response = await fetch("/api/bff/notifications", { method: "POST" });
       if (!response.ok)
@@ -89,10 +85,10 @@ export function NotificationDirectory() {
             ? "Bildirimleri güncellemek için giriş yapın."
             : "Bildirimler okundu olarak işaretlenemedi.",
         );
-      setStatus("Bildirimler okundu olarak işaretlendi.");
       await load();
+      toast.success("Bildirimler okundu olarak işaretlendi.");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Bildirimler güncellenemedi.");
+      toast.error(cause instanceof Error ? cause.message : "Bildirimler güncellenemedi.");
     } finally {
       setMarkingAll(false);
     }
@@ -132,11 +128,6 @@ export function NotificationDirectory() {
             Yeniden dene
           </Button>
         </div>
-      )}
-      {status && (
-        <p role="status" className="text-sm text-muted-foreground">
-          {status}
-        </p>
       )}
       {!loadFailed && (
         <Card>
