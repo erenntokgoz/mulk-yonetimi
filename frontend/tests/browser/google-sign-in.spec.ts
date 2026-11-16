@@ -37,3 +37,38 @@ test("Google routes fail closed back to the login page without leaving the site"
   await expect(page).toHaveURL(/\/giris\?hata=google$/);
   expect((await page.context().cookies()).some((cookie) => cookie.name === "mulk.session")).toBe(false);
 });
+
+test("popup callback keeps its opener after a cross-origin OAuth page", async ({ page }) => {
+  await page.goto("/giris");
+  const origin = new URL(page.url()).origin;
+  const callback = new URL("/api/bff/auth/google/callback?state=forged&code=forged", origin);
+  const callbackResponse = await page.request.get(callback.href, { maxRedirects: 0 });
+  const callbackPolicy = callbackResponse.headers()["cross-origin-opener-policy"];
+  const provider = new URL("http://localhost:3111/test-google-authorize");
+  const context = page.context();
+
+  await context.route(provider.href, (route) => route.fulfill({
+    contentType: "text/html",
+    headers: { "Cross-Origin-Opener-Policy": "unsafe-none" },
+    body: `<!doctype html><body>OAuth provider<script>addEventListener("load", () => location.replace(${JSON.stringify(callback.href)}));</script></body>`,
+  }));
+  await context.route(callback.href, (route) => route.fulfill({
+    contentType: "text/html",
+    headers: { "Cross-Origin-Opener-Policy": callbackPolicy },
+    body: "<!doctype html><body><script>document.body.textContent=window.opener?'opener-present':'opener-missing';</script></body>",
+  }));
+
+  await page.evaluate((href) => {
+    const link = document.createElement("a");
+    link.href = href;
+    link.target = "mulk-popup-policy-test";
+    link.textContent = "Open popup";
+    document.body.append(link);
+  }, provider.href);
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByRole("link", { name: "Open popup" }).click();
+  const popup = await popupPromise;
+  await expect(popup.locator("body")).toHaveText("opener-present");
+  expect(callbackPolicy).toBe("unsafe-none");
+  await popup.close();
+});

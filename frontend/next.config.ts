@@ -18,7 +18,14 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      {
+        // Sağlayıcıdan dönen açılır pencere ana pencereyle bağlantısını korur.
+        source: "/api/bff/auth/google/callback",
+        headers: [{ key: "Cross-Origin-Opener-Policy", value: "unsafe-none" }],
+      },
+    ];
   },
 };
 
