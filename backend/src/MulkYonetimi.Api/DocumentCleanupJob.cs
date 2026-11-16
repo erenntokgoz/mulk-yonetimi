@@ -54,25 +54,20 @@ public sealed class DocumentCleanupJob(ApplicationDbContext db, IR2DocumentStora
     }
 }
 
+// Süresi dolan yüklemeler gecikmeyle temizlenebilir; temizlik için veritabanını sık uyandırmaya değmez.
 internal sealed class DocumentCleanupWorker(IServiceScopeFactory scopes, DocumentStorageOptions options,
-    ILogger<DocumentCleanupWorker> logger) : BackgroundService
+    IConfiguration configuration, ILogger<DocumentCleanupWorker> logger) : BackgroundService
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    internal static TimeSpan Interval(IConfiguration configuration) =>
+        ScheduledJob.Hours(configuration, "Jobs:DocumentCleanupHours", 12, 168);
+
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!options.IsConfigured) return;
-        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(15));
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        if (!options.IsConfigured) return Task.CompletedTask;
+        return ScheduledJob.RunAsync("Belge temizliği", Interval(configuration), async ct =>
         {
-            try
-            {
-                await using var scope = scopes.CreateAsyncScope();
-                await scope.ServiceProvider.GetRequiredService<DocumentCleanupJob>()
-                    .RunOnceAsync(DateTime.UtcNow, stoppingToken);
-            }
-            catch (Exception) when (!stoppingToken.IsCancellationRequested)
-            {
-                logger.LogWarning("Document cleanup failed; it will retry on the next pass.");
-            }
-        }
+            await using var scope = scopes.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<DocumentCleanupJob>().RunOnceAsync(DateTime.UtcNow, ct);
+        }, logger, stoppingToken);
     }
 }

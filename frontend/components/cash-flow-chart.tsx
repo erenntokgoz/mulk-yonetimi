@@ -1,15 +1,31 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { mockCashFlow } from "@/lib/overview-mock";
+import type { CashPoint } from "@/lib/overview-data";
 import styles from "@/components/overview.module.css";
 
 const trNumber = new Intl.NumberFormat("tr-TR");
-const MAX = 160000;
 const L = 44, B = 26, T = 8, H = 260;
 
+// Ölçek verinin en büyük değerine göre yuvarlanır; 4 eşit aralık okunur kalsın.
+function niceCeil(value: number) {
+  if (value <= 0) return 1000;
+  const raw = value / 4;
+  const unit = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].find((m) => m * unit >= raw) ?? 10;
+  return step * unit * 4;
+}
+
+function axisLabel(value: number) {
+  if (value === 0) return "0";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `${trNumber.format(value / 1_000_000)}M`;
+  if (abs >= 1000) return `${trNumber.format(value / 1000)}b`;
+  return trNumber.format(value);
+}
+
 // 12 aylık tahsilat, gider ve net çizgisi; ölçek sabit olduğu için aylar arası karşılaştırma bozulmaz.
-export function CashFlowChart() {
+export function CashFlowChart({ points }: { points: CashPoint[] }) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [hover, setHover] = useState<number | null>(null);
@@ -24,11 +40,16 @@ export function CashFlowChart() {
     return () => observer.disconnect();
   }, []);
 
-  const { months, income, expense } = mockCashFlow;
+  const months = points.map((point) => point.label);
+  const income = points.map((point) => point.income);
+  const expense = points.map((point) => point.expense);
+  const count = points.length;
+  const hi = niceCeil(Math.max(0, ...income, ...expense));
+  const lo = Math.min(0, ...points.map((point) => point.income - point.expense));
   const W = width;
-  const cw = (W - L) / 12;
+  const cw = (W - L) / count;
   const bw = Math.min(16, cw * 0.26);
-  const y = (v: number) => T + (H - T - B) * (1 - v / MAX);
+  const y = (v: number) => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
   const cx = (i: number) => L + cw * i + cw / 2;
 
   let path = "";
@@ -53,12 +74,12 @@ export function CashFlowChart() {
             </linearGradient>
           </defs>
           {[0, 1, 2, 3, 4].map((g) => {
-            const v = (MAX * g) / 4;
+            const v = lo + ((hi - lo) * g) / 4;
             return (
               <g key={g}>
                 <line className={styles["grid-l"]} x1={L} x2={W} y1={y(v)} y2={y(v)} />
                 <text className={styles.ax} x={L - 8} y={y(v) + 4} textAnchor="end">
-                  {v ? `${v / 1000}b` : "0"}
+                  {axisLabel(v)}
                 </text>
               </g>
             );
@@ -66,8 +87,8 @@ export function CashFlowChart() {
           <g className={styles.bars}>
             {months.map((m, i) => (
               <g key={m}>
-                <rect className={i === 11 ? styles.barCur : styles.barIn} x={cx(i) - bw - 2} y={y(income[i])} width={bw} height={y(0) - y(income[i])} rx={5} style={{ "--d": i } as React.CSSProperties} />
-                <rect className={styles.barOut} x={cx(i) + 2} y={y(expense[i])} width={bw} height={y(0) - y(expense[i])} rx={5} style={{ "--d": i } as React.CSSProperties} />
+                <rect className={i === count - 1 ? styles.barCur : styles.barIn} x={cx(i) - bw - 2} y={y(Math.max(income[i], 0))} width={bw} height={Math.abs(y(0) - y(income[i]))} rx={5} style={{ "--d": i } as React.CSSProperties} />
+                <rect className={styles.barOut} x={cx(i) + 2} y={y(Math.max(expense[i], 0))} width={bw} height={Math.abs(y(0) - y(expense[i]))} rx={5} style={{ "--d": i } as React.CSSProperties} />
                 <text className={styles.ax} x={cx(i)} y={H - 6} textAnchor="middle">
                   {m}
                 </text>

@@ -8,7 +8,7 @@ Topoloji [ADR 003](adr/003-yayin-topolojisi.md): ayrı Vercel frontend, Ubuntu D
 | --- | --- | --- | --- | --- |
 | Yerel | localhost | yerel SQL Server | test bucket veya kapalı | test SMTP; ClamAV test instance |
 | Staging | ayrı origin ve ayrı API container | ayrı staging veritabanı ve uygulama girişi | ayrı private bucket ve bucket-scope anahtar | ayrı posta adresi, ClamAV |
-| Üretim | üretim origin ve API container | `MulkYonetimi` ve ayrı en az yetkili giriş | üretim private bucket | üretim SMTP, ClamAV |
+| Üretim | üretim origin ve API container | `MulkYonetimi2` ve ayrı en az yetkili giriş | üretim private bucket | üretim SMTP, ClamAV |
 
 Staging için üretim connection string, cookie şifreleme anahtarları, SMTP, R2 anahtarları ve bucket kullanılmaz. `deploy/api.env.example` her ortamda ayrı `api.env` dosyasına kopyalanır; yalnız sunucuda `0600` tutulur. `Auth__FrontendOrigin` ve `AllowedHosts` ilgili ortamın alan adıdır. Staging ile üretim migration scripti aynı commit'ten üretilir; önce staging'de uygulanır. `Pilot__DefaultUnitLimit` açıkça ayarlanır; boş değer sınırsızdır. Yeni hesaplar PENDING başlar; operatör aktivasyonu ve kota değişikliği [ADR 008](adr/008-pilot-plan-and-activation.md) uyarınca yapılır.
 

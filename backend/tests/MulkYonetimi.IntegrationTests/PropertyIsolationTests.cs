@@ -364,10 +364,22 @@ public sealed class PropertyIsolationTests
         var depositInput = new { leaseId = lease.Id, custodyType = "BANK_BLOCKED" };
         using var deniedDeposit = await foreign.PostAsJsonAsync(deposits, depositInput);
         Assert.Equal(HttpStatusCode.NotFound, deniedDeposit.StatusCode);
+        // Sözleşme depozito tutarıyla oluştuğu için beklenen depozito kaydı kendiliğinden açılmış olmalı.
+        var leaseDeposits = $"{deposits}?leaseId={lease.Id}";
+        var automatic = Assert.Single((await owner.GetFromJsonAsync<DepositPage>(leaseDeposits, Json))!.Items);
+        Assert.Equal(lease.Id, automatic.LeaseId);
+        Assert.Equal(40000m, automatic.AmountAgreed);
+        Assert.Equal(DepositCustody.OWNER_HELD, automatic.CustodyType);
+        Assert.Equal(0m, automatic.Balance);
         using var created = await owner.PostAsJsonAsync(deposits, depositInput);
-        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
         var deposit = (await created.Content.ReadFromJsonAsync<DepositResponse>(Json))!;
+        Assert.Equal(automatic.Id, deposit.Id);
+        Assert.Equal(DepositCustody.BANK_BLOCKED, deposit.CustodyType);
         Assert.Equal(40000m, deposit.AmountAgreed);
+        using var replayed = await owner.PostAsJsonAsync(deposits, depositInput);
+        Assert.Equal(HttpStatusCode.OK, replayed.StatusCode);
+        Assert.Single((await owner.GetFromJsonAsync<DepositPage>(leaseDeposits, Json))!.Items);
         var movements = $"{deposits}/{deposit.Id}/movements";
         var hold = new { movementOn = month, movementType = "HELD", amount = 40000m };
         using var deniedList = await foreign.GetAsync(movements);
@@ -383,7 +395,7 @@ public sealed class PropertyIsolationTests
             PostWithKeyAsync(owner, movements, refund, "return-two"));
         using var returned = Assert.Single(refunds, response => response.StatusCode == HttpStatusCode.Created);
         using var blocked = Assert.Single(refunds, response => response.StatusCode == HttpStatusCode.Conflict);
-        Assert.Equal(15000m, Assert.Single((await owner.GetFromJsonAsync<DepositPage>(deposits, Json))!.Items).Balance);
+        Assert.Equal(15000m, Assert.Single((await owner.GetFromJsonAsync<DepositPage>(leaseDeposits, Json))!.Items).Balance);
         Assert.Equal(2, (await owner.GetFromJsonAsync<DepositMovementPage>(movements, Json))!.Items.Length);
         Assert.Empty((await foreign.GetFromJsonAsync<DepositPage>(deposits, Json))!.Items);
 

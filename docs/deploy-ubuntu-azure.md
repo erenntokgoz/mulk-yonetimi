@@ -9,7 +9,7 @@ Yayın öncesi staging, kurtarma tatbikatı, go/no-go ve geri dönüş kapısı 
 
 1. portal.azure.com → **SQL databases → Create**.
 2. "Want to try Azure SQL Database for free?" → **Apply offer**.
-3. Resource group: `mulk-yonetimi`. Database name: `MulkYonetimi`.
+3. Resource group: `mulk-yonetimi`. Database name: `MulkYonetimi2` (ilk ücretsiz veritabanı Kasım kotasını bitirdi; [ADR 013](adr/013-veritabani-bosta-kalabilen-isler.md)).
 4. Server → **Create new**: ad örn. `mulkyonetimi-sql`, bölge **Sweden Central**, kimlik doğrulama **SQL authentication**.
    Yönetici kullanıcı adı ve güçlü bir parola belirle; parolayı yalnız parola yöneticine kaydet.
 5. "Behavior when free limit reached": **Auto-pause the database until next month**.
@@ -25,7 +25,7 @@ Parola, yapıştırılan komutta sqlcmd isteminde bozulur; bu yüzden gizli okun
 ```bash
 cd /opt/mulk-yonetimi && git pull -q
 read -rsp "Yönetici parolası: " SQLCMDPASSWORD; echo; export SQLCMDPASSWORD
-docker run --rm -e SQLCMDPASSWORD -v "$PWD/deploy/sql:/sql:ro" mcr.microsoft.com/mssql-tools   /opt/mssql-tools/bin/sqlcmd -S tcp:mulkyonetimi-sql.database.windows.net,1433 -d MulkYonetimi -U <admin> -N -b -I   -i /sql/migrations-idempotent.sql
+docker run --rm -e SQLCMDPASSWORD -v "$PWD/deploy/sql:/sql:ro" mcr.microsoft.com/mssql-tools   /opt/mssql-tools/bin/sqlcmd -S tcp:mulkyonetimi-sql.database.windows.net,1433 -d MulkYonetimi2 -U <admin> -N -b -I   -i /sql/migrations-idempotent.sql
 unset SQLCMDPASSWORD
 ```
 
@@ -44,6 +44,15 @@ cp deploy/api.env.example deploy/api.env && chmod 600 deploy/api.env && nano dep
 docker compose -f deploy/compose.api.yaml up -d --build
 curl -s http://127.0.0.1:5180/health
 ```
+
+### Veritabanını uyutan çalışma düzeni
+
+Ücretsiz Azure SQL serverless veritabanı ancak oturum ve CPU belirli bir boşta kalma süresi boyunca sıfırsa duraklar; ayın 100.000 vCore-saniyesi bitince ay sonuna kadar kapanır ([ADR 013](adr/013-veritabani-bosta-kalabilen-isler.md)). Bu yüzden:
+
+- `/health` her çağrıda SQL sorgusu çalıştırır (`sqlserver` ve `outbox` kontrolleri). API kendi kendine health çağırmaz; Docker healthcheck tanımlı değildir. UptimeRobot, Better Stack, Azure availability testi gibi **harici izleyicileri `/health`'e sık aralıkla bağlamayın**: 5 dakikalık bir kontrol veritabanının hiç duraklamamasına ve kotanın birkaç günde bitmesine yol açar. Gerekirse izleyiciyi veritabanına dokunmayan bir uca (örneğin nginx'in TLS yanıtı) ya da günde birkaç kez çalışacak şekilde ayarlayın.
+- Portalda **Compute + storage → Auto-pause delay** değerini en düşük süreye (15 dakika) çekin; her uyanma en az bu süre kadar faturalanır.
+- Duraklamış veritabanına gelen ilk istek, veritabanı uyanırken 30-60 saniye sürebilir veya zaman aşımına düşebilir. Bu, kotanın ay boyunca yetmesi için kabul edilen bedeldir.
+- İş aralıkları `deploy/api.env` içindeki `Jobs__*` anahtarlarıyla ayarlanır; varsayılanlar `deploy/api.env.example` içindedir.
 
 ## 4. nginx + HTTPS
 
