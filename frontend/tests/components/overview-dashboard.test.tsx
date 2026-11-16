@@ -2,6 +2,9 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OverviewDashboard } from "../../components/overview-dashboard";
 
+vi.mock("../../components/setup-wizard", () => ({ SetupWizard: () => null }));
+vi.mock("../../lib/setup-progress", () => ({ useSetupProgress: () => [true, true, true, true, true] }));
+
 const summary = {
   periodStart: "2026-11-01",
   asOf: "2026-11-14",
@@ -49,7 +52,7 @@ describe("OverviewDashboard money formatting", () => {
   it("renders every amount with Turkish separators", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(summary), { status: 200 })));
     render(<OverviewDashboard />);
-    await waitFor(() => expect(screen.getByText("1.234,50 ₺")).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText("1.234,50 ₺")).toHaveLength(2));
     expect(screen.getByText("10.000,00 ₺")).toBeTruthy();
     expect(screen.getByText("2.345,67 ₺")).toBeTruthy();
     expect(screen.getByText("0,00 ₺")).toBeTruthy();
@@ -88,3 +91,23 @@ describe("OverviewDashboard money formatting", () => {
     expect(screen.queryByText("Son 12 ayda tahsilat ya da gider kaydı yok.")).toBeNull();
   });
 });
+
+it("states the limits of the rent charge lists", async () => {
+  stubApi(() => null);
+  render(<OverviewDashboard />);
+  await waitFor(() => expect(screen.getByText("Geciken kira yok.")).toBeTruthy());
+  expect(screen.getAllByText("Liste, son 24 ay ve gelecek ay için alınan en fazla 500 kayda dayanır.")).toHaveLength(2);
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+
+it("shows the authoritative period total even if charge pages are incomplete", async () => {
+  stubApi(() => null);
+  render(<OverviewDashboard />);
+  await waitFor(() => expect(screen.getByText("Bu dönem alacağı")).toBeTruthy());
+  expect(screen.getAllByText("1.234,50 ₺")).toHaveLength(2);
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
