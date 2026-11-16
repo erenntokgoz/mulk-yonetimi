@@ -3,16 +3,8 @@
 import Link from "next/link";
 import { Check, X } from "lucide-react";
 import { setWizardPreference, useWizardPreference } from "@/lib/setup-wizard-state";
-import { useSetupProgress } from "@/lib/setup-progress";
+import { setupSteps as steps, stepSummary, useSetupFacts, useSetupProgress } from "@/lib/setup-progress";
 import styles from "@/components/overview.module.css";
-
-const steps = [
-  { title: "Mülk", action: "Mülk ekle", href: "/portfoy" },
-  { title: "Bölüm", action: "Daire ekle", href: "/portfoy" },
-  { title: "Kiracı", action: "Kiracı ekle", href: "/kiracilar" },
-  { title: "Sözleşme", action: "Sözleşme aç", href: "/sozlesmeler" },
-  { title: "İlk tahsilat", action: "Tahsilat kaydet", href: "/kira-tahsilatlar" },
-] as const;
 
 const heading = [
   "",
@@ -26,6 +18,7 @@ const heading = [
 export function SetupWizard() {
   const preference = useWizardPreference();
   const progress = useSetupProgress();
+  const facts = useSetupFacts();
 
   if (progress === null || preference === "hidden" || progress.every(Boolean)) return null;
 
@@ -63,7 +56,7 @@ export function SetupWizard() {
                   {done ? <Check size={14} /> : index + 1}
                 </span>
                 <b>{step.title}</b>
-                {done && <small>Tamamlandı</small>}
+                {done && <small>{stepSummary(index, facts)}</small>}
                 {isCurrent && (
                   <Link href={step.href} className={styles.stepGo}>
                     {step.action}

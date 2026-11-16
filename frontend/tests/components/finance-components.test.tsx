@@ -3,6 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RentCollection } from "../../components/rent-collection";
 import { LeaseDirectory } from "../../components/lease-directory";
 
+// Sihirbaz bağlantısını okuyan dinleyici uygulama yönlendiricisi ister; bileşen testinde boş adresle çalışır.
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 const tenantId = "11111111-1111-4111-8111-111111111111";
 const propertyId = "22222222-2222-4222-8222-222222222222";
 const unitId = "33333333-3333-4333-8333-333333333333";

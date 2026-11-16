@@ -1,5 +1,5 @@
 "use client";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
@@ -7,6 +7,9 @@ import { ListSkeleton } from "@/components/ui/skeleton";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatDate, formatMoney, todayIso } from "@/lib/format";
 import Link from "next/link";
+import { CreateIntent } from "@/components/create-intent";
+import { announceSetupStep, invalidateSetupProgress } from "@/lib/setup-progress";
+import { toast } from "@/lib/toast";
 
 type Lease = components["schemas"]["LeaseResponse"];
 type LeasePage = components["schemas"]["LeasePage"];
@@ -64,6 +67,7 @@ export function LeaseDirectory() {
   const [rateReason, setRateReason] = useState("");
   const [terminateId, setTerminateId] = useState("");
   const [rateDate, setRateDate] = useState(nextMonthStart());
+  const createFormRef = useRef<HTMLFormElement>(null);
   const unitNames = useMemo(() => new Map(units.map((unit) => [unit.id, unit.label])), [units]);
   const tenantNames = useMemo(
     () =>
@@ -208,6 +212,7 @@ export function LeaseDirectory() {
         );
       setOpen(false);
       await load();
+      await announceSetupStep("Sözleşme taslağı kaydedildi.", "/sozlesmeler");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Sözleşme taslağı kaydedilemedi.");
     } finally {
@@ -217,7 +222,6 @@ export function LeaseDirectory() {
   async function activate(lease: Lease) {
     if ((await ask({ title: "Sözleşme etkinleştirilsin mi?", description: "Etkin sözleşme için aylık kira alacakları oluşturulur.", confirmLabel: "Etkinleştir" })) === null) return;
     setPending(true);
-    setError("");
     try {
       const response = await fetch(`/api/bff/leases/${lease.id}/activate`, {
         method: "POST",
@@ -231,8 +235,9 @@ export function LeaseDirectory() {
             : "Sözleşme etkinleştirilemedi.",
         );
       await load();
+      await announceSetupStep("Sözleşme etkinleştirildi.", "/sozlesmeler");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Sözleşme etkinleştirilemedi.");
+      toast.error(cause instanceof Error ? cause.message : "Sözleşme etkinleştirilemedi.");
     } finally {
       setPending(false);
     }
@@ -276,6 +281,7 @@ export function LeaseDirectory() {
       setRenewId("");
       await load();
       await showRates(lease.id);
+      toast.success("Sözleşme yenilendi.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Yenileme kaydedilemedi.");
     } finally {
@@ -305,6 +311,7 @@ export function LeaseDirectory() {
       setRateReason("");
       await showRates(detailId);
       await load();
+      toast.success("Kira bedeli eklendi.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Kira bedeli eklenemedi.");
     } finally {
@@ -337,6 +344,8 @@ export function LeaseDirectory() {
         );
       setTerminateId("");
       await load();
+      toast.success("Sözleşme sonlandırıldı.");
+      void invalidateSetupProgress();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Sözleşme sonlandırılamadı.");
     } finally {
@@ -346,6 +355,15 @@ export function LeaseDirectory() {
 
   return (
     <section className="grid gap-5" aria-labelledby="leases-title">
+      <CreateIntent
+        ready={!loading}
+        onIntent={() => {
+          if (!units.length || !tenants.length) return null;
+          setError("");
+          setOpen(true);
+          return () => createFormRef.current?.querySelector<HTMLElement>("input, select") ?? null;
+        }}
+      />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 id="leases-title" className="text-2xl font-semibold tracking-tight">
@@ -380,7 +398,7 @@ export function LeaseDirectory() {
       {open && (
         <Card>
           <CardContent className="pt-6">
-            <form onSubmit={create} className="grid gap-4 sm:grid-cols-2">
+            <form ref={createFormRef} onSubmit={create} className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2 text-sm font-medium">
                 Birim
                 <select name="unitId" required className="h-11 rounded-md border bg-background px-3">
