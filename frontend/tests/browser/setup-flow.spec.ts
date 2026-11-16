@@ -106,3 +106,53 @@ test("a failed row action shows an assertive error toast that can be dismissed",
   await expect(card).toHaveCount(0);
   await expect(page.getByText("Kule", { exact: true }).first()).toBeVisible();
 });
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 }]) {
+  test(`toasts keep clear of the top bar and the save button at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    const profile = { displayName: "Test", email: "test@example.test", emailConfirmed: false };
+    const preferences = { emailEnabled: false, rentDueEnabled: true, overdueRentEnabled: true, leaseEndEnabled: true, rentAnniversaryEnabled: true };
+    await page.route("**/api/bff/me/profile", (route) => route.fulfill({ json: profile }));
+    await page.route("**/api/bff/me/notification-preferences", (route) => route.fulfill({ json: preferences }));
+    await page.goto("/ayarlar");
+    await page.getByRole("button", { name: "Profili kaydet" }).click();
+    const save = page.getByRole("button", { name: "Tercihleri kaydet" });
+    await save.click();
+    const first = toaster(page).locator("[data-toast-id]").filter({ hasText: "Profil kaydedildi." });
+    const last = toaster(page).locator("[data-toast-id]").filter({ hasText: "Bildirim tercihleri kaydedildi." });
+    await expect(first).toBeVisible();
+    await expect(last).toBeVisible();
+    // Giriş animasyonu bitmeden ölçülen kutu 8px kaymış olur.
+    for (const card of [first, last])
+      await card.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+    const a = await first.boundingBox();
+    const b = await last.boundingBox();
+    const button = await save.boundingBox();
+    if (!a || !b || !button) throw new Error("boxes missing");
+    const overlaps = (box: typeof a, other: typeof a) =>
+      box.x < other.x + other.width && other.x < box.x + box.width && box.y < other.y + other.height && other.y < box.y + box.height;
+    for (const box of [a, b]) expect(overlaps(box, button)).toBe(false);
+    // Mesajlar sabit konumludur; üst çubuk sayfanın başındaki yerinde ölçülür.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    const header = await page.locator(".workspace-header").boundingBox();
+    if (!header) throw new Error("header missing");
+    const headerBottom = header.y + header.height;
+    for (const box of [a, b]) expect(overlaps(box, header)).toBe(false);
+    if (viewport.width > 639) {
+      expect(b.y).toBeGreaterThan(a.y);
+      expect(Math.round(viewport.height - (b.y + b.height))).toBe(24);
+      expect(Math.round(viewport.width - (b.x + b.width))).toBe(24);
+    } else {
+      expect(b.y).toBeLessThan(a.y);
+      expect(Math.round(b.y - headerBottom)).toBe(8);
+      expect(Math.round(b.x)).toBe(16);
+      expect(Math.round(viewport.width - (b.x + b.width))).toBe(16);
+      await page.getByRole("button", { name: "Menüyü aç" }).click();
+      const drawer = page.getByRole("dialog");
+      await expect(drawer).toBeVisible();
+      const z = (selector: string) => page.locator(selector).first().evaluate((element) => Number(getComputedStyle(element).zIndex));
+      expect(await z(".toaster")).toBeLessThan(await drawer.evaluate((element) => Number(getComputedStyle(element).zIndex)));
+    }
+  });
+}

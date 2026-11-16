@@ -349,8 +349,9 @@ html.lenis, html.lenis body { height: auto; }
 .portfolio-search { flex: 1 1 220px; max-width: 360px; }
 @media (max-width: 639px) { .portfolio-search { order: 3; flex-basis: 100%; max-width: none; } .workspace-main { padding-top: 16px; } }
 
-/* İşlem mesajları: masaüstünde sağ üstte (sayfanın ana düğmesini örtmemek için üst çubuk hizasında), dar ekranda alt ortada ve güvenli alanın üstünde. */
-.toaster { position: fixed; z-index: 60; top: calc(20px + env(safe-area-inset-top)); right: 20px; width: min(380px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+/* İşlem mesajları: masaüstünde sağ altta, güvenli alanın içinde. En yeni mesaj en altta durur.
+   Üst çubuk simgelerini ve sayfanın ana düğmesini örtmez. Çekmece ve onay penceresi (z-index 50) mesajların üstünde kalır. */
+.toaster { position: fixed; z-index: 40; bottom: calc(24px + env(safe-area-inset-bottom)); right: calc(24px + env(safe-area-inset-right)); width: min(380px, calc(100vw - 48px)); display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
 .toaster:empty { display: none; }
 .toast {
   --tone: var(--brand); --swipe: 0px;
@@ -375,17 +376,25 @@ html.lenis, html.lenis body { height: auto; }
 :root[data-theme="light"] .toast { background: var(--glass-tint), rgba(255,255,255,.95); box-shadow: 0 24px 48px -28px rgba(15,23,42,.35), inset 0 1px 0 rgba(255,255,255,.9); }
 :root[data-theme="light"] .toast[data-kind="success"] { --tone: #13733f; }
 :root[data-theme="light"] .toast[data-kind="error"] { --tone: #b42318; }
+/* Dar ekranda alttaki mesaj sayfanın kaydet düğmelerini örtüyordu. Mesajlar üst çubuğun 8px altında durur.
+   Çubuk sayfa başında 22px'ten başlar ve 62px yükseklikle 84px'te biter. En yeni mesaj en üstte görünür. */
 @media (max-width: 639px) {
-  .toaster { top: auto; right: 16px; left: 16px; width: auto; bottom: calc(16px + env(safe-area-inset-bottom)); }
+  .toaster {
+    top: calc(92px + env(safe-area-inset-top)); bottom: auto; width: auto; flex-direction: column-reverse;
+    right: calc(16px + env(safe-area-inset-right)); left: calc(16px + env(safe-area-inset-left));
+  }
 }
 @media (prefers-reduced-motion: no-preference) {
   .toast { animation: toast-in 220ms cubic-bezier(.16,1,.3,1) both; transition: opacity 180ms ease, transform 180ms ease; }
   .toast[data-swiping="true"] { transition: none; }
-  .toast[data-closing="true"] { opacity: 0; transform: translateX(var(--swipe)) translateY(-6px) scale(.98); }
+  .toast[data-closing="true"] { opacity: 0; transform: translateX(var(--swipe)) translateY(6px) scale(.98); }
   .toast[data-swiped="right"][data-closing="true"] { transform: translateX(110%); }
   .toast[data-swiped="left"][data-closing="true"] { transform: translateX(-110%); }
-  @keyframes toast-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
-  @media (max-width: 639px) { @keyframes toast-in { from { opacity: 0; transform: translateY(8px) scale(.98); } } }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+  @media (max-width: 639px) {
+    .toast[data-closing="true"] { transform: translateX(var(--swipe)) translateY(-6px) scale(.98); }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .toast[data-closing="true"] { opacity: 0; }
