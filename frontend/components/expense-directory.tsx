@@ -1,18 +1,17 @@
 "use client";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { formatDate, formatMoney, todayIso } from "@/lib/format";
 type Expense = components["schemas"]["ExpenseResponse"];
 type Property = components["schemas"]["PropertyResponse"];
 type Unit = components["schemas"]["UnitResponse"];
-const money = (v: number | string) => {
-  const [integer, fraction = ""] = String(v).split(".");
-  return `${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${fraction.padEnd(2, "0").slice(0, 2)} ₺`;
-};
-const today = () => new Date().toLocaleDateString("en-CA");
+const money = formatMoney;
+const today = todayIso;
 const key = () => crypto.randomUUID().replaceAll("-", "");
 function bodyMoney(body: object, value: string) {
   if (!/^\d+(?:\.\d{1,2})?$/.test(value)) throw new Error("Tutarı en çok iki ondalık basamakla girin.");
@@ -38,17 +37,20 @@ export function ExpenseDirectory() {
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [filters, setFilters] = useState({ fromDate: "", toDate: "" });
+  const [filters, setFilters] = useState({ fromDate: "", toDate: "", category: "", propertyId: "" });
+  const [formPropertyId, setFormPropertyId] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const { ask, dialog } = useConfirmDialog();
+  const filterQuery = `${filters.fromDate ? `&fromDate=${filters.fromDate}` : ""}${filters.toDate ? `&toDate=${filters.toDate}` : ""}${filters.category ? `&category=${filters.category}` : ""}${filters.propertyId ? `&propertyId=${filters.propertyId}` : ""}`;
+  const selectedPropertyId = formPropertyId || properties[0]?.id || "";
   const [retry, setRetry] = useState<{ url: string; body: string; key: string } | null>(null);
   const load = useCallback(
     async function load() {
       setLoading(true);
       try {
         const [e, p] = await Promise.all([
-          fetch(
-            `/api/bff/expenses?page=1&pageSize=100${filters.fromDate ? `&fromDate=${filters.fromDate}` : ""}${filters.toDate ? `&toDate=${filters.toDate}` : ""}`,
-            { cache: "no-store" },
-          ),
+          fetch(`/api/bff/expenses?page=1&pageSize=100${filterQuery}`, { cache: "no-store" }),
           fetch("/api/bff/properties?page=1&pageSize=100", { cache: "no-store" }),
         ]);
         if (!e.ok || !p.ok)
@@ -78,20 +80,21 @@ export function ExpenseDirectory() {
         setUnits(up.flatMap(([, page]) => page.items.filter((item) => !item.archivedAtUtc)));
         setUnitPages(Object.fromEntries(up.map(([id, page]) => [id, { page: 1, hasMore: page.hasMore }])));
         setError("");
+        setLoadFailed(false);
       } catch (e) {
+        setLoadFailed(true);
         setError(e instanceof Error ? e.message : "Gider verileri alınamadı.");
       } finally {
         setLoading(false);
       }
     },
-    [filters],
+    [filterQuery],
   );
   async function loadMoreExpenses() {
     setLoadingMore(true);
     try {
       const next = expensePage + 1;
-      const response = await fetch(`/api/bff/expenses?page=${next}&pageSize=100${filters.fromDate ? `&fromDate=${filters.fromDate}` : ""}${filters.toDate ? `&toDate=${filters.toDate}` : ""}`,
-        { cache: "no-store" });
+      const response = await fetch(`/api/bff/expenses?page=${next}&pageSize=100${filterQuery}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Diğer giderler alınamadı.");
       const result = (await response.json()) as { items: Expense[]; hasMore: boolean };
       setItems((current) => [...current, ...result.items]);
@@ -130,7 +133,7 @@ export function ExpenseDirectory() {
   }
   useEffect(() => {
     void Promise.resolve().then(load);
-  }, [filters, load]);
+  }, [load]);
   async function send(r: { url: string; body: string; key: string }) {
     setPending(true);
     setError("");
@@ -147,6 +150,8 @@ export function ExpenseDirectory() {
             : "Gider kaydedilemedi; aynı istek güvenle yeniden denenebilir.",
         );
       setRetry(null);
+      formRef.current?.reset();
+      setFormPropertyId("");
       await load();
     } catch (e) {
       setRetry(r);
@@ -183,8 +188,14 @@ export function ExpenseDirectory() {
     }
   }
   async function voidExpense(x: Expense) {
-    const reason = window.prompt("İptal gerekçesi");
-    if (!reason?.trim()) return;
+    const reason = await ask({
+      title: "Gider iptal edilsin mi?",
+      description: `${labels[x.category]} · ${money(x.amount)} · ${formatDate(x.expenseOn)}. Kayıt silinmez, iptal olarak işaretlenir.`,
+      reasonLabel: "İptal gerekçesi",
+      confirmLabel: "Gideri iptal et",
+      destructive: true,
+    });
+    if (!reason) return;
     setPending(true);
     try {
       const r = await fetch(`/api/bff/expenses/${x.id}/void`, {
@@ -223,22 +234,25 @@ export function ExpenseDirectory() {
               Aynı isteği tekrar dene
             </Button>
           )}
-          <Button type="button" variant="outline" disabled={loading} onClick={() => void load()}>
-            Yeniden dene
-          </Button>
+          {loadFailed && (
+            <Button type="button" variant="outline" disabled={loading} onClick={() => void load()}>
+              Yeniden dene
+            </Button>
+          )}
         </div>
       )}
-      {!error && (
+      {!loadFailed && (
         <>
           <Card>
             <CardContent className="grid gap-4 p-5">
               <h2 className="text-lg font-semibold">Gider kaydı</h2>
               {properties.length ? (
                 <>
-                <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={submit}>
+                <form ref={formRef} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={submit}>
                   <label className="grid gap-1 text-sm">
                     Mülk
-                    <select name="propertyId" required className="h-10 rounded border bg-background px-3">
+                    <select name="propertyId" required value={selectedPropertyId} onChange={(e) => setFormPropertyId(e.target.value)}
+                      className="h-10 rounded border bg-background px-3">
                       {properties.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name}
@@ -250,7 +264,7 @@ export function ExpenseDirectory() {
                     Bağımsız bölüm
                     <select name="unitId" className="h-10 rounded border bg-background px-3">
                       <option value="">Mülk geneli</option>
-                      {units.map((u) => (
+                      {units.filter((u) => u.propertyId === selectedPropertyId).map((u) => (
                         <option key={u.id} value={u.id}>
                           {u.label}
                         </option>
@@ -311,9 +325,25 @@ export function ExpenseDirectory() {
           </Card>
           <Card>
             <CardContent className="grid gap-4 p-5">
-              <div className="flex flex-wrap items-end justify-between gap-3">
+              <div className="grid gap-3">
                 <h2 className="text-lg font-semibold">Gider kayıtları</h2>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  <label className="grid gap-1 text-sm">
+                    Mülk filtresi
+                    <select value={filters.propertyId} onChange={(e) => setFilters((x) => ({ ...x, propertyId: e.target.value }))}
+                      className="h-10 rounded border bg-background px-3">
+                      <option value="">Tüm mülkler</option>
+                      {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-sm">
+                    Kategori filtresi
+                    <select value={filters.category} onChange={(e) => setFilters((x) => ({ ...x, category: e.target.value }))}
+                      className="h-10 rounded border bg-background px-3">
+                      <option value="">Tüm kategoriler</option>
+                      {Object.entries(labels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </label>
                   <label className="grid gap-1 text-sm">
                     Başlangıç
                     <input
@@ -346,13 +376,22 @@ export function ExpenseDirectory() {
                       className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"
                     >
                       <div>
-                        <h3 className="font-medium">
-                          {labels[x.category]} · {money(x.amount)}
-                        </h3>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-medium">
+                            {labels[x.category]} · {money(x.amount)}
+                          </h3>
+                          <span className={`status-pill ${x.status === "VOIDED" ? "late" : x.paidOn ? "paid" : "partial"}`}>
+                            {x.status === "VOIDED" ? "İptal" : x.paidOn ? "Ödendi" : "Ödenmedi"}
+                          </span>
+                        </div>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {properties.find((p) => p.id === x.propertyId)?.name ?? "Mülk"} · {x.expenseOn}
-                          {x.paidOn ? ` · Ödendi ${x.paidOn}` : " · Ödenmedi"} ·{" "}
-                          {x.status === "VOIDED" ? "İptal edildi" : "Kaydedildi"}
+                          {[
+                            properties.find((p) => p.id === x.propertyId)?.name ?? "Mülk",
+                            x.unitId ? units.find((u) => u.id === x.unitId)?.label : "",
+                            `Gider tarihi ${formatDate(x.expenseOn)}`,
+                            x.paidOn ? `Ödeme ${formatDate(x.paidOn)}` : "",
+                            x.note,
+                          ].filter(Boolean).join(" · ")}
                         </p>
                         {x.voidReason && (
                           <p className="text-sm text-muted-foreground">Gerekçe: {x.voidReason}</p>
@@ -373,7 +412,7 @@ export function ExpenseDirectory() {
                 </ul>
               ) : (
                 <p className="py-8 text-center text-sm text-muted-foreground">
-                  Gider kaydı yok.
+                  {filters.fromDate || filters.toDate || filters.category || filters.propertyId ? "Filtreye uyan gider yok." : "Gider kaydı yok."}
                 </p>
               )}
               {moreExpenses && <Button type="button" variant="outline" disabled={loadingMore}
@@ -382,6 +421,7 @@ export function ExpenseDirectory() {
           </Card>
         </>
       )}
+      {dialog}
     </section>
   );
 }

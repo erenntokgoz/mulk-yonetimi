@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { fileKind, formatDate, formatFileSize } from "@/lib/format";
 
 type Document = components["schemas"]["DocumentResponse"];
 type DocumentPage = components["schemas"]["DocumentPage"];
@@ -17,13 +19,13 @@ const acceptedTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 function uploadError(status: number, stage: "intent" | "upload" | "complete") {
   if (status === 401) return "Dosya yüklemek için giriş yapın.";
   if (status === 503 && stage === "intent")
-    return "Dosya depolama hizmeti kullanılamıyor. R2 ayarları yapılandırılana kadar yükleme başlayamaz.";
+    return "Dosya depolama hizmeti kullanılamıyor. Daha sonra yeniden deneyin.";
   if (status === 503 && stage === "complete")
-    return "Belge doğrulanamadı. R2 depolama veya zararlı dosya tarama hizmeti kullanılamıyor; etkin belge oluşturulmadı.";
+    return "Belge doğrulanamadı; dosya tarama hizmeti şu anda kullanılamıyor. Belge kaydedilmedi.";
   if (status === 422) return "Dosya güvenlik taramasından geçmedi ve etkinleştirilmedi.";
   if (status === 410) return "Yükleme süresi doldu. Dosyayı yeniden seçip deneyin.";
   if (stage === "upload")
-    return "Dosya depolama alanına yüklenemedi. CORS ve bağlantı ayarlarını kontrol edin.";
+    return "Dosya yüklenemedi. Bağlantınızı kontrol edip yeniden deneyin.";
   return "Belge yüklenemedi. Yeniden deneyin.";
 }
 
@@ -43,6 +45,7 @@ export function DocumentLibrary() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const { ask, dialog } = useConfirmDialog();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -184,7 +187,7 @@ export function DocumentLibrary() {
       if (!response.ok)
         throw new Error(
           response.status === 503
-            ? "İndirme hizmeti kullanılamıyor. R2 depolama ayarlarını kontrol edin."
+            ? "İndirme hizmeti şu anda kullanılamıyor. Daha sonra yeniden deneyin."
             : response.status === 401
               ? "Belge indirmek için giriş yapın."
               : "İndirme bağlantısı alınamadı.",
@@ -200,7 +203,7 @@ export function DocumentLibrary() {
   }
 
   async function remove(document: Document) {
-    if (!window.confirm(`${document.originalName} belgesini kaldırmak istiyor musunuz?`)) return;
+    if ((await ask({ title: `“${document.originalName}” kaldırılsın mı?`, description: "Belge listeden kaldırılır ve indirilemez.", confirmLabel: "Belgeyi kaldır", destructive: true })) === null) return;
     setBusy(true);
     setError("");
     try {
@@ -321,7 +324,7 @@ export function DocumentLibrary() {
                           <p className="mt-1 text-sm text-muted-foreground">
                             {properties.find((property) => property.id === document.propertyId)?.name ??
                               "Mülk"}{" "}
-                            · {document.contentType} · {Math.ceil(Number(document.sizeBytes) / 1024)} KiB
+                            · {fileKind(document.contentType)} · {formatFileSize(document.sizeBytes)} · {formatDate(document.createdAtUtc)}
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -357,6 +360,7 @@ export function DocumentLibrary() {
           </>
         )
       )}
+      {dialog}
     </section>
   );
 }

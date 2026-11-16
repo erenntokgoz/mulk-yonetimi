@@ -1,9 +1,10 @@
 "use client";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { components } from "@/lib/api/generated";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type Tenant = components["schemas"]["TenantResponse"];
 type TenantPage = components["schemas"]["TenantPage"];
@@ -26,6 +27,12 @@ export function TenantDirectory() {
   const [kind, setKind] = useState<components["schemas"]["TenantKind"]>("PERSON");
   const [pending, setPending] = useState(false);
   const [conflict, setConflict] = useState(false);
+  const [searched, setSearched] = useState("");
+  const formRef = useRef<HTMLDivElement>(null);
+  const { ask, dialog } = useConfirmDialog();
+  useEffect(() => {
+    if (open) formRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [open, editing]);
 
   const load = useCallback(async (search: string, archived: boolean, requestedPage = 1) => {
     setLoading(true);
@@ -39,6 +46,7 @@ export function TenantDirectory() {
         );
       const page = (await response.json()) as TenantPage;
       setItems((current) => requestedPage === 1 ? page.items : [...current, ...page.items]);
+      setSearched(search.trim());
       setCurrentPage(requestedPage);
       setHasMore(page.hasMore);
       setError("");
@@ -90,7 +98,7 @@ export function TenantDirectory() {
     }
   }
   async function archive(tenant: Tenant) {
-    if (!window.confirm(`“${displayName(tenant)}” arşivlensin mi?`)) return;
+    if ((await ask({ title: `“${displayName(tenant)}” arşivlensin mi?`, description: "Arşivlenen kiracı yeni sözleşme ve tahsilatta seçilemez; geçmiş kayıtları korunur.", confirmLabel: "Arşivle" })) === null) return;
     setPending(true);
     setError("");
     try {
@@ -185,9 +193,10 @@ export function TenantDirectory() {
         </div>
       )}
       {open && (
-        <Card>
+        <Card ref={formRef}>
           <CardContent className="pt-6">
-            <form onSubmit={save} className="grid gap-4 sm:grid-cols-2">
+            <form key={editing?.id ?? "new"} onSubmit={save} className="grid gap-4 sm:grid-cols-2">
+              <h2 className="text-lg font-semibold sm:col-span-2">{editing ? `${displayName(editing)} · düzenle` : "Yeni kiracı"}</h2>
               <label className="grid gap-2 text-sm font-medium">
                 Kiracı türü
                 <select
@@ -200,6 +209,7 @@ export function TenantDirectory() {
                   <option value="COMPANY">Şirket</option>
                 </select>
               </label>
+              {kind === "PERSON" ? (<>
               <label className="grid gap-2 text-sm font-medium">
                 Ad
                 <input
@@ -220,16 +230,18 @@ export function TenantDirectory() {
                   className="h-11 rounded-md border bg-background px-3"
                 />
               </label>
+              </>) : (
               <label className="grid gap-2 text-sm font-medium">
                 Şirket unvanı
                 <input
                   name="companyName"
                   defaultValue={editing?.companyName ?? ""}
-                  required={kind === "COMPANY"}
+                  required
                   maxLength={200}
                   className="h-11 rounded-md border bg-background px-3"
                 />
               </label>
+              )}
               <label className="grid gap-2 text-sm font-medium">
                 Telefon
                 <input
@@ -277,10 +289,10 @@ export function TenantDirectory() {
             <ListSkeleton label="Kiracılar yükleniyor…" />
           </CardContent>
         </Card>
-      ) : items.length === 0 ? (
+      ) : error && !items.length ? null : items.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <h2 className="font-medium">Kiracı kaydı bulunamadı</h2>
+            <h2 className="font-medium">{searched ? `“${searched}” ile eşleşen kiracı yok` : includeArchived ? "Kiracı kaydı yok" : "Henüz kiracı kaydı yok"}</h2>
           </CardContent>
         </Card>
       ) : (
@@ -298,7 +310,7 @@ export function TenantDirectory() {
                     <span className="mt-2 inline-block rounded border px-2 py-1 text-xs">Arşivlendi</span>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -330,6 +342,7 @@ export function TenantDirectory() {
           ))}
         </div>
       )}
+      {dialog}
       {hasMore && <Button type="button" variant="outline" disabled={loading}
         onClick={() => void load(query, includeArchived, currentPage + 1)}>Diğer kiracıları yükle</Button>}
     </section>
