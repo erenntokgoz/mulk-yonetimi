@@ -5,14 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PasswordInput } from "@/components/password-input";
 import { AuthShell } from "@/components/auth-shell";
-import { ErrorNote, Field, GoogleButton, SubmitButton } from "@/components/auth-ui";
+import { ErrorNote, Field, GoogleButton, GoogleSignInError, SubmitButton } from "@/components/auth-ui";
+import { loginMessages, loginStatusMessage } from "@/lib/login-messages";
+import { safeNextPath } from "@/lib/safe-next-path";
 import { setSessionState } from "@/lib/session-client";
 import styles from "@/components/auth-shell.module.css";
-
-function safeNextPath(next: string | null) {
-  // Only same-origin paths; rejects "//host" and "/\host" open redirects.
-  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/panel";
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,24 +28,14 @@ export default function LoginPage() {
         body: JSON.stringify({ email: data.get("email"), password: data.get("password") }),
       });
       if (!response.ok) {
-        setError(
-          response.status === 401
-            ? "E-posta veya parola hatalı."
-            : response.status === 403
-              ? "Hesap erişimi kullanılamıyor. E-posta doğrulamasını ve hesap durumunu kontrol edin."
-              : response.status === 423
-                ? "Hesabınız pilot onayı bekliyor. Onaylandıktan sonra giriş yapabilirsiniz."
-              : response.status === 429
-                ? "Çok fazla deneme. Bir dakika sonra tekrar deneyin."
-                : "Giriş yapılamadı. Daha sonra tekrar deneyin.",
-        );
+        setError(loginStatusMessage(response.status));
         return;
       }
       setSessionState(true);
       router.push(safeNextPath(new URLSearchParams(window.location.search).get("next")));
       router.refresh();
     } catch {
-      setError("Bağlantı kurulamadı. Daha sonra tekrar deneyin.");
+      setError(loginMessages.offline);
     } finally {
       setBusy(false);
     }
@@ -72,7 +59,7 @@ export default function LoginPage() {
           </div>
           <PasswordInput id="giris-parola" name="password" autoComplete="current-password" required />
         </div>
-        {error && <ErrorNote>{error}</ErrorNote>}
+        {error ? <ErrorNote>{error}</ErrorNote> : <GoogleSignInError />}
         <SubmitButton busy={busy}>{busy ? "Giriş yapılıyor…" : "Giriş yap"}</SubmitButton>
         <GoogleButton />
       </form>
